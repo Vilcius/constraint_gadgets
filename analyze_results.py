@@ -131,23 +131,47 @@ def plot_single_constraint_ar(df: pd.DataFrame, problem: str, hue='b', qubo: boo
     dff['constraints'] = dff['constraints'].map(tuple)
     fig = plt.figure(figsize=(15, 8))
     if qubo:
-        ax = sns.boxplot(data=dff, x='n_x', y='AR', hue=hue, palette=colors)
+        ax = sns.boxplot(data=dff, x='n_x', y='AR', hue=hue, palette=colors, capprops=dict(color='#e0def4'), whis=(0, 100), whiskerprops=dict(color='#e0def4'), flierprops=dict(markerfacecolor='#e0def4', markeredgecolor='#e0def4'))
     else:
-        ax = sns.boxplot(data=dff, x='n_x', y='AR', hue=hue, palette=colors, fill=False, linewidth=5)
+        ax = sns.boxplot(data=dff, x='n_x', y='AR', hue=hue, palette=colors, fill=False, linewidth=5, capprops=dict(color='#e0def4'), whis=(0, 100), whiskerprops=dict(color='#e0def4'), flierprops=dict(markerfacecolor='#e0def4', markeredgecolor='#e0def4'))
 
     if moon:
         plt.background = 'black'
-        plt.xlabel('Number of variables: '+r'$n_x$', size=18)
-        plt.ylabel('AR', size=18)
-        plt.tick_params(axis='both', labelsize=18)
-        plt.xticks([1, 2, 3, 4, 5])
-        plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1), frameon=True, prop={'size': 12}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$')  # , title='Number of Constraints/Layers')
-        plt.title(f'{problem.capitalize()} Constraint Gadget vs AR', size=20)
+        plt.xlabel('Number of variables: '+r'$n_x$', size=24)
+        plt.ylabel('AR', size=24)
+        plt.xticks([0, 1, 2, 3, 4, 5])
+        plt.tick_params(axis='both', labelsize=24)
+        if qubo:
+            # Build custom legend for hatch + color
+            # legend_handles = []
+            # seen = set()
+            # for g in group_labels:
+            #     hue = g.split('_')[0]
+            #     layer = g.split('L')[1]
+            #     label = r"$b=$" + f"{hue}"+r", $p=$" + f"{layer}"
+            #     if label not in seen:
+            #         legend_handles.append(Patch(facecolor=group_colors[g],
+            #                                     hatch=group_to_hatch[g],
+            #                                     edgecolor='black',
+            #                                     label=label))
+            #         seen.add(label)
+            plt.title(f'QCBOs with {problem.capitalize()} Constraints vs Approximation Ratio', size=24)
+            # plt.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 16}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=18)  # , title='Number of Constraints/Layers')
+            plt.legend(loc='upper right', bbox_to_anchor=(1.05, 1), frameon=True, prop={'size': 20}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=24)  # , title='Number of Constraints/Layers')
+        else:
+            plt.title(f'{problem.capitalize()} Constraints vs Approximation Ratio', size=24)
+            plt.legend(loc='upper right', bbox_to_anchor=(1.0, 1), frameon=True, prop={'size': 20}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=24)  # , title='Number of Constraints/Layers')
         plt.tight_layout()
         if save:
-            plt.savefig(f'{plots_dir}{problem}_AR_vs_n_x_moon.png')
+            if file is not None:
+                plt.savefig(f'{plots_dir}{file}_AR_moon.png')
+            elif qubo:
+                plt.savefig(f'{plots_dir}{problem}_qubo_AR_moon.png')
+            else:
+                plt.savefig(f'{plots_dir}{problem}_AR_moon.png')
         plt.show()
         plt.close()
+
     else:
         plt.background = 'white'
         plt.xlabel('Number of variables: '+r'$n_x$', size=20)
@@ -220,29 +244,48 @@ def plot_single_constraint_prob_opt(df: pd.DataFrame, problem: str, hue='b', qub
     dff['constraints'] = dff['constraints'].map(tuple)
     fig = plt.figure(figsize=(15, 8))
     if qubo:
-        ax = sns.boxplot(data=dff, x='n_x', y='prob_opt', hue=hue, palette=colors)
+        ax = sns.boxplot(data=dff, x='n_x', y='prob_opt', hue=hue, palette=colors, capprops=dict(color='#e0def4'), whis=(0, 100), whiskerprops=dict(color='#e0def4'), flierprops=dict(markerfacecolor='#e0def4', markeredgecolor='#e0def4'))
     else:
-        ax = sns.boxplot(data=dff, x='n_x', y='prob_opt', hue=hue, palette=colors, fill=False, linewidth=5)
+        ax = sns.boxplot(data=dff, x='n_x', y='prob_opt', hue=hue, palette=colors, fill=False, linewidth=5, capprops=dict(color='#e0def4'), whis=(0, 100), whiskerprops=dict(color='#e0def4'), flierprops=dict(markerfacecolor='#e0def4', markeredgecolor='#e0def4'))
 
     if moon:
         plt.background = 'black'
-        plt.xlabel('Number of variables: '+r'$n_x$', size=18)
-        plt.ylabel('AR', size=18)
-        plt.xticks([1, 2, 3, 4, 5])
-        plt.tick_params(axis='both', labelsize=18)
-        plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1), frameon=True, prop={'size': 12}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$')
+        plt.xlabel('Number of variables: '+r'$n_x$', size=24)
+        plt.ylabel('Probability of Optimal Solution', size=24)
+        plt.xticks([0, 1, 2, 3, 4, 5])
+        plt.tick_params(axis='both', labelsize=24)
         if qubo:
-            plt.title(f'QCBOs with {problem.capitalize()} Constraints vs Probability of Optimal Solution', size=20)
+            # Build custom legend for hatch + color
+            # legend_handles = []
+            # seen = set()
+            # for g in group_labels:
+            #     hue = g.split('_')[0]
+            #     layer = g.split('L')[1]
+            #     label = r"$b=$" + f"{hue}"+r", $p=$" + f"{layer}"
+            #     if label not in seen:
+            #         legend_handles.append(Patch(facecolor=group_colors[g],
+            #                                     hatch=group_to_hatch[g],
+            #                                     edgecolor='black',
+            #                                     label=label))
+            #         seen.add(label)
+            plt.title(f'QCBOs with {problem.capitalize()} Constraints vs Probability of Optimal Solution', size=24)
+            # plt.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 16}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=18)  # , title='Number of Constraints/Layers')
+            plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 20}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=24)  # , title='Number of Constraints/Layers')
         else:
-            plt.title(f'{problem.capitalize()} Constraints vs Probability of Optimal Solution', size=20)
+            plt.title(f'{problem.capitalize()} Constraints vs Probability of Optimal Solution', size=24)
+            plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 20}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=24)  # , title='Number of Constraints/Layers')
         plt.tight_layout()
         if save:
-            if qubo:
+            if file is not None:
+                plt.savefig(f'{plots_dir}{file}_prob_opt_moon.png')
+            elif qubo:
                 plt.savefig(f'{plots_dir}{problem}_qubo_prob_opt_vs_n_x_moon.png')
             else:
                 plt.savefig(f'{plots_dir}{problem}_prob_opt_vs_n_x_moon.png')
+
         plt.show()
         plt.close()
+
     else:
         plt.background = 'white'
         plt.xlabel('Number of variables: '+r'$n_x$', size=20)
@@ -390,10 +433,10 @@ def plot_single_constraint_counts(df: pd.DataFrame, constraint: list[str], probl
 
 qubo_df = qubo_df[qubo_df['n_layers'] == 1]
 for problem in ['equals', 'leq', 'geq']:
-    plot_single_constraint_ar(state_df, problem, hue='b', qubo=False, moon=False, confident=False, save=True)
-    plot_single_constraint_ar(qubo_df, problem, hue='b', qubo=True, moon=False, confident=False, save=True)
-    plot_single_constraint_prob_opt(state_df, problem, hue='b', qubo=False, moon=False, confident=False, save=True)
-    plot_single_constraint_prob_opt(qubo_df, problem, hue='b', qubo=True, moon=False, confident=False, save=True)
+    plot_single_constraint_ar(state_df, problem, hue='b', qubo=False, moon=True, confident=False, save=True)
+    plot_single_constraint_ar(qubo_df, problem, hue='b', qubo=True, moon=True, confident=False, save=True)
+    plot_single_constraint_prob_opt(state_df, problem, hue='b', qubo=False, moon=True, confident=False, save=True)
+    plot_single_constraint_prob_opt(qubo_df, problem, hue='b', qubo=True, moon=True, confident=False, save=True)
 
 #|%%--%%| <4ADDj0liE4|O4Et9M9NAy>
 r"""°°°
@@ -509,31 +552,51 @@ def plot_two_constraint_prob_opt(df: pd.DataFrame, hue='single_flag', qubo: bool
 
     fig = plt.figure(figsize=(15, 8))
     if qubo:
-        ax = sns.boxplot(data=dff, x='support', y='prob_opt', hue='group', palette=group_colors)
+        ax = sns.boxplot(data=dff, x='support', y='prob_opt', hue='group', palette=group_colors, whiskerprops=dict(color='#e0def4'), capprops=dict(color='#e0def4'), flierprops=dict(markerfacecolor='#e0def4', markeredgecolor='#e0def4'))
         for bar, hatch in zip(ax.patches, hatches):
             bar.set_hatch(hatch)
             plt.draw()
     else:
-        ax = sns.boxplot(data=dff, x='support', y='prob_opt', hue=hue, palette=colors)
+        ax = sns.boxplot(data=dff, x='support', y='prob_opt', hue=hue, palette=colors, whiskerprops=dict(color='#e0def4'), capprops=dict(color='#e0def4'), flierprops=dict(markerfacecolor='#e0def4', markeredgecolor='#e0def4'))
     if moon:
         plt.background = 'black'
-        plt.xlabel('Support of the Constraints', size=18)
-        plt.ylabel('Probability of Optimal', size=18)
-        plt.xticks([1, 2, 3])
-        plt.tick_params(axis='both', labelsize=18)
-        plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1), frameon=True, prop={'size': 12})  # , title=)  # , title='Number of Constraints/Layers')
+        plt.xlabel('Support of the Constraints', size=24)
+        plt.ylabel('Probability of Optimal', size=24)
+        plt.xticks(ticks=[0, 1, 2, 3])
+        plt.tick_params(axis='both', labelsize=24)
+
         if qubo:
-            plt.title('QCBOs with Two Overlapping Constraints vs Probability of Optimal Solution', size=20)
+            # Build custom legend for hatch + color
+            legend_handles = []
+            seen = set()
+            for g in group_labels:
+                hue = g.split('_')[0]
+                layer = g.split('L')[1]
+                label = f"{hue}"+r", $p=$" + f"{layer}"
+                if label not in seen:
+                    legend_handles.append(Patch(facecolor=group_colors[g],
+                                                hatch=group_to_hatch[g],
+                                                edgecolor='black',
+                                                label=label))
+                    seen.add(label)
+
+            ax.legend(handles=legend_handles, title=r'(Single Flag, $p$ layers)', bbox_to_anchor=(.85, 1), loc='upper left', prop={'size': 20}, title_fontsize=18)
+            plt.title('QCBOs with Two Overlapping Constraints vs Probability of Optimal Solution', size=24)
         else:
-            plt.title('Two Overlapping Constraints vs Probability of Optimal Solution', size=20)
+            plt.legend(loc='upper right', bbox_to_anchor=(.95, 1), frameon=True, prop={'size': 20}, title='Use of Single\nFlag Qubit', title_fontsize=18)
+            plt.title('Two Overlapping Constraints vs Probability of Optimal Solution', size=24)
         plt.tight_layout()
         if save:
-            if qubo:
-                plt.savefig(f'{plots_dir}{hue}_qubo_prob_opt_vs_n_x_moon.png')
+            if file is not None:
+                plt.savefig(f'{plots_dir}{file}_prob_opt_moon.png')
+            elif qubo:
+                plt.savefig(f'{plots_dir}two_qubo_vs_support_prob_opt_moon.png')
             else:
-                plt.savefig(f'{plots_dir}{hue}_prob_opt_vs_n_x_moon.png')
+                plt.savefig(f'{plots_dir}two_constr_vs_support_prob_opt_moon.png')
+
         plt.show()
         plt.close()
+
     else:
         plt.background = 'white'
         plt.xlabel('Support of the Constraints', size=18)
@@ -613,31 +676,50 @@ def plot_two_constraint_ar(df: pd.DataFrame, hue='single_flag', qubo: bool = Fal
 
     fig = plt.figure(figsize=(15, 8))
     if qubo:
-        ax = sns.boxplot(data=dff, x='support', y='AR', hue='group', palette=group_colors)
+        ax = sns.boxplot(data=dff, x='support', y='AR', hue='group', palette=group_colors, whiskerprops=dict(color='#e0def4'), capprops=dict(color='#e0def4'), flierprops=dict(markerfacecolor='#e0def4', markeredgecolor='#e0def4'))
         for bar, hatch in zip(ax.patches, hatches):
             bar.set_hatch(hatch)
             plt.draw()
     else:
-        ax = sns.boxplot(data=dff, x='support', y='AR', hue=hue, palette=colors)
+        ax = sns.boxplot(data=dff, x='support', y='AR', hue=hue, palette=colors, whiskerprops=dict(color='#e0def4'), capprops=dict(color='#e0def4'), flierprops=dict(markerfacecolor='#e0def4', markeredgecolor='#e0def4'))
     if moon:
         plt.background = 'black'
-        plt.xlabel('Support of the Constraints', size=18)
-        plt.ylabel('AR', size=18)
-        plt.xticks([1, 2, 3])
-        plt.tick_params(axis='both', labelsize=18)
-        plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1), frameon=True, prop={'size': 12})
+        plt.xlabel('Support of the Constraints', size=24)
+        plt.ylabel('AR', size=24)
+        plt.xticks(ticks=[0, 1, 2, 3])
+        plt.tick_params(axis='both', labelsize=24)
+
         if qubo:
-            plt.title('QCBOs with Two Overlapping Constraints vs AR', size=20)
+            # Build custom legend for hatch + color
+            legend_handles = []
+            seen = set()
+            for g in group_labels:
+                hue = g.split('_')[0]
+                layer = g.split('L')[1]
+                label = f"{hue}"+r", $p=$" + f"{layer}"
+                if label not in seen:
+                    legend_handles.append(Patch(facecolor=group_colors[g],
+                                                hatch=group_to_hatch[g],
+                                                edgecolor='black',
+                                                label=label))
+                    seen.add(label)
+
+            ax.legend(handles=legend_handles, title=r'(Single Flag, $p$ layers)', bbox_to_anchor=(.85, 1), loc='upper left', prop={'size': 20}, title_fontsize=18)
+            plt.title('QCBOs with Two Overlapping Constraints vs Approximation Ratio', size=24)
         else:
-            plt.title('Two Overlapping Constraints vs AR', size=20)
+            plt.legend(loc='upper right', bbox_to_anchor=(1.02, 1), frameon=True, prop={'size': 20}, title='Use of Single\nFlag Qubit', title_fontsize=18)
+            plt.title('Two Overlapping Constraints vs Approximation Ratio', size=24)
         plt.tight_layout()
         if save:
-            if qubo:
-                plt.savefig(f'{plots_dir}{hue}_qubo_AR_vs_n_x_moon.png')
+            if file is not None:
+                plt.savefig(f'{plots_dir}{file}_AR_moon.png')
+            elif qubo:
+                plt.savefig(f'{plots_dir}two_qubo_vs_support_AR_moon.png')
             else:
-                plt.savefig(f'{plots_dir}{hue}_AR_vs_n_x_moon.png')
+                plt.savefig(f'{plots_dir}two_constr_vs_support_AR_moon.png')
         plt.show()
         plt.close()
+
     else:
         plt.background = 'white'
         plt.xlabel('Support of the Constraints', size=18)
@@ -681,10 +763,10 @@ def plot_two_constraint_ar(df: pd.DataFrame, hue='single_flag', qubo: bool = Fal
         plt.close()
 
 
-plot_two_constraint_prob_opt(two_state_df, hue='single_flag', qubo=False, moon=False, confident=False, save=True)
-plot_two_constraint_ar(two_state_df, hue='single_flag', qubo=False, moon=False, confident=False, save=True)
-plot_two_constraint_prob_opt(two_qubo_df, hue='single_flag', qubo=True, moon=False, confident=False, save=True)
-plot_two_constraint_ar(two_qubo_df, hue='single_flag', qubo=True, moon=False, confident=True, save=True)
+plot_two_constraint_prob_opt(two_state_df, hue='single_flag', qubo=False, moon=True, confident=False, save=True)
+plot_two_constraint_ar(two_state_df, hue='single_flag', qubo=False, moon=True, confident=False, save=True)
+plot_two_constraint_prob_opt(two_qubo_df, hue='single_flag', qubo=True, moon=True, confident=False, save=True)
+plot_two_constraint_ar(two_qubo_df, hue='single_flag', qubo=True, moon=True, confident=True, save=True)
 
 #|%%--%%| <sFN4tWGzAb|2p6LZG66oa>
 r"""°°°

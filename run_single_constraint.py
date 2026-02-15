@@ -1,7 +1,7 @@
 import pennylane as qml
 from pennylane import numpy as np
 import pandas as pd
-import constraint_qaoa_server as cq
+import constraint_qaoa as cq
 import problem_qaoa as pq
 import make_data as data
 import argparse
