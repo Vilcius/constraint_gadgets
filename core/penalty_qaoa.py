@@ -14,8 +14,8 @@ from typing import Tuple, Optional
 import pennylane as qml
 from pennylane import numpy as np
 
-import qaoa_base as base
-import constraint_handler as ch
+from . import qaoa_base as base
+from . import constraint_handler as ch
 
 
 class PenaltyQAOA:

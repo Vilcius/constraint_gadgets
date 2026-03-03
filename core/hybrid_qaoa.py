@@ -46,10 +46,10 @@ import pennylane as qml
 from pennylane import numpy as np
 
 # Project modules
-import qaoa_base as base
-import constraint_handler as ch
-import dicke_state_prep as dsp
-import constraint_qaoa as cq
+from . import qaoa_base as base
+from . import constraint_handler as ch
+from . import dicke_state_prep as dsp
+from . import constraint_qaoa as cq
 
 
 class HybridQAOA:

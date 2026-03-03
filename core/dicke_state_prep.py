@@ -35,7 +35,7 @@ from typing import List, Optional
 import pennylane as qml
 from pennylane import numpy as np
 
-import qaoa_base as base
+from . import qaoa_base as base
 
 
 # ======================================================================

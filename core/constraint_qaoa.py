@@ -17,8 +17,8 @@ import pandas as pd
 import pennylane as qml
 from pennylane import numpy as np
 
-import qaoa_base as base
-import constraint_handler as ch
+from . import qaoa_base as base
+from . import constraint_handler as ch
 
 
 def _check_constraint_op(lhs_val: float, op: ch.ConstraintOp, rhs: float) -> bool:

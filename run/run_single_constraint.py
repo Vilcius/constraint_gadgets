@@ -1,9 +1,13 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pennylane as qml
 from pennylane import numpy as np
 import pandas as pd
-import constraint_qaoa as cq
-import problem_qaoa as pq
-import make_data as data
+from core import constraint_qaoa as cq
+from core import problem_qaoa as pq
+from analyze_results import make_data as data
 import argparse
 import warnings
 warnings.filterwarnings('ignore')
@@ -168,7 +172,7 @@ def run_cqaoa(max_n: int, op: str, result_dir='./results/', result_file='single_
                 df.to_pickle(f'{result_dir}{result_file}.pkl')
 
 
-def run_pqaoa(max_n: int, op: str, result_dir='./results/', result_file='qubo_single_constraint', n_layers=1, combined=False, overlap=False, single_flag=False, decompose=True, constraint_result_file='single_constraint') -> None:
+def run_pqaoa(max_n: int, op: str, result_dir='./results/', data_dir='./data/', result_file='qubo_single_constraint', n_layers=1, combined=False, overlap=False, single_flag=False, decompose=True, constraint_result_file='single_constraint') -> None:
     r"""
     Run ProblemQAOA for QUBOs with constraints of the form $\sum_{i=1}^n x_i \; op \; b$ for n in [1, max_n] and b in [0, n].
     Then writes results to pickle file.
@@ -176,6 +180,7 @@ def run_pqaoa(max_n: int, op: str, result_dir='./results/', result_file='qubo_si
         max_n (int): Maximum number of variables in the constraint.
         op (str): Operator for the constraint ('==', '>=', '<=', '<', '>').
         result_dir (str, optional): Directory to save results. Defaults to './results/'.
+        data_dir (str, optional): Directory for input data files. Defaults to './data/'.
         result_file (str, optional): Filename for saving results. Defaults to 'qubo_single_constraint'.
         n_layers (int, optional): Number of QAOA layers. Defaults to 1.
         combined (bool, optional): Whether to combine constraints. Defaults to False.
@@ -189,7 +194,7 @@ def run_pqaoa(max_n: int, op: str, result_dir='./results/', result_file='qubo_si
     df = pd.DataFrame(columns=['qubo_string', 'constraints', 'n_x', 'n_c', 'combined', 'constraint_penalty', 'overlap', 'overlap_vars', 'overlap_penalty', 'single_flag', 'decompose', 'outcomes', 'Hamiltonian', 'angle_strategy', 'n_layers', 'num_gamma', 'num_beta', 'opt_angles', 'opt_cost', 'counts', 'resources', 'est_shots', 'est_error', 'group_est_shots', 'group_est_error', 'optimize_time', 'hamiltonian_time', 'counts_time', 'C_max', 'C_min', 'AR'])
     df.to_pickle(f'{result_dir}{result_file}.pkl')
 
-    qubos = data.read_qubos_from_file('qubos.csv', results_dir=result_dir)
+    qubos = data.read_qubos_from_file('qubos.csv', results_dir=data_dir)
 
     qubo_opt_x = {}
     angle_strats = ['ma-QAOA']
@@ -244,15 +249,16 @@ if __name__ == "__main__":
     parser.add_argument('--max_n', type=int, default=5, help='Maximum number of variables')
     parser.add_argument('--op', type=str, default='equals', help='Operator for the constraint')
     parser.add_argument('--results_dir', type=str, default='./results/', help='Directory to save results')
+    parser.add_argument('--data_dir', type=str, default='./data/', help='Directory for input data files')
     parser.add_argument('--corp', type=str, default='constraint', help='Whether to make the constraint gadget or solve the qcbo problem')
     parser.add_argument('--n_layers', type=int, default=1, help='Number of layers for QAOA')
     args = parser.parse_args()
     ops = {'equals': '==', 'geq': '>=', 'leq': '<=', 'less': '<', 'greater': '>'}
 
     if args.corp == 'constraint':
-        run_cqaoa(args.max_n, ops[args.op], result_dir='./results/', result_file=f'single_constraint_{args.op}')
+        run_cqaoa(args.max_n, ops[args.op], result_dir=args.results_dir, result_file=f'single_constraint_{args.op}')
     elif args.corp == 'problem':
-        run_pqaoa(args.max_n, ops[args.op], result_dir='./results/', result_file=f'qubo_single_constraint_{args.op}_{args.n_layers}', n_layers=args.n_layers, combined=False, overlap=False, single_flag=False, decompose=True, constraint_result_file=f'single_constraint_{args.op}')
+        run_pqaoa(args.max_n, ops[args.op], result_dir=args.results_dir, data_dir=args.data_dir, result_file=f'qubo_single_constraint_{args.op}_{args.n_layers}', n_layers=args.n_layers, combined=False, overlap=False, single_flag=False, decompose=True, constraint_result_file=f'single_constraint_{args.op}')
     else:
         raise ValueError('Invalid value for --corp. Must be "constraint" or "problem".')
 
