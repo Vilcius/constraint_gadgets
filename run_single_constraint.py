@@ -117,8 +117,9 @@ def collect_pqaoa_data(constraints: list, pqaoa: pq.ProblemQAOA, qubo_string: st
         'C_max': [C_max],
         'C_min': [C_min],
         'min_val': [min_val],
-        'AR': [(opt_cost-C_max)/(min_val-C_max)],
-        'optimal_x': [pqaoa.optimal_x],
+        # 'AR': [(opt_cost-C_max)/(min_val-C_max)],
+        'AR': [(opt_cost-C_max)/(C_min-C_max)],
+        # 'optimal_x': [pqaoa.optimal_x],
     }
     return pqaoa_dataset
 
