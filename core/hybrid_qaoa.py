@@ -143,37 +143,46 @@ class HybridQAOA:
         self.x_wires = list(range(self.n_x))
 
         # ============================================================
-        # 1. Build structural components (Dicke or Gadget)
+        # 1. Build structural components (Dicke, Flow, or VCG gadget)
         # ============================================================
         self.dicke_preps: List[dsp.DickeStatePrep] = []
+        self.flow_preps: List[dsp.FlowStatePrep] = []
         self.gadget_preps: List[vcg.VCG] = []
         self.flag_wires: List[int] = []
 
-        # Separate Dicke-compatible from gadget-needed
+        # Partition structural indices by type
         dicke_idxs = [i for i in structural_indices
                       if ch.is_dicke_compatible(all_constraints[i])]
+        flow_idxs = [i for i in structural_indices
+                     if ch.is_flow_compatible(all_constraints[i])]
         gadget_idxs = [i for i in structural_indices
-                       if not ch.is_dicke_compatible(all_constraints[i])]
+                       if not ch.is_dicke_compatible(all_constraints[i])
+                       and not ch.is_flow_compatible(all_constraints[i])]
 
-        # Build Dicke state preps (no flags needed)
+        # Dicke state preps (no flags, exact)
         for idx in dicke_idxs:
             pc = all_constraints[idx]
             prep = dsp.from_parsed_constraint(pc, mixer_type=dicke_mixer_type)
             self.dicke_preps.append(prep)
 
-        # Build VCG gadgets (need flag qubits)
-        if gadget_idxs:
-            gadget_constraints = [all_constraints[i].raw for i in gadget_idxs]
-            n_flags = len(gadget_constraints) if not single_flag else 1
-            flag_start = self.n_x
-            gadget_flag_wires = list(range(flag_start, flag_start + n_flags))
+        # Flow state preps (no flags, Bell-pair + Ring-XY mixer)
+        for idx in flow_idxs:
+            pc = all_constraints[idx]
+            prep = dsp.from_flow_constraint(pc, mixer_type=dicke_mixer_type)
+            self.flow_preps.append(prep)
 
+        # One VCG gadget per structural non-Dicke/non-Flow constraint
+        flag_start = self.n_x
+        for idx in gadget_idxs:
+            pc = all_constraints[idx]
+            flag_wire = flag_start
+            flag_start += 1
             gadget = vcg.VCG(
-                constraints=gadget_constraints,
-                flag_wires=gadget_flag_wires,
+                constraints=[pc.raw],
+                flag_wires=[flag_wire],
                 angle_strategy=cqaoa_angle_strategy,
                 decompose=decompose,
-                single_flag=single_flag,
+                single_flag=False,
                 n_layers=cqaoa_n_layers,
                 steps=cqaoa_steps,
                 num_restarts=cqaoa_num_restarts,
@@ -183,10 +192,10 @@ class HybridQAOA:
             if not pre_made:
                 gadget.optimize_angles(gadget.do_evolution_circuit)
             self.gadget_preps.append(gadget)
-            self.flag_wires = gadget_flag_wires
+            self.flag_wires.append(flag_wire)
 
         # Unified state_prep list (all objects with opt_circuit())
-        self.state_prep = self.dicke_preps + self.gadget_preps
+        self.state_prep = self.dicke_preps + self.flow_preps + self.gadget_preps
 
         # --- flag penalty weights ---
         if self.flag_wires:
@@ -241,12 +250,14 @@ class HybridQAOA:
         if self.mixer == "X-Mixer":
             self.num_beta = len(self.all_wires)
         elif self.mixer in ("XY", "Ring-XY"):
-            # One beta per Dicke group + one per remaining wire
-            dicke_wire_set = set()
+            # One beta per Dicke group + one per Flow group + one per remaining wire
+            structured_wire_set = set()
             for d in self.dicke_preps:
-                dicke_wire_set.update(d.var_wires)
-            self.num_beta = len(self.dicke_preps) + (
-                len(self.all_wires) - len(dicke_wire_set)
+                structured_wire_set.update(d.var_wires)
+            for f in self.flow_preps:
+                structured_wire_set.update(f.var_wires)
+            self.num_beta = len(self.dicke_preps) + len(self.flow_preps) + (
+                len(self.all_wires) - len(structured_wire_set)
             )
         else:  # Grover
             self.num_beta = 1
@@ -371,23 +382,27 @@ class HybridQAOA:
 
     def _apply_hybrid_xy_mixer(self, beta_row: np.ndarray) -> None:
         """
-        Apply a hybrid mixer: XY on Dicke-prepped wires, RX on the rest.
+        Apply a hybrid mixer: XY on structured wires, RX on the rest.
 
-        For each Dicke state prep group, uses the Ring-XY mixer to stay
-        within the Hamming-weight subspace. For flag and slack wires (and
-        any non-Dicke variable wires), uses standard RX rotations.
+        - Dicke groups: Ring-XY on var_wires (preserves Hamming weight).
+        - Flow groups: Ring-XY on in_wires + Ring-XY on out_wires (preserves balance).
+        - Flag, slack, and remaining wires: RX rotations.
         """
-        dicke_wire_set = set()
+        structured_wire_set = set()
         beta_idx = 0
 
-        # XY mixer on each Dicke group
         for prep in self.dicke_preps:
             prep.mixer_circuit(beta_row[beta_idx])
-            dicke_wire_set.update(prep.var_wires)
+            structured_wire_set.update(prep.var_wires)
             beta_idx += 1
 
-        # RX on remaining wires
-        remaining_wires = [w for w in self.all_wires if w not in dicke_wire_set]
+        for prep in self.flow_preps:
+            prep.mixer_circuit(beta_row[beta_idx])
+            structured_wire_set.update(prep.var_wires)
+            beta_idx += 1
+
+        # RX on remaining wires (flags, slacks, non-structured vars)
+        remaining_wires = [w for w in self.all_wires if w not in structured_wire_set]
         for wire in remaining_wires:
             qml.RX(beta_row[beta_idx], wires=wire)
             beta_idx += 1

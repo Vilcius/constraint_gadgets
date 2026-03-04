@@ -134,7 +134,7 @@ def make_flow_constraints(max_in: int = 3, max_out: int = 3, save_dir: str = './
 # Subtour elimination
 # ---------------------------------------------------------------------------
 
-def make_subtour_constraints(max_cities: int = 4, save_dir: str = './data/') -> None:
+def make_subtour_constraints(max_cities: int = 3, save_dir: str = './data/') -> None:
     """Generate TSP subtour elimination + assignment constraints.
 
     Variable encoding: x_{i*k+j} is the edge i→j.  n_vars = k^2.
@@ -175,7 +175,7 @@ def make_subtour_constraints(max_cities: int = 4, save_dir: str = './data/') -> 
 # Assignment
 # ---------------------------------------------------------------------------
 
-def make_assignment_constraints(max_n: int = 4, save_dir: str = './data/') -> None:
+def make_assignment_constraints(max_n: int = 3, save_dir: str = './data/') -> None:
     """Generate n×n assignment problem constraints and save to assignment_constraints.csv.
 
     For each n in [2, max_n], the assignment problem has n^2 binary variables

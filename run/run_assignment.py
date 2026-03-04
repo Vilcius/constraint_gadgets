@@ -3,9 +3,13 @@ run_assignment.py -- Run QAOA experiments for assignment problem constraints.
 
 Reads data/assignment_constraints.csv (format: n_vars; ['row_0', ..., 'col_0', ...]).
 
+All assignment constraints (sum_j x_{i*n+j} == 1) are Dicke-compatible, so
+VCG training produces no entries -- they are handled by exact DickeStatePrep
+in HybridQAOA with a Ring-XY mixer.
+
 Usage:
-    python run/run_assignment.py --corp constraint --max_n 4
-    python run/run_assignment.py --corp hybrid --max_n 4 --n_layers 1
+    python run/run_assignment.py --corp constraint --max_n 3
+    python run/run_assignment.py --corp hybrid --max_n 3 --n_layers 1
 """
 
 import sys
@@ -22,13 +26,21 @@ from core import vcg as vcg_module
 from core import hybrid_qaoa as hq
 from core import constraint_handler as ch
 from analyze_results import make_data as data
-from run.run_utils import read_typed_csv, collect_vcg_data, collect_hybrid_data
+from run.run_utils import (
+    read_typed_csv, collect_vcg_data, collect_hybrid_data,
+    remap_to_zero_indexed,
+)
 
 
-def run_vcg(max_n: int, result_dir: str = './results/',
+def run_vcg(max_n: int = 3, result_dir: str = './results/',
             data_dir: str = './data/',
             result_file: str = 'assignment_constraint_results') -> None:
-    """Train VCG gadgets on all assignment constraints up to max_n×max_n."""
+    """Train VCGs for non-Dicke assignment constraints.
+
+    All standard assignment constraints (sum x_{ij} == 1) are Dicke-compatible
+    and are skipped here.  This function is kept for API consistency and in case
+    future variants include non-Dicke constraints.
+    """
     os.makedirs(result_dir, exist_ok=True)
     df = pd.DataFrame()
     df.to_pickle(f'{result_dir}{result_file}.pkl')
@@ -38,27 +50,40 @@ def run_vcg(max_n: int, result_dir: str = './results/',
                        if int(n ** 0.5) <= max_n]
 
     for n_vars, constraints in all_constraints:
-        flag_wires = list(range(n_vars, n_vars + len(constraints)))
-        for angsty in ['QAOA', 'ma-QAOA']:
-            gadget = vcg_module.VCG(
-                constraints=constraints,
-                flag_wires=flag_wires,
-                angle_strategy=angsty,
-                n_layers=1,
-            )
-            row = collect_vcg_data(gadget)
-            df = pd.concat([df, pd.DataFrame(row)], ignore_index=True)
-            df.to_pickle(f'{result_dir}{result_file}.pkl')
+        parsed = ch.parse_constraints(constraints)
+        for pc in parsed:
+            if ch.is_dicke_compatible(pc) or ch.is_flow_compatible(pc):
+                continue  # Exact state prep; no VCG needed
+            remapped, n_c_vars = remap_to_zero_indexed(pc.raw, pc.variables)
+            flag_wire = n_c_vars
+            for angsty in ['QAOA', 'ma-QAOA']:
+                gadget = vcg_module.VCG(
+                    constraints=[remapped],
+                    flag_wires=[flag_wire],
+                    angle_strategy=angsty,
+                    n_layers=1,
+                )
+                row = collect_vcg_data(gadget)
+                df = pd.concat([df, pd.DataFrame(row)], ignore_index=True)
+                df.to_pickle(f'{result_dir}{result_file}.pkl')
 
-    print(f"Saved {len(df)} rows to {result_dir}{result_file}.pkl")
+    if df.empty:
+        print("All assignment constraints are Dicke-compatible; no VCG training needed.")
+    else:
+        print(f"Saved {len(df)} rows to {result_dir}{result_file}.pkl")
 
 
-def run_hybrid(max_n: int, n_layers: int = 1,
+def run_hybrid(max_n: int = 3, n_layers: int = 1,
                result_dir: str = './results/',
                data_dir: str = './data/',
                result_file: str = 'hybrid_assignment_results',
                constraint_result_file: str = 'assignment_constraint_results') -> None:
-    """Run HybridQAOA on assignment constraints paired with QUBOs."""
+    """Run HybridQAOA on assignment constraints paired with QUBOs.
+
+    All assignment constraints are Dicke-compatible, so HybridQAOA uses
+    DickeStatePrep for each row/column constraint with a Ring-XY mixer.
+    No flag qubits are needed; total qubits = n_vars only.
+    """
     os.makedirs(result_dir, exist_ok=True)
     df = pd.DataFrame()
     df.to_pickle(f'{result_dir}{result_file}.pkl')
@@ -117,7 +142,7 @@ if __name__ == '__main__':
     parser.add_argument('--corp', type=str, default='constraint',
                         choices=['constraint', 'hybrid'],
                         help='Train VCG gadgets or run HybridQAOA')
-    parser.add_argument('--max_n', type=int, default=4,
+    parser.add_argument('--max_n', type=int, default=3,
                         help='Maximum assignment size (max_n × max_n problem)')
     parser.add_argument('--n_layers', type=int, default=1,
                         help='Number of QAOA layers (hybrid mode only)')

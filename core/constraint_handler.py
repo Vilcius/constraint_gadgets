@@ -28,8 +28,9 @@ import numpy as np
 
 class ConstraintType(Enum):
     """Classification of a single constraint."""
-    DICKE = auto()          # sum of x_i == b  (all coefficients 1, equality)
-    WEIGHTED_SUM = auto()   # sum of c_i * x_i op b  (linear, possibly inequality)
+    DICKE = auto()          # sum x_i == b  (all +1 coefficients, equality)
+    FLOW = auto()           # sum_in x_i - sum_out x_j == 0  (±1 coefficients, equality, rhs=0)
+    WEIGHTED_SUM = auto()   # sum c_i x_i op b  (linear, possibly inequality)
     QUADRATIC = auto()      # contains x_i * x_j terms
     GENERAL = auto()        # fallback
 
@@ -176,7 +177,7 @@ def parse_constraint(constraint: str) -> ParsedConstraint:
         variables.update(pair)
 
     # --- classify ---
-    ctype = _classify(linear, quadratic, constant, op)
+    ctype = _classify(linear, quadratic, constant, op, rhs)
 
     return ParsedConstraint(
         raw=raw,
@@ -260,13 +261,15 @@ def _classify(
     quadratic: Dict[Tuple[int, int], float],
     constant: float,
     op: ConstraintOp,
+    rhs: float = 0.0,
 ) -> ConstraintType:
     """
     Classify a parsed constraint.
 
-    - DICKE:        all-ones linear, no quadratic, no constant, equality.
-                    i.e. sum x_i == b
-    - WEIGHTED_SUM: linear only (possibly with non-unit coefficients or inequality).
+    - DICKE:        all +1 linear, no quadratic, no constant, equality (sum x_i == b).
+    - FLOW:         all ±1 linear (both signs present), no quadratic, no constant,
+                    equality with rhs=0 (sum_in x_i - sum_out x_j == 0).
+    - WEIGHTED_SUM: linear only (possibly non-unit coefficients or inequality).
     - QUADRATIC:    has quadratic terms.
     - GENERAL:      fallback.
     """
@@ -276,13 +279,21 @@ def _classify(
     if not linear:
         return ConstraintType.GENERAL
 
-    # Check if all linear coefficients are exactly 1 (Dicke-compatible)
-    all_unit = all(abs(c - 1.0) < 1e-12 for c in linear.values())
     no_constant = abs(constant) < 1e-12
     is_equality = (op == ConstraintOp.EQ)
 
-    if all_unit and no_constant and is_equality:
+    # Dicke: all +1 coefficients, equality, no constant
+    all_unit_pos = all(abs(c - 1.0) < 1e-12 for c in linear.values())
+    if all_unit_pos and no_constant and is_equality:
         return ConstraintType.DICKE
+
+    # Flow: all ±1 coefficients, both signs present, equality, rhs=0, no constant
+    all_unit_abs = all(abs(abs(c) - 1.0) < 1e-12 for c in linear.values())
+    has_positive = any(c > 0 for c in linear.values())
+    has_negative = any(c < 0 for c in linear.values())
+    rhs_zero = abs(rhs) < 1e-12
+    if all_unit_abs and has_positive and has_negative and no_constant and is_equality and rhs_zero:
+        return ConstraintType.FLOW
 
     return ConstraintType.WEIGHTED_SUM
 
@@ -290,6 +301,15 @@ def _classify(
 def is_dicke_compatible(pc: ParsedConstraint) -> bool:
     """Check if a parsed constraint can be enforced with Dicke state preparation."""
     return pc.ctype == ConstraintType.DICKE
+
+
+def is_flow_compatible(pc: ParsedConstraint) -> bool:
+    """Check if a parsed constraint can be enforced with FlowStatePrep.
+
+    Flow-compatible constraints have the form sum_in x_i - sum_out x_j == 0
+    (all ±1 linear coefficients, both signs present, equality, rhs=0).
+    """
+    return pc.ctype == ConstraintType.FLOW
 
 
 # ======================================================================
@@ -395,7 +415,8 @@ def partition_constraints(
     if strategy == "all_penalty":
         return [], list(range(n))
     if strategy == "dicke_only":
-        structural = [i for i in range(n) if is_dicke_compatible(constraints[i])]
+        structural = [i for i in range(n)
+                      if is_dicke_compatible(constraints[i]) or is_flow_compatible(constraints[i])]
         penalty = [i for i in range(n) if i not in structural]
         return structural, penalty
 
@@ -412,22 +433,23 @@ def partition_constraints(
         for idx in group_idxs:
             group_vars |= constraints[idx].variables
 
-        # Dicke-compatible constraints can always be structural (log-depth)
-        dicke_idxs = [i for i in group_idxs if is_dicke_compatible(constraints[i])]
-        non_dicke_idxs = [i for i in group_idxs if not is_dicke_compatible(constraints[i])]
+        # Dicke and Flow constraints are always cheap to enforce structurally
+        cheap_idxs = [i for i in group_idxs
+                      if is_dicke_compatible(constraints[i]) or is_flow_compatible(constraints[i])]
+        other_idxs = [i for i in group_idxs
+                      if not is_dicke_compatible(constraints[i]) and not is_flow_compatible(constraints[i])]
 
-        # Dicke constraints are always cheap to enforce structurally
-        structural_indices.extend(dicke_idxs)
+        structural_indices.extend(cheap_idxs)
 
-        # Non-Dicke: use structural (gadget) if the group is small enough
-        non_dicke_vars = set()
-        for idx in non_dicke_idxs:
-            non_dicke_vars |= constraints[idx].variables
+        # Non-Dicke/Flow: use structural (gadget) if the group is small enough
+        other_vars = set()
+        for idx in other_idxs:
+            other_vars |= constraints[idx].variables
 
-        if len(non_dicke_vars) <= max_structural_vars and non_dicke_idxs:
-            structural_indices.extend(non_dicke_idxs)
+        if len(other_vars) <= max_structural_vars and other_idxs:
+            structural_indices.extend(other_idxs)
         else:
-            penalty_indices.extend(non_dicke_idxs)
+            penalty_indices.extend(other_idxs)
 
     return sorted(structural_indices), sorted(penalty_indices)
 

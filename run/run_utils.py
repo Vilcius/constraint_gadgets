@@ -9,6 +9,7 @@ Provides:
 
 import sys
 import os
+import re
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pennylane as qml
@@ -16,6 +17,30 @@ from pennylane import numpy as np
 from core import vcg as vcg_module
 from core import hybrid_qaoa as hq
 from core import constraint_handler as ch
+
+
+def remap_to_zero_indexed(constraint_str: str, variables: set) -> tuple:
+    """Remap variable indices in a constraint string to 0-based.
+
+    Produces a canonical form with x_0, x_1, ... so that VCG training
+    uses 0-indexed wires.  The ConstraintMapper in VCG.get_pre_made_data()
+    recovers the original variable assignment via permutation search.
+
+    Returns
+    -------
+    remapped : str
+        Constraint string with variables renamed x_0, x_1, ...
+    n_c_vars : int
+        Number of distinct variables (= flag wire offset for training).
+    """
+    var_list = sorted(variables)
+    var_map = {old: new for new, old in enumerate(var_list)}
+
+    def _replace(m):
+        idx = int(m.group(1))
+        return f'x_{var_map[idx]}' if idx in var_map else m.group(0)
+
+    return re.sub(r'x_(\d+)', _replace, constraint_str), len(var_list)
 
 
 def read_typed_csv(filepath: str) -> list:

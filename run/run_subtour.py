@@ -5,8 +5,13 @@ Reads data/subtour_constraints.csv (format: n_vars; ['c1', 'c2', ...]).
 Each row contains the full set of subtour + assignment constraints for k cities,
 where n_vars = k^2.
 
+Dicke-compatible constraints (assignment rows: sum x_i == 1) are skipped during
+VCG training -- they are handled by exact DickeStatePrep in HybridQAOA.
+Non-Dicke constraints (subtour inequalities) are trained as individual VCGs
+with variables remapped to 0-indexed.
+
 Usage:
-    python run/run_subtour.py --corp constraint --max_cities 4
+    python run/run_subtour.py --corp constraint --max_cities 3
     python run/run_subtour.py --corp hybrid --n_layers 1
 """
 
@@ -24,14 +29,23 @@ from core import vcg as vcg_module
 from core import hybrid_qaoa as hq
 from core import constraint_handler as ch
 from analyze_results import make_data as data
-from run.run_utils import read_typed_csv, collect_vcg_data, collect_hybrid_data
+from run.run_utils import (
+    read_typed_csv, collect_vcg_data, collect_hybrid_data,
+    remap_to_zero_indexed,
+)
 
 
-def run_vcg(max_cities: int = 4,
+def run_vcg(max_cities: int = 3,
             result_dir: str = './results/',
             data_dir: str = './data/',
             result_file: str = 'subtour_constraint_results') -> None:
-    """Train VCG gadgets on subtour elimination constraint sets."""
+    """Train individual VCGs for non-Dicke subtour inequality constraints.
+
+    Dicke-compatible constraints (assignment rows) are skipped -- they need
+    no VCG training.  Each subtour inequality constraint is trained separately
+    with variables remapped to 0-indexed so that the saved Hamiltonian uses
+    canonical wire labels that HybridQAOA can look up via ConstraintMapper.
+    """
     os.makedirs(result_dir, exist_ok=True)
     df = pd.DataFrame()
     df.to_pickle(f'{result_dir}{result_file}.pkl')
@@ -41,27 +55,41 @@ def run_vcg(max_cities: int = 4,
                        if int(n ** 0.5 + 0.5) <= max_cities]
 
     for n_vars, constraints in all_constraints:
-        flag_wires = list(range(n_vars, n_vars + len(constraints)))
-        for angsty in ['QAOA', 'ma-QAOA']:
-            gadget = vcg_module.VCG(
-                constraints=constraints,
-                flag_wires=flag_wires,
-                angle_strategy=angsty,
-                n_layers=1,
-            )
-            row = collect_vcg_data(gadget)
-            df = pd.concat([df, pd.DataFrame(row)], ignore_index=True)
-            df.to_pickle(f'{result_dir}{result_file}.pkl')
+        parsed = ch.parse_constraints(constraints)
+        for pc in parsed:
+            if ch.is_dicke_compatible(pc) or ch.is_flow_compatible(pc):
+                continue  # Exact state prep; no VCG needed
+            remapped, n_c_vars = remap_to_zero_indexed(pc.raw, pc.variables)
+            flag_wire = n_c_vars
+            for angsty in ['QAOA', 'ma-QAOA']:
+                gadget = vcg_module.VCG(
+                    constraints=[remapped],
+                    flag_wires=[flag_wire],
+                    angle_strategy=angsty,
+                    n_layers=1,
+                )
+                row = collect_vcg_data(gadget)
+                df = pd.concat([df, pd.DataFrame(row)], ignore_index=True)
+                df.to_pickle(f'{result_dir}{result_file}.pkl')
 
-    print(f"Saved {len(df)} rows to {result_dir}{result_file}.pkl")
+    if df.empty:
+        print("All subtour constraints are Dicke/Flow-compatible; no VCG training needed.")
+    else:
+        print(f"Saved {len(df)} rows to {result_dir}{result_file}.pkl")
 
 
-def run_hybrid(max_cities: int = 4, n_layers: int = 1,
+def run_hybrid(max_cities: int = 3, n_layers: int = 1,
                result_dir: str = './results/',
                data_dir: str = './data/',
                result_file: str = 'hybrid_subtour_results',
                constraint_result_file: str = 'subtour_constraint_results') -> None:
-    """Run HybridQAOA on subtour constraints paired with QUBOs."""
+    """Run HybridQAOA on subtour constraints paired with QUBOs.
+
+    HybridQAOA automatically routes:
+      - Dicke constraints (assignment rows) -> DickeStatePrep (no flags)
+      - Subtour inequality constraints      -> individual VCGs (1 flag each,
+                                               pre-loaded from gadget_path)
+    """
     os.makedirs(result_dir, exist_ok=True)
     df = pd.DataFrame()
     df.to_pickle(f'{result_dir}{result_file}.pkl')
@@ -122,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--corp', type=str, default='constraint',
                         choices=['constraint', 'hybrid'],
                         help='Train VCG gadgets or run HybridQAOA')
-    parser.add_argument('--max_cities', type=int, default=4,
+    parser.add_argument('--max_cities', type=int, default=3,
                         help='Maximum number of cities')
     parser.add_argument('--n_layers', type=int, default=1,
                         help='Number of QAOA layers (hybrid mode only)')

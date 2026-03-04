@@ -337,7 +337,7 @@ class DickeStatePrep:
 def from_parsed_constraint(
     pc,  # constraint_handler.ParsedConstraint
     mixer_type: DickeMixerType = DickeMixerType.RING_XY,
-) -> DickeStatePrep:
+) -> "DickeStatePrep":
     """
     Create a DickeStatePrep from a ParsedConstraint.
 
@@ -360,10 +360,9 @@ def from_parsed_constraint(
     ValueError
         If the constraint is not Dicke-compatible.
     """
-    # Import here to avoid circular dependency
-    from constraint_handler import ConstraintType
+    from . import constraint_handler as ch
 
-    if pc.ctype != ConstraintType.DICKE:
+    if pc.ctype != ch.ConstraintType.DICKE:
         raise ValueError(
             f"Constraint '{pc.raw}' is not Dicke-compatible "
             f"(type={pc.ctype.name}). "
@@ -377,6 +376,168 @@ def from_parsed_constraint(
     return DickeStatePrep(
         var_wires=var_wires,
         hamming_weight=k,
+        mixer_type=mixer_type,
+        constraint_str=pc.raw,
+    )
+
+
+# ======================================================================
+# Flow state preparation
+# ======================================================================
+
+@dataclass
+class FlowStatePrep:
+    """
+    Flow conservation state preparation for hybrid QAOA.
+
+    For constraints of the form  sum_in x_i - sum_out x_j == 0
+    (all ±1 linear coefficients, equality, rhs=0), the feasible subspace
+    is the set of states where HW(in_wires) == HW(out_wires).
+
+    State preparation (O(n) depth, no ancillae):
+        Apply H(in_wires[i]) + CNOT(in_wires[i], out_wires[i]) for
+        i = 0 ... min(n_in, n_out) - 1.  Remaining wires (on the larger
+        side) are left at |0>.  Every term in the resulting superposition
+        satisfies HW(in) == HW(out).
+
+    Mixer:
+        Ring-XY on in_wires + Ring-XY on out_wires (applied separately).
+        Each Ring-XY preserves the Hamming weight within its register,
+        hence their combination preserves HW(in) == HW(out).
+        After ≥1 QAOA layer the mixer connects all feasible states
+        (every sector HW = k is fully mixed within each register).
+
+    No flag qubits are needed.
+
+    Parameters
+    ----------
+    in_wires : list[int]
+        Wire indices of variables with +1 coefficient.
+    out_wires : list[int]
+        Wire indices of variables with -1 coefficient.
+    mixer_type : DickeMixerType
+        Mixer for each register (default: Ring-XY).
+    constraint_str : str
+        Original constraint string (for bookkeeping).
+    """
+
+    in_wires: List[int]
+    out_wires: List[int]
+    mixer_type: DickeMixerType = DickeMixerType.RING_XY
+    constraint_str: str = ""
+
+    # Derived (set in __post_init__)
+    n_in: int = field(init=False)
+    n_out: int = field(init=False)
+    flag_wires: List[int] = field(init=False, default_factory=list)
+    var_wires: List[int] = field(init=False)
+    all_wires: List[int] = field(init=False)
+
+    def __post_init__(self):
+        self.n_in = len(self.in_wires)
+        self.n_out = len(self.out_wires)
+        self.flag_wires = []
+        self.var_wires = list(self.in_wires) + list(self.out_wires)
+        self.all_wires = self.var_wires
+
+    # ------------------------------------------------------------------
+    # Circuit interface (matches DickeStatePrep / VCG)
+    # ------------------------------------------------------------------
+
+    def opt_circuit(self) -> None:
+        """
+        Apply the Bell-pair chain state preparation.
+
+        Produces a superposition where every term satisfies HW(in) == HW(out).
+        Remaining wires on the larger register stay at |0>.
+        """
+        min_n = min(self.n_in, self.n_out)
+        for i in range(min_n):
+            qml.Hadamard(wires=self.in_wires[i])
+            qml.CNOT(wires=[self.in_wires[i], self.out_wires[i]])
+
+    def mixer_circuit(self, beta: float) -> None:
+        """
+        Apply Ring-XY on in_wires and Ring-XY on out_wires independently.
+
+        Each Ring-XY preserves HW within its register, so HW(in) == HW(out)
+        is preserved.  Together they connect all feasible states.
+        """
+        if self.n_in > 1:
+            base.apply_xy_mixer(beta, self.in_wires, ring=True)
+        if self.n_out > 1:
+            base.apply_xy_mixer(beta, self.out_wires, ring=True)
+
+    # ------------------------------------------------------------------
+    # Properties for HybridQAOA integration
+    # ------------------------------------------------------------------
+
+    @property
+    def n_mixer_params(self) -> int:
+        """One shared beta for both in and out Ring-XY."""
+        return 1
+
+    @property
+    def needs_flag_penalty(self) -> bool:
+        """Flow state prep does not need flag-qubit penalties."""
+        return False
+
+    def get_info(self) -> dict:
+        return {
+            "constraint": self.constraint_str,
+            "type": "FlowStatePrep",
+            "in_wires": self.in_wires,
+            "out_wires": self.out_wires,
+            "n_in": self.n_in,
+            "n_out": self.n_out,
+            "mixer_type": self.mixer_type.name,
+            "needs_flag": False,
+            "flag_wires": [],
+        }
+
+
+def from_flow_constraint(
+    pc,  # constraint_handler.ParsedConstraint
+    mixer_type: DickeMixerType = DickeMixerType.RING_XY,
+) -> FlowStatePrep:
+    """
+    Create a FlowStatePrep from a ParsedConstraint.
+
+    The constraint must be flow-compatible: all ±1 linear coefficients,
+    both signs present, equality, rhs=0, no quadratic terms, no constant.
+
+    Parameters
+    ----------
+    pc : ParsedConstraint
+        A parsed constraint with ctype == ConstraintType.FLOW.
+    mixer_type : DickeMixerType
+        Mixer type for both registers.
+
+    Returns
+    -------
+    FlowStatePrep
+
+    Raises
+    ------
+    ValueError
+        If the constraint is not flow-compatible.
+    """
+    from . import constraint_handler as ch
+
+    if not ch.is_flow_compatible(pc):
+        raise ValueError(
+            f"Constraint '{pc.raw}' is not flow-compatible "
+            f"(type={pc.ctype.name}). "
+            "Flow state prep requires: all ±1 linear coefficients, "
+            "both signs present, equality, rhs=0, no quadratic, no constant."
+        )
+
+    in_wires = sorted(v for v, coeff in pc.linear.items() if coeff > 0)
+    out_wires = sorted(v for v, coeff in pc.linear.items() if coeff < 0)
+
+    return FlowStatePrep(
+        in_wires=in_wires,
+        out_wires=out_wires,
         mixer_type=mixer_type,
         constraint_str=pc.raw,
     )
