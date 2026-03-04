@@ -132,22 +132,6 @@ def build_flag_penalty_hamiltonian(
     return qml.Hamiltonian(coeffs, obs)
 
 
-def build_overlap_hamiltonian(
-    overlap_vars: List[Tuple[int, int]],
-    overlap_penalties: List[float],
-) -> Optional[qml.Hamiltonian]:
-    """
-    Penalise overlap variables:
-        lambda_i (x_{w1} - x_{w2})^2 = (lambda/2)(I - Z_{w1} Z_{w2}).
-    """
-    if not overlap_vars:
-        return None
-    coeffs, obs = [], []
-    for (w1, w2), pen in zip(overlap_vars, overlap_penalties):
-        coeffs += [pen / 2, -pen / 2]
-        obs += [qml.Identity(w1), qml.PauliZ(w1) @ qml.PauliZ(w2)]
-    return qml.Hamiltonian(coeffs, obs)
-
 
 # ======================================================================
 # Circuit building blocks

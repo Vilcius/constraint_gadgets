@@ -87,9 +87,14 @@ class HybridQAOA:
     single_flag, decompose : bool
         Passed to VCG gadgets.
     cqaoa_n_layers, cqaoa_angle_strategy, cqaoa_steps, cqaoa_num_restarts :
-        Hyperparameters for pre-training the VCG gadgets.
+        Hyperparameters for pre-training the VCG gadgets (ignored when pre_made=True).
     dicke_mixer_type : DickeMixerType
         Mixer for Dicke-enforced constraints (default: Ring-XY).
+    pre_made : bool
+        If True, load pre-trained VCG angles from ``gadget_path`` instead of
+        optimising them from scratch.
+    gadget_path : str or None
+        Path to a pickle file produced by a prior VCG run (used when pre_made=True).
     """
 
     def __init__(
@@ -114,6 +119,8 @@ class HybridQAOA:
         cqaoa_steps: int = 50,
         cqaoa_num_restarts: int = 10,
         dicke_mixer_type: dsp.DickeMixerType = dsp.DickeMixerType.RING_XY,
+        pre_made: bool = False,
+        gadget_path: Optional[str] = None,
     ) -> None:
         # --- validation ---
         self.angle_strategy = base.validate_angle_strategy(angle_strategy)
@@ -170,9 +177,11 @@ class HybridQAOA:
                 n_layers=cqaoa_n_layers,
                 steps=cqaoa_steps,
                 num_restarts=cqaoa_num_restarts,
+                pre_made=pre_made,
+                path=gadget_path,
             )
-            # Pre-train the gadget
-            gadget.optimize_angles(gadget.do_evolution_circuit)
+            if not pre_made:
+                gadget.optimize_angles(gadget.do_evolution_circuit)
             self.gadget_preps.append(gadget)
             self.flag_wires = gadget_flag_wires
 
