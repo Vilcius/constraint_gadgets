@@ -1,14 +1,11 @@
 """
 run_knapsack.py -- Run QAOA experiments for knapsack constraints.
 
-Reads:
-    data/knapsack_constraints.csv         (single constraint per row)
-    data/double_knapsack_constraints.csv  (pairs, when --double is set)
+Reads data/knapsack_constraints.csv (format: n; ['a_0*x_0 + ... <= b']).
 
 Usage:
     python run/run_knapsack.py --corp constraint --max_n 4
-    python run/run_knapsack.py --corp constraint --max_n 4 --double
-    python run/run_knapsack.py --corp problem --n_layers 1
+    python run/run_knapsack.py --corp problem --max_n 4 --n_layers 1
 """
 
 import sys
@@ -27,19 +24,17 @@ from analyze_results import make_data as data
 from run.run_utils import read_typed_csv, collect_vcg_data, collect_pqaoa_data
 
 
-def run_cqaoa(max_n: int, double: bool = False,
-              result_dir: str = './results/',
+def run_cqaoa(max_n: int, result_dir: str = './results/',
               data_dir: str = './data/',
               result_file: str = 'knapsack_constraint_results',
               combined: bool = False, single_flag: bool = False,
               decompose: bool = True) -> None:
-    """Run VCG on knapsack (or double-knapsack) constraints."""
+    """Run VCG on knapsack constraints."""
     os.makedirs(result_dir, exist_ok=True)
     df = pd.DataFrame()
     df.to_pickle(f'{result_dir}{result_file}.pkl')
 
-    csv_name = 'double_knapsack_constraints.csv' if double else 'knapsack_constraints.csv'
-    csv_path = os.path.join(data_dir, csv_name)
+    csv_path = os.path.join(data_dir, 'knapsack_constraints.csv')
     all_constraints = read_typed_csv(csv_path)
     all_constraints = [(n, cs) for n, cs in all_constraints if n <= max_n]
 
@@ -63,7 +58,7 @@ def run_cqaoa(max_n: int, double: bool = False,
     print(f"Saved {len(df)} rows to {result_dir}{result_file}.pkl")
 
 
-def run_pqaoa(max_n: int, double: bool = False, n_layers: int = 1,
+def run_pqaoa(max_n: int, n_layers: int = 1,
               result_dir: str = './results/',
               data_dir: str = './data/',
               result_file: str = 'qubo_knapsack_results',
@@ -75,8 +70,7 @@ def run_pqaoa(max_n: int, double: bool = False, n_layers: int = 1,
     df = pd.DataFrame()
     df.to_pickle(f'{result_dir}{result_file}.pkl')
 
-    csv_name = 'double_knapsack_constraints.csv' if double else 'knapsack_constraints.csv'
-    csv_path = os.path.join(data_dir, csv_name)
+    csv_path = os.path.join(data_dir, 'knapsack_constraints.csv')
     all_constraints = read_typed_csv(csv_path)
     all_constraints = [(n, cs) for n, cs in all_constraints if n <= max_n]
 
@@ -142,23 +136,16 @@ if __name__ == '__main__':
                         help='Run constraint gadget training or QUBO problem solving')
     parser.add_argument('--max_n', type=int, default=4,
                         help='Maximum number of variables')
-    parser.add_argument('--double', action='store_true',
-                        help='Use double (pair) knapsack constraints')
     parser.add_argument('--n_layers', type=int, default=1,
                         help='Number of QAOA layers (problem mode only)')
     parser.add_argument('--results_dir', type=str, default='./results/')
     parser.add_argument('--data_dir', type=str, default='./data/')
     args = parser.parse_args()
 
-    suffix = '_double' if args.double else ''
     if args.corp == 'constraint':
-        run_cqaoa(args.max_n, double=args.double,
-                  result_dir=args.results_dir, data_dir=args.data_dir,
-                  result_file=f'knapsack{suffix}_constraint_results')
+        run_cqaoa(args.max_n, result_dir=args.results_dir, data_dir=args.data_dir)
     elif args.corp == 'problem':
-        run_pqaoa(args.max_n, double=args.double, n_layers=args.n_layers,
-                  result_dir=args.results_dir, data_dir=args.data_dir,
-                  result_file=f'qubo_knapsack{suffix}_results',
-                  constraint_result_file=f'knapsack{suffix}_constraint_results')
+        run_pqaoa(args.max_n, n_layers=args.n_layers,
+                  result_dir=args.results_dir, data_dir=args.data_dir)
     else:
         raise ValueError('--corp must be "constraint" or "problem"')

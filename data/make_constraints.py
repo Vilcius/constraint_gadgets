@@ -74,15 +74,12 @@ def make_knapsack_constraints(max_n: int = 5, n_instances: int = 10, save_dir: s
     [sum(a)/3, 2*sum(a)/3].  Infeasible instances are discarded.
 
     Writes:
-        data/knapsack_constraints.csv         (single constraints)
-        data/double_knapsack_constraints.csv  (all feasible pairs per n)
+        data/knapsack_constraints.csv
     """
     os.makedirs(save_dir, exist_ok=True)
-    single_rows = []
-    instances_by_n: dict = {}
+    rows = []
 
     for n in range(2, max_n + 1):
-        instances_by_n[n] = []
         count = 0
         attempts = 0
         while count < n_instances and attempts < 10 * n_instances:
@@ -97,28 +94,15 @@ def make_knapsack_constraints(max_n: int = 5, n_instances: int = 10, save_dir: s
             lhs = ' + '.join([f'{a[i]}*x_{i}' for i in range(n)])
             constraint = f'{lhs} <= {rhs}'
             if check_feasibility([constraint], n):
-                instances_by_n[n].append(constraint)
-                single_rows.append(f"{n}; ['{constraint}']\n")
+                rows.append(f"{n}; ['{constraint}']\n")
                 count += 1
         if count < n_instances:
             print(f"Warning: only generated {count}/{n_instances} feasible instances for n={n}")
 
-    path_single = os.path.join(save_dir, 'knapsack_constraints.csv')
-    with open(path_single, 'w') as f:
-        f.writelines(single_rows)
-    print(f"Wrote {len(single_rows)} knapsack constraints to {path_single}")
-
-    # Generate all feasible pairs within each n
-    double_rows = []
-    for n, instances in instances_by_n.items():
-        for c1, c2 in it.combinations(instances, 2):
-            if check_feasibility([c1, c2], n):
-                double_rows.append(f"{n}; ['{c1}', '{c2}']\n")
-
-    path_double = os.path.join(save_dir, 'double_knapsack_constraints.csv')
-    with open(path_double, 'w') as f:
-        f.writelines(double_rows)
-    print(f"Wrote {len(double_rows)} double knapsack constraint pairs to {path_double}")
+    path = os.path.join(save_dir, 'knapsack_constraints.csv')
+    with open(path, 'w') as f:
+        f.writelines(rows)
+    print(f"Wrote {len(rows)} knapsack constraints to {path}")
 
 
 # ---------------------------------------------------------------------------
