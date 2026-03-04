@@ -72,7 +72,8 @@ def read_typed_csv(filepath: str) -> list:
 
 
 def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
-                     single_flag: bool = False, decompose: bool = True) -> dict:
+                     single_flag: bool = False, decompose: bool = True,
+                     constraint_type: str = '') -> dict:
     """Collect metrics from a VCG instance after optimisation.
 
     Returns a single-row dict suitable for pd.DataFrame().
@@ -83,6 +84,7 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
     resources, est_shots, est_error, group_est_shots, group_est_error = vcg.get_circuit_resources()
     counts = vcg.do_counts_circuit(shots=est_shots)
     return {
+        'constraint_type': [constraint_type],
         'constraints': [vcg.constraints],
         'n_x': [vcg.n_x],
         'n_c': [len(vcg.constraints)],
@@ -114,7 +116,8 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
 
 def collect_hybrid_data(constraints: list, hybrid: hq.HybridQAOA,
                         qubo_string: str, min_val: float = None,
-                        previous_angles=None) -> dict:
+                        previous_angles=None,
+                        constraint_type: str = '') -> dict:
     """Collect metrics from a HybridQAOA instance after optimisation.
 
     Returns a single-row dict suitable for pd.DataFrame().
@@ -130,6 +133,7 @@ def collect_hybrid_data(constraints: list, hybrid: hq.HybridQAOA,
     _, est_shots, est_error, group_est_shots, group_est_error = hybrid.get_circuit_resources()
     counts = hybrid.do_counts_circuit(shots=10000)
     return {
+        'constraint_type': [constraint_type],
         'qubo_string': [qubo_string],
         'constraints': [constraints],
         'n_x': [hybrid.n_x],
