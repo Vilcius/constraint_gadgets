@@ -22,7 +22,7 @@ from pennylane import numpy as np
 from core import hybrid_qaoa as hq
 from core import penalty_qaoa as pq
 from core import constraint_handler as ch
-from analyze_results.make_data import read_qubos_from_file, get_optimal_x
+from data.make_data import read_qubos_from_file, get_optimal_x
 
 
 CONSTRAINT = 'x_0 + x_1 + x_2 == 1'

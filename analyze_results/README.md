@@ -14,8 +14,7 @@ Modular analysis pipeline for constraint_gadget experiments.
 | `plot_resources.py` | Estimated shots, circuit depth, time breakdown |
 | `statistical_tests.py` | Mann-Whitney U (angle strategies), Kruskal-Wallis (families) |
 | `main_analysis.py` | CLI entry point — loads, computes, plots, exports |
-| `make_data.py` | Legacy data utilities (QUBO generation, optimal-x search) |
-| `analyze_results.py` | Legacy monolithic analysis notebook |
+| `../data/make_data.py` | QUBO generation and optimal-x brute force (lives in `data/`) |
 
 ## Quick start
 

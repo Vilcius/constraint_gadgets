@@ -25,7 +25,7 @@ warnings.filterwarnings('ignore')
 from core import vcg as vcg_module
 from core import hybrid_qaoa as hq
 from core import constraint_handler as ch
-from analyze_results import make_data as data
+from data import make_data as data
 from run.run_utils import (
     read_typed_csv, collect_vcg_data, collect_hybrid_data,
     remap_to_zero_indexed,

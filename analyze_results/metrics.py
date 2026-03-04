@@ -27,7 +27,7 @@ def p_feasible_vcg(row) -> float:
 def p_feasible_hybrid(row) -> float:
     """Fraction of counts (first n_x bits) satisfying all constraints.
 
-    Uses eval-based feasibility check consistent with make_data.get_optimal_x.
+    Uses eval-based feasibility check consistent with data.make_data.get_optimal_x.
     """
     counts = row['counts']
     n_x = int(row['n_x'])

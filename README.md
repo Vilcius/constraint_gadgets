@@ -39,8 +39,6 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 │   ├── plot_resources.py     ← Circuit depth, shot budget, time breakdown
 │   ├── statistical_tests.py  ← Mann-Whitney U, Kruskal-Wallis significance tests
 │   ├── main_analysis.py      ← CLI entry point for the full analysis pipeline
-│   ├── make_data.py          ← QUBO generation, optimal-x brute force search
-│   ├── analyze_results.py    ← Legacy monolithic analysis notebook
 │   └── README.md
 │
 ├── 📁 examples/
@@ -52,7 +50,9 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 │   ├── vcg_params.txt        ← VCG sweep: constraint families × n_layers
 │   └── hybrid_params.txt     ← HybridQAOA sweep: constraint families × n_layers
 │
-├── 📁 data/                  ← Constraint CSVs and QUBO instances
+├── 📁 data/                  ← Constraint CSVs, QUBO instances, and data utilities
+│   ├── make_data.py              ← QUBO generation and optimal-x brute force search
+│   ├── make_constraints.py       ← Constraint CSV generation scripts
 │   ├── cardinality_constraints.csv
 │   ├── knapsack_constraints.csv
 │   ├── quadratic_knapsack_constraints.csv
