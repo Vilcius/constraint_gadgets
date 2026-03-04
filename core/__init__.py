@@ -1,5 +1,6 @@
 from . import qaoa_base
 from . import constraint_handler
+from . import vcg
 from . import constraint_qaoa
 from . import problem_qaoa
 from . import penalty_qaoa

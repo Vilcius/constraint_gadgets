@@ -1,6 +1,6 @@
 # Constraint Gadget QAOA
 
-Code for studying constraint-handling strategies in the Quantum Approximate Optimisation Algorithm (QAOA) for solving Quadratically-Constrained Binary Optimisation (QCBO) problems.
+Code for studying constraint-handling strategies in the Quantum Approximate Optimisation Algorithm (QAOA) for solving Combinatorial Optimisation Problems (COPs).
 
 The central idea is a **constraint gadget**: rather than penalising constraint violations in the cost Hamiltonian, we build a small QAOA circuit whose ground state is the uniform superposition over feasible bitstrings. This gadget is then used as a structured state-preparation oracle and mixer inside the problem QAOA, biasing the search toward the feasible subspace from the outset.
 
@@ -10,8 +10,8 @@ The central idea is a **constraint gadget**: rather than penalising constraint v
 
 | Class | File | Description |
 |---|---|---|
-| `ConstraintQAOA` | `constraint_qaoa.py` | Builds a constraint Hamiltonian from a truth table (feasible states → −1, infeasible → +1) and optimises QAOA angles to prepare the feasible subspace. Acts as a structured mixer for `ProblemQAOA`. |
-| `ProblemQAOA` | `problem_qaoa.py` | Solves a QCBO using one or more `ConstraintQAOA` gadgets for state preparation and a Grover or X mixer. |
+| `VCG` | `vcg.py` | Builds a constraint Hamiltonian from a truth table (feasible states → −1, infeasible → +1) and optimises QAOA angles to prepare the feasible subspace. Acts as a structured mixer for `ProblemQAOA`. |
+| `ProblemQAOA` | `problem_qaoa.py` | Solves a COP using one or more `VCG` gadgets for state preparation and a Grover or X mixer. |
 | `PenaltyQAOA` | `penalty_qaoa.py` | Standard penalty-based QAOA: adds δ·(constraint)² terms to the QUBO and introduces slack variables for inequalities. Baseline comparison. |
 | `HybridQAOA` | `hybrid_qaoa.py` | Partitions constraints into *structural* (enforced via gadgets or Dicke circuits) and *penalised* groups. Balances expressibility and feasibility bias. |
 | `DickeStatePrep` | `dicke_state_prep.py` | Log-depth preparation of Dicke states for cardinality constraints (∑xᵢ = b) with an XY or Ring-XY mixer. |
@@ -62,9 +62,9 @@ pip install pennylane pennylane-lightning numpy pandas matplotlib seaborn
 ### Build and optimise a constraint gadget
 
 ```python
-from constraint_qaoa import ConstraintQAOA
+from core.vcg import VCG
 
-gadget = ConstraintQAOA(
+gadget = VCG(
     constraints=["x_0 + x_1 + x_2 == 2"],
     flag_wires=[3],
     angle_strategy="ma-QAOA",
@@ -76,16 +76,16 @@ opt_cost, opt_angles = gadget.optimize_angles(gadget.do_evolution_circuit)
 counts = gadget.do_counts_circuit(shots=10_000)
 ```
 
-### Solve a QCBO with the constraint gadget
+### Solve a COP with the constraint gadget
 
 ```python
 import numpy as np
-from constraint_qaoa import ConstraintQAOA
-from problem_qaoa import ProblemQAOA
+from core.vcg import VCG
+from core.problem_qaoa import ProblemQAOA
 
 Q = np.array([[1, -2, 0], [-2, 3, -1], [0, -1, 2]], dtype=float)
 
-gadget = ConstraintQAOA(
+gadget = VCG(
     constraints=["x_0 + x_1 + x_2 == 2"],
     flag_wires=[3],
     angle_strategy="ma-QAOA",
@@ -134,7 +134,7 @@ opt_cost, opt_angles = solver.optimize_angles(solver.do_evolution_circuit)
 # Build constraint gadgets for ∑xᵢ == b, n ∈ [1, 5]
 python run_single_constraint.py --corp constraint --op equals --max_n 5
 
-# Solve QCBOs using pre-built gadgets
+# Solve COPs using pre-built gadgets
 python run_single_constraint.py --corp problem --op equals --max_n 5 --n_layers 1
 ```
 
@@ -146,7 +146,7 @@ Supported operators: `equals`, `geq`, `leq`, `less`, `greater`.
 # Build gadgets for two overlapping constraints with a given support
 python run_two_constraint.py --corp constraint --support 2
 
-# Solve QCBOs (single flag qubit, 2 QAOA layers)
+# Solve COPs (single flag qubit, 2 QAOA layers)
 python run_two_constraint.py --corp problem --support 2 --single_flag --n_layers 2
 ```
 
@@ -173,7 +173,8 @@ constraint_gadgets/
 ├── core/                   # Main classes and shared utilities
 │   ├── qaoa_base.py
 │   ├── constraint_handler.py
-│   ├── constraint_qaoa.py
+│   ├── vcg.py
+│   ├── constraint_qaoa.py          # backward-compat shim → vcg.py
 │   ├── problem_qaoa.py
 │   ├── penalty_qaoa.py
 │   ├── hybrid_qaoa.py

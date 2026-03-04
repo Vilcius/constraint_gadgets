@@ -20,7 +20,7 @@ from . import constraint_handler as ch
 
 class PenaltyQAOA:
     """
-    Standard penalty-based QAOA for solving QCBOs with general constraints.
+    Standard penalty-based QAOA for solving COPs with general constraints.
 
     Handles:
     - Linear constraints with coefficients: e.g., "2*x_0 + 3*x_1 <= 5"

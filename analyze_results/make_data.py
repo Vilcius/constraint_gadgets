@@ -54,7 +54,7 @@ def make_two_constraint(support: int) -> list[str]:
     return constraints
 
 
-def make_two_constraints(result_dir: str = './results/') -> None:
+def make_two_constraints(result_dir: str = './data/') -> None:
     """
     Generate constraints with specified support and at least one feasible solution.
     Then save them to a file in the specified directory.
@@ -160,7 +160,7 @@ def generate_n_qubos(num_qubo: int, min_n: int, max_n: int) -> dict:
     return qubos
 
 
-def write_qubos_to_file(qubos: dict, file_name: str, min_n: int, max_n: int, results_dir: str = './results/') -> None:
+def write_qubos_to_file(qubos: dict, file_name: str, min_n: int, max_n: int, results_dir: str = './data/') -> None:
     """
     Write a dictionary of QUBO matrices and their string representations to a file.
     Args:
@@ -176,7 +176,7 @@ def write_qubos_to_file(qubos: dict, file_name: str, min_n: int, max_n: int, res
                 f.write(f"({i}, {j}); {qubos[i][j]['qubo_string']}; {qubos[i][j]['Q'].tolist()}\n")
 
 
-def read_qubos_from_file(file_name: str, results_dir: str = './results/') -> dict:
+def read_qubos_from_file(file_name: str, results_dir: str = './data/') -> dict:
     """
     Read a file containing QUBO matrices and their string representations into a dictionary.
     Args:

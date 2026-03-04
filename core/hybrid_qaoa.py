@@ -49,7 +49,7 @@ from pennylane import numpy as np
 from . import qaoa_base as base
 from . import constraint_handler as ch
 from . import dicke_state_prep as dsp
-from . import constraint_qaoa as cq
+from . import vcg
 
 
 class HybridQAOA:
@@ -64,7 +64,7 @@ class HybridQAOA:
                                 and feasibility checking.
       - ``dicke_state_prep``    for Dicke-compatible constraints (exact
                                 subspace preparation + XY mixer).
-      - ``constraint_qaoa``     for general structural constraints (gadgets
+      - ``vcg``                 for general structural constraints (gadgets
                                 with flag qubits).
 
     Parameters
@@ -85,9 +85,9 @@ class HybridQAOA:
     angle_strategy, mixer, n_layers, steps, num_restarts, learning_rate, samples :
         Standard QAOA hyperparameters (see qaoa_base).
     single_flag, decompose : bool
-        Passed to ConstraintQAOA gadgets.
+        Passed to VCG gadgets.
     cqaoa_n_layers, cqaoa_angle_strategy, cqaoa_steps, cqaoa_num_restarts :
-        Hyperparameters for pre-training the ConstraintQAOA gadgets.
+        Hyperparameters for pre-training the VCG gadgets.
     dicke_mixer_type : DickeMixerType
         Mixer for Dicke-enforced constraints (default: Ring-XY).
     """
@@ -139,7 +139,7 @@ class HybridQAOA:
         # 1. Build structural components (Dicke or Gadget)
         # ============================================================
         self.dicke_preps: List[dsp.DickeStatePrep] = []
-        self.gadget_preps: List[cq.ConstraintQAOA] = []
+        self.gadget_preps: List[vcg.VCG] = []
         self.flag_wires: List[int] = []
 
         # Separate Dicke-compatible from gadget-needed
@@ -154,14 +154,14 @@ class HybridQAOA:
             prep = dsp.from_parsed_constraint(pc, mixer_type=dicke_mixer_type)
             self.dicke_preps.append(prep)
 
-        # Build ConstraintQAOA gadgets (need flag qubits)
+        # Build VCG gadgets (need flag qubits)
         if gadget_idxs:
             gadget_constraints = [all_constraints[i].raw for i in gadget_idxs]
             n_flags = len(gadget_constraints) if not single_flag else 1
             flag_start = self.n_x
             gadget_flag_wires = list(range(flag_start, flag_start + n_flags))
 
-            gadget = cq.ConstraintQAOA(
+            gadget = vcg.VCG(
                 constraints=gadget_constraints,
                 flag_wires=gadget_flag_wires,
                 angle_strategy=cqaoa_angle_strategy,

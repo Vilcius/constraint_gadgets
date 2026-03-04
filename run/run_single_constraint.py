@@ -239,7 +239,7 @@ def run_pqaoa(max_n: int, op: str, result_dir='./results/', data_dir='./data/', 
 
 #|%%--%%| <ZROy2CM4Gt|IQyqOAodvj>
 r"""°°°
-Run either the constraint gadget creation or the QCBO problem solving based on command line arguments.
+Run either the constraint gadget creation or the COP problem solving based on command line arguments.
 °°°"""
 #|%%--%%| <IQyqOAodvj|31MMWsyyX4>
 
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     parser.add_argument('--op', type=str, default='equals', help='Operator for the constraint')
     parser.add_argument('--results_dir', type=str, default='./results/', help='Directory to save results')
     parser.add_argument('--data_dir', type=str, default='./data/', help='Directory for input data files')
-    parser.add_argument('--corp', type=str, default='constraint', help='Whether to make the constraint gadget or solve the qcbo problem')
+    parser.add_argument('--corp', type=str, default='constraint', help='Whether to make the constraint gadget or solve the COP')
     parser.add_argument('--n_layers', type=int, default=1, help='Number of layers for QAOA')
     args = parser.parse_args()
     ops = {'equals': '==', 'geq': '>=', 'leq': '<=', 'less': '<', 'greater': '>'}

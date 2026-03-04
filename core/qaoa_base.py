@@ -1,7 +1,7 @@
 """
 qaoa_base.py -- Shared QAOA / Hamiltonian utilities.
 
-Consolidates functionality duplicated across ConstraintQAOA, ProblemQAOA,
+Consolidates functionality duplicated across VCG, ProblemQAOA,
 PenaltyQAOA, and HybridQAOA:
 
   - QUBO <-> Ising conversion
@@ -208,7 +208,7 @@ def apply_grover_mixer(
     all_wires : list[int]
         All qubit wires in the circuit.
     state_prep_circuits : list
-        Objects with an ``opt_circuit()`` method (e.g. ConstraintQAOA, DickeStatePrep).
+        Objects with an ``opt_circuit()`` method (e.g. VCG, DickeStatePrep).
     """
     # Un-prepare
     for gadget in reversed(state_prep_circuits):

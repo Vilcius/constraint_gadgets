@@ -189,7 +189,7 @@ def run_cqaoa(support: int, result_dir: str = './results/', data_dir: str = './d
 
 def run_pqaoa(support: int, result_dir: str = './results/', data_dir: str = './data/', constraint_result_file: str = 'two_constraint', result_file: str = 'qubo_two_constraint', combined: bool = False, overlap: bool = False, single_flag: bool = False, decompose: bool = True, n_layers: int = 1) -> None:
     """
-    Run ProblemQAOA for a set of QCBOs and constraints, using ConstraintQAOA for state preparation, and collect results.
+    Run ProblemQAOA for a set of COPs with two constraints, using VCG for state preparation, and collect results.
     Args:
         support (int): Support of the constraints (1, 2, or 3).
         result_dir (str, optional): Directory to save results. Defaults to './results/'.

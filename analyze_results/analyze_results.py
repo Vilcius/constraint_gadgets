@@ -155,7 +155,7 @@ def plot_single_constraint_ar(df: pd.DataFrame, problem: str, hue='b', qubo: boo
             #                                     edgecolor='black',
             #                                     label=label))
             #         seen.add(label)
-            plt.title(f'QCBOs with {problem.capitalize()} Constraints vs Approximation Ratio', size=24)
+            plt.title(f'COPs with {problem.capitalize()} Constraints vs Approximation Ratio', size=24)
             # plt.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 16}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=18)  # , title='Number of Constraints/Layers')
             plt.legend(loc='upper right', bbox_to_anchor=(1.05, 1), frameon=True, prop={'size': 20}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=24)  # , title='Number of Constraints/Layers')
         else:
@@ -192,7 +192,7 @@ def plot_single_constraint_ar(df: pd.DataFrame, problem: str, hue='b', qubo: boo
             #                                     edgecolor='black',
             #                                     label=label))
             #         seen.add(label)
-            plt.title(f'QCBOs with {problem.capitalize()} Constraints vs Approximation Ratio', size=20)
+            plt.title(f'COPs with {problem.capitalize()} Constraints vs Approximation Ratio', size=20)
             # plt.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 16}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=18)  # , title='Number of Constraints/Layers')
             plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 16}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=18)  # , title='Number of Constraints/Layers')
         else:
@@ -268,7 +268,7 @@ def plot_single_constraint_prob_opt(df: pd.DataFrame, problem: str, hue='b', qub
             #                                     edgecolor='black',
             #                                     label=label))
             #         seen.add(label)
-            plt.title(f'QCBOs with {problem.capitalize()} Constraints vs Probability of Optimal Solution', size=24)
+            plt.title(f'COPs with {problem.capitalize()} Constraints vs Probability of Optimal Solution', size=24)
             # plt.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 16}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=18)  # , title='Number of Constraints/Layers')
             plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 20}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=24)  # , title='Number of Constraints/Layers')
         else:
@@ -306,7 +306,7 @@ def plot_single_constraint_prob_opt(df: pd.DataFrame, problem: str, hue='b', qub
             #                                     edgecolor='black',
             #                                     label=label))
             #         seen.add(label)
-            plt.title(f'QCBOs with {problem.capitalize()} Constraints vs Probability of Optimal Solution', size=20)
+            plt.title(f'COPs with {problem.capitalize()} Constraints vs Probability of Optimal Solution', size=20)
             # plt.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 16}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=18)  # , title='Number of Constraints/Layers')
             plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1), frameon=True, prop={'size': 16}, title=r'$\sum_{i=0}^{n_x - 1} x_i$' + f'{ops[problem]}' + r'$b$', title_fontsize=18)  # , title='Number of Constraints/Layers')
         else:
@@ -581,7 +581,7 @@ def plot_two_constraint_prob_opt(df: pd.DataFrame, hue='single_flag', qubo: bool
                     seen.add(label)
 
             ax.legend(handles=legend_handles, title=r'(Single Flag, $p$ layers)', bbox_to_anchor=(.85, 1), loc='upper left', prop={'size': 20}, title_fontsize=18)
-            plt.title('QCBOs with Two Overlapping Constraints vs Probability of Optimal Solution', size=24)
+            plt.title('COPs with Two Overlapping Constraints vs Probability of Optimal Solution', size=24)
         else:
             plt.legend(loc='upper right', bbox_to_anchor=(.95, 1), frameon=True, prop={'size': 20}, title='Use of Single\nFlag Qubit', title_fontsize=18)
             plt.title('Two Overlapping Constraints vs Probability of Optimal Solution', size=24)
@@ -620,7 +620,7 @@ def plot_two_constraint_prob_opt(df: pd.DataFrame, hue='single_flag', qubo: bool
                     seen.add(label)
 
             ax.legend(handles=legend_handles, title=r'(Single Flag, $p$ layers)', bbox_to_anchor=(.85, 1), loc='upper left', prop={'size': 14}, title_fontsize=16)
-            plt.title('QCBOs with Two Overlapping Constraints vs Probability of Optimal Solution', size=20)
+            plt.title('COPs with Two Overlapping Constraints vs Probability of Optimal Solution', size=20)
         else:
             plt.legend(loc='upper right', bbox_to_anchor=(.95, 1), frameon=True, prop={'size': 14}, title='Use of Single\nFlag Qubit', title_fontsize=14)
             plt.title('Two Overlapping Constraints vs Probability of Optimal Solution', size=20)
@@ -705,7 +705,7 @@ def plot_two_constraint_ar(df: pd.DataFrame, hue='single_flag', qubo: bool = Fal
                     seen.add(label)
 
             ax.legend(handles=legend_handles, title=r'(Single Flag, $p$ layers)', bbox_to_anchor=(.85, 1), loc='upper left', prop={'size': 20}, title_fontsize=18)
-            plt.title('QCBOs with Two Overlapping Constraints vs Approximation Ratio', size=24)
+            plt.title('COPs with Two Overlapping Constraints vs Approximation Ratio', size=24)
         else:
             plt.legend(loc='upper right', bbox_to_anchor=(1.02, 1), frameon=True, prop={'size': 20}, title='Use of Single\nFlag Qubit', title_fontsize=18)
             plt.title('Two Overlapping Constraints vs Approximation Ratio', size=24)
@@ -743,7 +743,7 @@ def plot_two_constraint_ar(df: pd.DataFrame, hue='single_flag', qubo: bool = Fal
                     seen.add(label)
 
             ax.legend(handles=legend_handles, title=r'(Single Flag, $p$ layers)', bbox_to_anchor=(.85, 1), loc='upper left', prop={'size': 14}, title_fontsize=16)
-            plt.title('QCBOs with Two Overlapping Constraints vs Approximation Ratio', size=20)
+            plt.title('COPs with Two Overlapping Constraints vs Approximation Ratio', size=20)
         else:
             plt.legend(loc='upper right', bbox_to_anchor=(.95, 1), frameon=True, prop={'size': 14}, title='Use of Single\nFlag Qubit', title_fontsize=14)
             plt.title('Two Overlapping Constraints vs Approximation Ratio', size=20)
@@ -777,7 +777,7 @@ Hamiltonian LaTeX Table
 state_hams_eq = state_df[(state_df['problem'] == 'equals') & (state_df['angle_strategy'] == 'ma-QAOA')][['constraints', 'Hamiltonian']]
 
 
-def write_hamiltonian_latex_table(df, file_name, results_dir='./results/'):
+def write_hamiltonian_latex_table(df, file_name, results_dir='./analysis_output/summaries/'):
     with open(f'{results_dir}{file_name}', 'w') as f:
         f.write('\\begin{tabular}{|c|l|}\n')
         f.write('\\hline\n')

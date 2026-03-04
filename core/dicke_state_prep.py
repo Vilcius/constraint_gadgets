@@ -9,11 +9,11 @@ This module provides:
   - A log-depth circuit for preparing |D_n^k>  (Bartschi & Eidenbenz, 2019).
   - Specification of the compatible mixer (XY or Ring-XY), which preserves
     Hamming weight and thus keeps the state within the feasible subspace.
-  - An interface (``opt_circuit()``) matching ConstraintQAOA, so that
+  - An interface (``opt_circuit()``) matching VCG, so that
     DickeStatePrep objects can be dropped directly into HybridQAOA as
     structural state preparation components.
 
-The key advantage over the general constraint gadget (ConstraintQAOA) is that
+The key advantage over the general constraint gadget (VCG) is that
 no flag qubits or truth-table Hamiltonian are needed -- the circuit *exactly*
 prepares the feasible subspace, and the XY mixer *exactly* preserves it.
 
@@ -193,7 +193,7 @@ class DickeStatePrep:
       2. Apply a Hamming-weight-preserving mixer.
       3. Interface with HybridQAOA via ``opt_circuit()`` and ``mixer_circuit()``.
 
-    Unlike ConstraintQAOA, this does NOT require:
+    Unlike VCG, this does NOT require:
       - Flag qubits (the constraint is exactly satisfied by construction).
       - Truth-table / Hamiltonian decomposition.
       - Pre-training / angle optimisation for the state prep.
@@ -240,14 +240,14 @@ class DickeStatePrep:
             )
 
     # ------------------------------------------------------------------
-    # Circuit interface (matches ConstraintQAOA.opt_circuit signature)
+    # Circuit interface (matches VCG.opt_circuit signature)
     # ------------------------------------------------------------------
 
     def opt_circuit(self) -> None:
         """
         Apply the Dicke state preparation circuit.
 
-        This is the equivalent of ConstraintQAOA.opt_circuit() -- it can
+        This is the equivalent of VCG.opt_circuit() -- it can
         be called by HybridQAOA as a state preparation subroutine, and
         its adjoint can be used in the Grover mixer.
         """
