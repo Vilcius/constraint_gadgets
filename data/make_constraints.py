@@ -1,11 +1,12 @@
 """
 make_constraints.py -- Generate typed constraint CSV files.
 
-Generates data files for six constraint families:
+Generates data files for seven constraint families:
   - cardinality          : sum x_i op b
   - knapsack             : sum a_i x_i <= b  (single and pairs)
   - flow                 : conservation  sum_in x_i - sum_out x_j == 0
   - subtour              : TSP subtour elimination + assignment constraints
+  - assignment           : sum_j x_{i*n+j} == 1 (row) and sum_i x_{i*n+j} == 1 (col)
   - independent_set      : x_i*x_j == 0 for each edge (quadratic equality)
   - quadratic_knapsack   : sum Q_ij x_i x_j <= b (quadratic inequality)
 
@@ -16,6 +17,7 @@ Usage:
     python data/make_constraints.py                     # regenerate all
     python data/make_constraints.py --type knapsack     # just one type
     python data/make_constraints.py --type quadratic    # both quadratic types
+    python data/make_constraints.py --type assignment   # assignment problem
 """
 
 import sys
@@ -186,6 +188,44 @@ def make_subtour_constraints(max_cities: int = 4, save_dir: str = './data/') -> 
 
 
 # ---------------------------------------------------------------------------
+# Assignment
+# ---------------------------------------------------------------------------
+
+def make_assignment_constraints(max_n: int = 4, save_dir: str = './data/') -> None:
+    """Generate n×n assignment problem constraints and save to assignment_constraints.csv.
+
+    For each n in [2, max_n], the assignment problem has n^2 binary variables
+    x_{i*n+j} (1 if item i is assigned to slot j) with constraints:
+      - Row: sum_j x_{i*n+j} == 1  for each row i   (item assigned to exactly one slot)
+      - Col: sum_i x_{i*n+j} == 1  for each col j   (slot holds exactly one item)
+
+    These are always feasible (any permutation matrix is a solution).
+
+    Writes:
+        data/assignment_constraints.csv
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    rows = []
+    for n in range(2, max_n + 1):
+        n_vars = n * n
+        constraints = []
+        # Row constraints: each item assigned to exactly one slot
+        for i in range(n):
+            terms = [f'x_{i * n + j}' for j in range(n)]
+            constraints.append(' + '.join(terms) + ' == 1')
+        # Column constraints: each slot holds exactly one item
+        for j in range(n):
+            terms = [f'x_{i * n + j}' for i in range(n)]
+            constraints.append(' + '.join(terms) + ' == 1')
+        constraint_list_str = "['" + "', '".join(constraints) + "']"
+        rows.append(f"{n_vars}; {constraint_list_str}\n")
+    path = os.path.join(save_dir, 'assignment_constraints.csv')
+    with open(path, 'w') as f:
+        f.writelines(rows)
+    print(f"Wrote {len(rows)} assignment constraint sets to {path}")
+
+
+# ---------------------------------------------------------------------------
 # Quadratic constraints
 # ---------------------------------------------------------------------------
 
@@ -297,7 +337,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Generate constraint CSV files.')
     parser.add_argument('--type', type=str, default='all',
                         choices=['all', 'cardinality', 'knapsack', 'flow', 'subtour',
-                                 'independent_set', 'quadratic_knapsack', 'quadratic'],
+                                 'assignment', 'independent_set', 'quadratic_knapsack', 'quadratic'],
                         help='Type of constraints to generate (default: all)')
     parser.add_argument('--save_dir', type=str, default='./data/',
                         help='Directory to save constraint files')
@@ -321,6 +361,8 @@ def main() -> None:
         make_flow_constraints(max_in=args.max_in, max_out=args.max_out, save_dir=args.save_dir)
     if args.type in ('all', 'subtour'):
         make_subtour_constraints(max_cities=args.max_cities, save_dir=args.save_dir)
+    if args.type in ('all', 'assignment'):
+        make_assignment_constraints(max_n=args.max_n, save_dir=args.save_dir)
     if args.type in ('all', 'quadratic', 'independent_set'):
         make_independent_set_constraints(max_n=args.max_n, n_instances=args.n_instances, save_dir=args.save_dir)
     if args.type in ('all', 'quadratic', 'quadratic_knapsack'):
