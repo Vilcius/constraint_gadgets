@@ -87,14 +87,17 @@ class HybridQAOA:
     single_flag, decompose : bool
         Passed to VCG gadgets.
     cqaoa_n_layers, cqaoa_angle_strategy, cqaoa_steps, cqaoa_num_restarts :
-        Hyperparameters for pre-training the VCG gadgets (ignored when pre_made=True).
+        Hyperparameters for training VCG gadgets from scratch (used when no
+        matching entry is found in ``gadget_db_path``).
     dicke_mixer_type : DickeMixerType
         Mixer for Dicke-enforced constraints (default: Ring-XY).
-    pre_made : bool
-        If True, load pre-trained VCG angles from ``gadget_path`` instead of
-        optimising them from scratch.
-    gadget_path : str or None
-        Path to a pickle file produced by a prior VCG run (used when pre_made=True).
+    gadget_db_path : str or None
+        Path to a VCG database pickle (produced by collect_vcg_data /
+        ResultsCollector).  For each non-Dicke structural constraint,
+        HybridQAOA checks whether a matching pre-trained gadget exists in
+        this file (matching on constraint structure, n_layers, angle_strategy).
+        If found it is loaded directly; if not found the gadget is trained
+        from scratch.  Pass None (default) to always train from scratch.
     """
 
     def __init__(
@@ -119,8 +122,7 @@ class HybridQAOA:
         cqaoa_steps: int = 50,
         cqaoa_num_restarts: int = 10,
         dicke_mixer_type: dsp.DickeMixerType = dsp.DickeMixerType.RING_XY,
-        pre_made: bool = False,
-        gadget_path: Optional[str] = None,
+        gadget_db_path: Optional[str] = None,
     ) -> None:
         # --- validation ---
         self.angle_strategy = base.validate_angle_strategy(angle_strategy)
@@ -171,12 +173,19 @@ class HybridQAOA:
             prep = dsp.from_flow_constraint(pc, mixer_type=dicke_mixer_type)
             self.flow_preps.append(prep)
 
-        # One VCG gadget per structural non-Dicke/non-Flow constraint
+        # One VCG gadget per structural non-Dicke/non-Flow constraint.
+        # Automatically use a pre-trained gadget from gadget_db_path if one
+        # exists for this constraint; otherwise train from scratch.
         flag_start = self.n_x
         for idx in gadget_idxs:
             pc = all_constraints[idx]
             flag_wire = flag_start
             flag_start += 1
+            use_pre_made = vcg.find_in_db(
+                [pc.raw], gadget_db_path,
+                n_layers=cqaoa_n_layers,
+                angle_strategy=cqaoa_angle_strategy,
+            )
             gadget = vcg.VCG(
                 constraints=[pc.raw],
                 flag_wires=[flag_wire],
@@ -186,10 +195,10 @@ class HybridQAOA:
                 n_layers=cqaoa_n_layers,
                 steps=cqaoa_steps,
                 num_restarts=cqaoa_num_restarts,
-                pre_made=pre_made,
-                path=gadget_path,
+                pre_made=use_pre_made,
+                path=gadget_db_path,
             )
-            if not pre_made:
+            if not use_pre_made:
                 gadget.optimize_angles(gadget.do_evolution_circuit)
             self.gadget_preps.append(gadget)
             self.flag_wires.append(flag_wire)

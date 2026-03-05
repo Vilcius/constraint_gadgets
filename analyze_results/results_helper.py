@@ -73,8 +73,8 @@ def remap_to_zero_indexed(constraint_str: str, variables: set) -> tuple:
     """Remap variable indices in a constraint string to 0-based.
 
     Produces a canonical form with x_0, x_1, ... so that VCG training
-    uses 0-indexed wires.  The ConstraintMapper in VCG.get_pre_made_data()
-    recovers the original variable assignment via permutation search.
+    uses 0-indexed wires.  ConstraintMapper recovers the original variable
+    assignment via permutation search when loading from a gadget database.
 
     Returns
     -------
@@ -202,8 +202,9 @@ def collect_hybrid_data(constraints: list, hybrid: hq.HybridQAOA,
                         var_assignment: list = None) -> dict:
     """Run HybridQAOA and collect metrics.
 
-    Calls solve() for single-layer runs (handles pre_made=False VCG training),
-    or optimize_angles with prev_layer_angles for multi-layer warm-starting.
+    Calls solve() for single-layer runs (VCG training is handled automatically
+    inside HybridQAOA via gadget_db_path lookup), or optimize_angles with
+    prev_layer_angles for multi-layer warm-starting.
 
     Returns a single-row dict suitable for pd.DataFrame() or ResultsCollector.
     """

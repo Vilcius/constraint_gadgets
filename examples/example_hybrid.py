@@ -154,7 +154,6 @@ hybrid = hq.HybridQAOA(
     num_restarts=10,
     cqaoa_steps=30,
     cqaoa_num_restarts=10,
-    pre_made=False,
 )
 
 collector = ResultsCollector()

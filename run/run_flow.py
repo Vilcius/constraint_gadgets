@@ -98,8 +98,8 @@ def run_hybrid(max_in: int = 3, max_out: int = 3, n_layers: int = 1,
                         learning_rate=0.01,
                         steps=100,
                         num_restarts=10,
-                        pre_made=True,
-                        gadget_path=gadget_path,
+                        
+                        gadget_db_path=gadget_path,
                     )
                     previous_angles = None
                     if p > 1:

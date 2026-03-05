@@ -10,6 +10,7 @@ Delegates to:
   - constraint_handler  for constraint parsing.
 """
 
+import os
 import re
 import time
 import itertools as it
@@ -19,6 +20,46 @@ from pennylane import numpy as np
 
 from . import qaoa_base as base
 from . import constraint_handler as ch
+
+
+def find_in_db(constraints: list, db_path: str,
+               n_layers: int = 1, angle_strategy: str = 'ma-QAOA') -> bool:
+    """Return True if a matching VCG entry exists in a gadget database pickle.
+
+    Parameters
+    ----------
+    constraints : list[str]
+        Constraint strings (zero-indexed or QUBO-indexed; ConstraintMapper
+        handles variable remapping during the search).
+    db_path : str
+        Path to a pickle produced by collect_vcg_data / ResultsCollector.
+    n_layers : int
+        Number of QAOA layers the stored gadget must have.
+    angle_strategy : str
+        Angle strategy ('QAOA' or 'ma-QAOA') the stored gadget must use.
+
+    Returns
+    -------
+    bool
+    """
+    if not db_path or not os.path.exists(db_path):
+        return False
+    try:
+        df = pd.read_pickle(db_path)
+        if df.empty:
+            return False
+        mapper = ch.ConstraintMapper(df['constraints'].to_list())
+        matched = mapper.map_constraints(constraints)
+        if not matched:
+            return False
+        mask = (
+            (df['n_layers'] == n_layers)
+            & (df['angle_strategy'] == angle_strategy)
+            & df['constraints'].apply(lambda x: set(x) == set(matched))
+        )
+        return bool(mask.any())
+    except Exception:
+        return False
 
 
 def _check_constraint_op(lhs_val: float, op: ch.ConstraintOp, rhs: float) -> bool:
