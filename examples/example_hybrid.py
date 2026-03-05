@@ -42,6 +42,7 @@ Run from the project root:
 Output
 ------
   Prints metrics table (AR, P(feasible), P(optimal)) to stdout.
+  Saves collected results to examples/results/example_hybrid_results.pkl.
   Saves two figures to examples/figures/:
     hybrid_example_metrics.png  –  side-by-side metric comparison
     hybrid_example_counts.png   –  measurement distributions (top outcomes)
@@ -54,17 +55,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import warnings
 warnings.filterwarnings('ignore')
 
-import pennylane as qml
-
 from core import constraint_handler as ch
 from core import hybrid_qaoa as hq
 from core import penalty_qaoa as pq
 from data.make_data import read_qubos_from_file, get_optimal_x
-from run.run_utils import read_typed_csv, remap_constraint_to_vars
+from experiment import (
+    ResultsCollector,
+    read_typed_csv, remap_constraint_to_vars,
+    collect_hybrid_data, collect_penalty_data,
+)
 from analyze_results.metrics import compute_comparison_metrics
 from analyze_results.plot_feasibility import plot_method_comparison, plot_outcome_distributions
 
 os.makedirs('examples/figures', exist_ok=True)
+os.makedirs('examples/results', exist_ok=True)
 
 N_X = 7          # QUBO / decision-variable count
 SHOTS = 10_000   # measurement shots
@@ -152,12 +156,16 @@ hybrid = hq.HybridQAOA(
     cqaoa_num_restarts=10,
     pre_made=False,
 )
-opt_cost_h, counts_h, _ = hybrid.solve()
 
-eigvals_h = qml.eigvals(hybrid.problem_ham)
-C_max_h, C_min_h = float(max(eigvals_h)), float(min(eigvals_h))
-ar_h = (float(opt_cost_h) - C_max_h) / (C_min_h - C_max_h)
-print(f"  Done. AR = {ar_h:.4f}\n")
+collector = ResultsCollector()
+collector.load('examples/results/example_hybrid_results.pkl')
+
+row_h = collect_hybrid_data(
+    all_constraints, hybrid, qubo_string,
+    min_val=min_val, constraint_type='mixed',
+)
+collector.add(row_h)
+print(f"  Done. AR = {row_h['AR'][0]:.4f}\n")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -176,13 +184,16 @@ penalty_solver = pq.PenaltyQAOA(
     steps=50,
     num_restarts=10,
 )
-opt_cost_p, _ = penalty_solver.optimize_angles(penalty_solver.do_evolution_circuit)
-counts_p = penalty_solver.do_counts_circuit(shots=SHOTS)
 
-eigvals_p = qml.eigvals(penalty_solver.full_Ham)
-C_max_p, C_min_p = float(max(eigvals_p)), float(min(eigvals_p))
-ar_p = (float(opt_cost_p) - C_max_p) / (C_min_p - C_max_p)
-print(f"  Done. AR = {ar_p:.4f}\n")
+row_p = collect_penalty_data(
+    all_constraints, penalty_solver, qubo_string,
+    min_val=min_val, constraint_type='mixed',
+)
+collector.add(row_p)
+print(f"  Done. AR = {row_p['AR'][0]:.4f}\n")
+
+collector.save('examples/results/example_hybrid_results.pkl')
+print("Saved results to examples/results/example_hybrid_results.pkl\n")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -190,9 +201,15 @@ print(f"  Done. AR = {ar_p:.4f}\n")
 # ══════════════════════════════════════════════════════════════════════════════
 
 m_hybrid  = compute_comparison_metrics(
-    counts_h, opt_cost_h, C_max_h, C_min_h, all_constraints, N_X, optimal_x)
+    row_h['counts'][0], row_h['opt_cost'][0],
+    row_h['C_max'][0], row_h['C_min'][0],
+    all_constraints, N_X, optimal_x,
+)
 m_penalty = compute_comparison_metrics(
-    counts_p, opt_cost_p, C_max_p, C_min_p, all_constraints, N_X, optimal_x)
+    row_p['counts'][0], row_p['opt_cost'][0],
+    row_p['C_max'][0], row_p['C_min'][0],
+    all_constraints, N_X, optimal_x,
+)
 
 print("Results:")
 print(f"  {'Method':<16} {'AR':>8} {'P(feasible)':>12} {'P(optimal)':>11}")
@@ -219,7 +236,7 @@ print("Saved: examples/figures/hybrid_example_metrics.png")
 # ══════════════════════════════════════════════════════════════════════════════
 
 plot_outcome_distributions(
-    counts={'HybridQAOA': counts_h, 'PenaltyQAOA': counts_p},
+    counts={'HybridQAOA': row_h['counts'][0], 'PenaltyQAOA': row_p['counts'][0]},
     constraints=all_constraints,
     n_x=N_X,
     optimal_x=optimal_x,

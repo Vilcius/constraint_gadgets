@@ -19,15 +19,16 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 │   ├── penalty_qaoa.py       ← Standard penalty-based QAOA baseline
 │   └── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
 │
+├── 📄 experiment.py              ← Shared utilities: ResultsCollector, read_typed_csv,
+│                                    remap helpers, collect_vcg/hybrid/penalty_data
+│
 ├── 📁 run/
 │   ├── run_cardinality.py    ← VCG + HybridQAOA for cardinality constraints (∑xᵢ op b)
 │   ├── run_knapsack.py       ← VCG + HybridQAOA for knapsack constraints (∑cᵢxᵢ ≤ W)
 │   ├── run_quadratic.py      ← VCG + HybridQAOA for quadratic constraints
 │   ├── run_flow.py           ← VCG + HybridQAOA for flow conservation constraints
 │   ├── run_assignment.py     ← VCG + HybridQAOA for assignment constraints
-│   ├── run_subtour.py        ← VCG + HybridQAOA for subtour elimination constraints
-│   ├── run_utils.py          ← Shared helpers: read_typed_csv, collect_vcg_data, collect_hybrid_data
-│   └── results_handler.py    ← ResultsCollector: incremental result accumulation and persistence
+│   └── run_subtour.py        ← VCG + HybridQAOA for subtour elimination constraints
 │
 ├── 📁 analyze_results/       ← Analysis and plotting package
 │   ├── __init__.py
@@ -112,8 +113,7 @@ opt_cost, counts, opt_angles = solver.solve()
 ### Collect results incrementally
 
 ```python
-from run.results_handler import ResultsCollector
-from run.run_utils import collect_vcg_data
+from experiment import ResultsCollector, collect_vcg_data, collect_hybrid_data, collect_penalty_data
 
 collector = ResultsCollector()
 collector.load("results/cardinality_constraint_results.pkl")  # resume if exists
@@ -262,32 +262,33 @@ python slurm/generate_params.py
 
 ## Core API
 
-### `run_utils.py`
+### `experiment.py`
 
 ```python
-from run.run_utils import read_typed_csv, collect_vcg_data, collect_hybrid_data
+from experiment import (
+    ResultsCollector,
+    read_typed_csv, remap_constraint_to_vars, remap_to_zero_indexed,
+    collect_vcg_data, collect_hybrid_data, collect_penalty_data,
+)
 
 # Parse constraint CSV (format: "n_vars; ['constraint_string']")
 rows = read_typed_csv("data/cardinality_constraints.csv")
 
-# Collect metrics after training a VCG
-row = collect_vcg_data(gadget, constraint_type="cardinality")
+# Embed a zero-indexed constraint onto arbitrary QUBO variables
+c = remap_constraint_to_vars("x_0 + x_1 == 1", [3, 5])  # → 'x_3 + x_5 == 1'
 
-# Collect metrics after running HybridQAOA
-row = collect_hybrid_data(constraints, hybrid, qubo_string,
-                          min_val=min_val, constraint_type="cardinality")
-```
+# Collect metrics (train + sample) and return a result row dict
+row_vcg     = collect_vcg_data(gadget, constraint_type="cardinality")
+row_hybrid  = collect_hybrid_data(constraints, hybrid, qubo_string, min_val=min_val)
+row_penalty = collect_penalty_data(constraints, penalty_solver, qubo_string, min_val=min_val)
 
-### `results_handler.py`
-
-```python
-from run.results_handler import ResultsCollector
-
+# Accumulate rows and persist to pickle
 collector = ResultsCollector()
 collector.load("results/my_run.pkl")   # resume from existing
-collector.add(row_dict)                # append one experiment row
-collector.save("results/my_run.pkl")   # persist to pickle
-df = collector.to_dataframe()          # pandas DataFrame
+collector.add(row_hybrid)
+collector.add(row_penalty)
+collector.save("results/my_run.pkl")
+df = collector.to_dataframe()
 ```
 
 ### VCG Parameters

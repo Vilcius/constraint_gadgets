@@ -106,6 +106,48 @@ def plot_ar_vs_p_feasible(df: pd.DataFrame, save_path: str = None) -> plt.Figure
     return fig
 
 
+def plot_vcg_counts(rows: list, constraint_label: str = '',
+                    save_path: str = None) -> plt.Figure:
+    """Bar chart of VCG measurement distributions, one panel per angle strategy.
+
+    Parameters
+    ----------
+    rows : list of result dicts from collect_vcg_data (one per angle strategy)
+    constraint_label : displayed in the figure title
+    save_path : if given, save figure to this path
+    """
+    pu.setup_style()
+    colors = [pu.ANGLE_COLORS.get(r['angle_strategy'][0]
+                                   if isinstance(r['angle_strategy'], list)
+                                   else r['angle_strategy'],
+                                   pu._ROSE_PINE['subtle'])
+              for r in rows]
+    fig, axes = plt.subplots(1, len(rows), figsize=(6 * len(rows), 4))
+    if len(rows) == 1:
+        axes = [axes]
+
+    for ax, row, color in zip(axes, rows, colors):
+        strategy = row['angle_strategy'][0] if isinstance(row['angle_strategy'], list) else row['angle_strategy']
+        counts = row['counts'][0] if isinstance(row['counts'], list) else row['counts']
+        keys = sorted(counts.keys())
+        total = sum(counts.values())
+        probs = [counts[k] / total for k in keys]
+        ar = row['AR'][0] if isinstance(row['AR'], list) else row['AR']
+        p_feas = sum(p for k, p in zip(keys, probs) if k[-1] == '0')
+
+        ax.bar(keys, probs, color=color, alpha=0.85)
+        ax.set_title(f'{strategy}  |  AR={ar:.3f}  P(feas)={p_feas:.3f}')
+        ax.set_xlabel('Bitstring')
+        ax.set_ylabel('Probability')
+        ax.tick_params(axis='x', rotation=45)
+
+    fig.suptitle(f'VCG measurement distribution\n{constraint_label}')
+
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
 def plot_method_comparison(metrics: dict, title: str = 'HybridQAOA vs PenaltyQAOA',
                            save_path: str = None) -> plt.Figure:
     """Grouped bar chart comparing methods on AR, P(feasible), P(optimal).
