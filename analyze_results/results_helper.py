@@ -1,8 +1,9 @@
 """
-experiment.py -- Shared experiment utilities for constraint_gadget.
+results_helper.py -- Shared experiment utilities for constraint_gadget.
 
 Provides:
     ResultsCollector                -- incremental result accumulation and pickle persistence
+    GadgetDatabase                  -- lightweight VCG database (minimal fields for HybridQAOA)
     read_typed_csv(filepath)        -- parse n_vars; ['c1', ...] CSV format
     remap_to_zero_indexed(...)      -- canonicalise constraint to x_0, x_1, ...
     remap_constraint_to_vars(...)   -- embed zero-indexed constraint into QUBO positions
@@ -63,6 +64,85 @@ class ResultsCollector:
         if not self._rows:
             return pd.DataFrame()
         return pd.DataFrame(self._rows)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GadgetDatabase
+# ─────────────────────────────────────────────────────────────────────────────
+
+class GadgetDatabase:
+    """Lightweight store of pre-trained VCG gadgets for use in HybridQAOA.
+
+    Retains only the fields required by VCG.get_pre_made_data / vcg.find_in_db:
+        constraints, n_layers, angle_strategy, outcomes, Hamiltonian, opt_angles
+
+    All analysis fields (counts, resources, timing, AR, …) are intentionally
+    excluded to keep the database small.  Entries are deduplicated on
+    (constraints, n_layers, angle_strategy) so repeated runs don't grow the file.
+
+    Usage
+    -----
+        db = GadgetDatabase()
+        db.load('gadgets/gadget_db.pkl')   # extend with any existing entries
+        db.add(vcg_row)                    # register a new gadget from a result row
+        db.save('gadgets/gadget_db.pkl')   # persist
+    """
+
+    # Fields extracted from a full VCG result row.
+    _FIELDS = ['constraints', 'n_layers', 'angle_strategy',
+               'outcomes', 'Hamiltonian', 'opt_angles']
+
+    def __init__(self) -> None:
+        self._rows: list[dict] = []
+
+    # ------------------------------------------------------------------
+
+    def add(self, vcg_row: dict) -> None:
+        """Extract minimal fields from a full VCG result row and register.
+
+        Silently skips if an entry with the same (constraints, n_layers,
+        angle_strategy) already exists in the database.
+
+        Parameters
+        ----------
+        vcg_row : dict
+            A single-row result dict as returned by collect_vcg_data.
+            Values may be bare scalars or length-1 lists (both accepted).
+        """
+        def _unpack(v):
+            return v[0] if isinstance(v, list) and len(v) == 1 else v
+
+        entry = {k: _unpack(vcg_row[k]) for k in self._FIELDS}
+
+        # Deduplication check
+        for existing in self._rows:
+            if (set(existing['constraints']) == set(entry['constraints'])
+                    and existing['n_layers'] == entry['n_layers']
+                    and existing['angle_strategy'] == entry['angle_strategy']):
+                return   # already present
+
+        self._rows.append(entry)
+
+    def load(self, path: str) -> None:
+        """Extend with entries from an existing gadget database pickle."""
+        if os.path.exists(path):
+            existing = pd.read_pickle(path)
+            if not existing.empty:
+                self._rows = existing.to_dict('records') + self._rows
+
+    def save(self, path: str) -> None:
+        """Persist all entries to a pickle file."""
+        os.makedirs(os.path.dirname(path) if os.path.dirname(path) else '.', exist_ok=True)
+        self.to_dataframe().to_pickle(path)
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """Return all entries as a DataFrame."""
+        if not self._rows:
+            return pd.DataFrame()
+        return pd.DataFrame(self._rows)
+
+    def __len__(self) -> int:
+        return len(self._rows)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -152,10 +232,16 @@ def read_typed_csv(filepath: str) -> list:
 
 def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
                      single_flag: bool = False, decompose: bool = True,
-                     constraint_type: str = '') -> dict:
+                     constraint_type: str = '',
+                     gadget_db_path: str = None) -> dict:
     """Train a VCG and collect metrics.
 
     Calls optimize_angles → get_circuit_resources → do_counts_circuit internally.
+
+    If ``gadget_db_path`` is provided the minimal gadget entry (constraints,
+    n_layers, angle_strategy, outcomes, Hamiltonian, opt_angles) is appended to
+    the GadgetDatabase at that path immediately after optimisation.  Duplicate
+    entries are silently skipped.
 
     Returns a single-row dict suitable for pd.DataFrame() or ResultsCollector.
     """
@@ -193,6 +279,12 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
         'C_min': [C_min],
         'AR': [(float(opt_cost) - C_max) / (C_min - C_max)],
     }
+    if gadget_db_path is not None:
+        db = GadgetDatabase()
+        db.load(gadget_db_path)
+        db.add(row)
+        db.save(gadget_db_path)
+    return row
 
 
 def collect_hybrid_data(constraints: list, hybrid: hq.HybridQAOA,

@@ -112,17 +112,28 @@ opt_cost, counts, opt_angles = solver.solve()
 ### Collect results incrementally
 
 ```python
-from analyze_results.results_helper import ResultsCollector, collect_vcg_data, collect_hybrid_data, collect_penalty_data
+from analyze_results.results_helper import (
+    ResultsCollector, GadgetDatabase,
+    collect_vcg_data, collect_hybrid_data, collect_penalty_data,
+)
 
+# Full results (all metrics) – for analysis
 collector = ResultsCollector()
 collector.load("results/cardinality_constraint_results.pkl")  # resume if exists
 
-row = collect_vcg_data(gadget, constraint_type="cardinality")
+# Gadget database (minimal fields only) – for HybridQAOA lookup
+# collect_vcg_data registers the gadget automatically when gadget_db_path is given
+row = collect_vcg_data(gadget, constraint_type="cardinality",
+                       gadget_db_path="gadgets/gadget_db.pkl")
 collector.add(row)
 collector.save("results/cardinality_constraint_results.pkl")
 
 df = collector.to_dataframe()
 ```
+
+The gadget database stores only the 6 fields required by HybridQAOA
+(`constraints`, `n_layers`, `angle_strategy`, `outcomes`, `Hamiltonian`, `opt_angles`),
+keeping it lean relative to the full results file. Entries are deduplicated automatically.
 
 ### Run the toy examples
 
@@ -278,7 +289,7 @@ python slurm/generate_params.py
 
 ```python
 from analyze_results.results_helper import (
-    ResultsCollector,
+    ResultsCollector, GadgetDatabase,
     read_typed_csv, remap_constraint_to_vars, remap_to_zero_indexed,
     collect_vcg_data, collect_hybrid_data, collect_penalty_data,
 )
@@ -289,12 +300,14 @@ rows = read_typed_csv("data/cardinality_constraints.csv")
 # Embed a zero-indexed constraint onto arbitrary QUBO variables
 c = remap_constraint_to_vars("x_0 + x_1 == 1", [3, 5])  # → 'x_3 + x_5 == 1'
 
-# Collect metrics (train + sample) and return a result row dict
-row_vcg     = collect_vcg_data(gadget, constraint_type="cardinality")
+# Train VCG, collect full metrics, and register the gadget in the database
+row_vcg = collect_vcg_data(gadget, constraint_type="cardinality",
+                           gadget_db_path="gadgets/gadget_db.pkl")
+
 row_hybrid  = collect_hybrid_data(constraints, hybrid, qubo_string, min_val=min_val)
 row_penalty = collect_penalty_data(constraints, penalty_solver, qubo_string, min_val=min_val)
 
-# Accumulate rows and persist to pickle
+# Accumulate full results and persist to pickle
 collector = ResultsCollector()
 collector.load("results/my_run.pkl")   # resume from existing
 collector.add(row_hybrid)

@@ -28,7 +28,8 @@ from analyze_results.results_helper import read_typed_csv, collect_vcg_data, col
 def run_vcg(max_in: int = 3, max_out: int = 3,
             result_dir: str = './results/',
             data_dir: str = './data/',
-            result_file: str = 'flow_constraint_results') -> None:
+            result_file: str = 'flow_constraint_results',
+            gadget_db_path: str = None) -> None:
     """Train VCG gadgets on all flow conservation constraints."""
     os.makedirs(result_dir, exist_ok=True)
     df = pd.DataFrame()
@@ -47,7 +48,7 @@ def run_vcg(max_in: int = 3, max_out: int = 3,
                 angle_strategy=angsty,
                 n_layers=1,
             )
-            row = collect_vcg_data(gadget)
+            row = collect_vcg_data(gadget, gadget_db_path=gadget_db_path)
             df = pd.concat([df, pd.DataFrame(row)], ignore_index=True)
             df.to_pickle(f'{result_dir}{result_file}.pkl')
 
@@ -58,7 +59,8 @@ def run_hybrid(max_in: int = 3, max_out: int = 3, n_layers: int = 1,
                result_dir: str = './results/',
                data_dir: str = './data/',
                result_file: str = 'hybrid_flow_results',
-               constraint_result_file: str = 'flow_constraint_results') -> None:
+               constraint_result_file: str = 'flow_constraint_results',
+               gadget_db_path: str = None) -> None:
     """Run HybridQAOA on flow constraints paired with QUBOs."""
     os.makedirs(result_dir, exist_ok=True)
     df = pd.DataFrame()
@@ -68,7 +70,6 @@ def run_hybrid(max_in: int = 3, max_out: int = 3, n_layers: int = 1,
     all_constraints = [(n, cs) for n, cs in read_typed_csv(csv_path)
                        if n <= max_in + max_out]
     qubos = data.read_qubos_from_file('qubos.csv', results_dir=data_dir)
-    gadget_path = f'{result_dir}{constraint_result_file}.pkl'
 
     for p in range(1, n_layers + 1):
         for n_vars, constraints in all_constraints:
@@ -99,7 +100,7 @@ def run_hybrid(max_in: int = 3, max_out: int = 3, n_layers: int = 1,
                         steps=100,
                         num_restarts=10,
                         
-                        gadget_db_path=gadget_path,
+                        gadget_db_path=gadget_db_path,
                     )
                     previous_angles = None
                     if p > 1:
@@ -131,15 +132,17 @@ if __name__ == '__main__':
                         help='Maximum number of out-flow variables')
     parser.add_argument('--n_layers', type=int, default=1,
                         help='Number of QAOA layers (hybrid mode only)')
+    parser.add_argument('--gadget_db', type=str, default='./gadgets/gadget_db.pkl',
+                        help='Path to the VCG gadget database pickle')
     parser.add_argument('--results_dir', type=str, default='./results/')
     parser.add_argument('--data_dir', type=str, default='./data/')
     args = parser.parse_args()
 
     if args.corp == 'constraint':
         run_vcg(args.max_in, args.max_out,
-                result_dir=args.results_dir, data_dir=args.data_dir)
+                result_dir=args.results_dir, data_dir=args.data_dir, gadget_db_path=args.gadget_db)
     elif args.corp == 'hybrid':
         run_hybrid(args.max_in, args.max_out, n_layers=args.n_layers,
-                   result_dir=args.results_dir, data_dir=args.data_dir)
+                   result_dir=args.results_dir, data_dir=args.data_dir, gadget_db_path=args.gadget_db)
     else:
         raise ValueError('--corp must be "constraint" or "hybrid"')

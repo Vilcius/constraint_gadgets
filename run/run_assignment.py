@@ -34,7 +34,8 @@ from analyze_results.results_helper import (
 
 def run_vcg(max_n: int = 3, result_dir: str = './results/',
             data_dir: str = './data/',
-            result_file: str = 'assignment_constraint_results') -> None:
+            result_file: str = 'assignment_constraint_results',
+            gadget_db_path: str = None) -> None:
     """Train VCGs for non-Dicke assignment constraints.
 
     All standard assignment constraints (sum x_{ij} == 1) are Dicke-compatible
@@ -63,7 +64,7 @@ def run_vcg(max_n: int = 3, result_dir: str = './results/',
                     angle_strategy=angsty,
                     n_layers=1,
                 )
-                row = collect_vcg_data(gadget)
+                row = collect_vcg_data(gadget, gadget_db_path=gadget_db_path)
                 df = pd.concat([df, pd.DataFrame(row)], ignore_index=True)
                 df.to_pickle(f'{result_dir}{result_file}.pkl')
 
@@ -77,7 +78,8 @@ def run_hybrid(max_n: int = 3, n_layers: int = 1,
                result_dir: str = './results/',
                data_dir: str = './data/',
                result_file: str = 'hybrid_assignment_results',
-               constraint_result_file: str = 'assignment_constraint_results') -> None:
+               constraint_result_file: str = 'assignment_constraint_results',
+               gadget_db_path: str = None) -> None:
     """Run HybridQAOA on assignment constraints paired with QUBOs.
 
     All assignment constraints are Dicke-compatible, so HybridQAOA uses
@@ -92,7 +94,6 @@ def run_hybrid(max_n: int = 3, n_layers: int = 1,
     all_constraints = [(n, cs) for n, cs in read_typed_csv(csv_path)
                        if int(n ** 0.5) <= max_n]
     qubos = data.read_qubos_from_file('qubos.csv', results_dir=data_dir)
-    gadget_path = f'{result_dir}{constraint_result_file}.pkl'
 
     for p in range(1, n_layers + 1):
         for n_vars, constraints in all_constraints:
@@ -123,7 +124,7 @@ def run_hybrid(max_n: int = 3, n_layers: int = 1,
                         steps=100,
                         num_restarts=10,
                         
-                        gadget_db_path=gadget_path,
+                        gadget_db_path=gadget_db_path,
                     )
                     previous_angles = None
                     if p > 1:
@@ -153,14 +154,16 @@ if __name__ == '__main__':
                         help='Maximum assignment size (max_n × max_n problem)')
     parser.add_argument('--n_layers', type=int, default=1,
                         help='Number of QAOA layers (hybrid mode only)')
+    parser.add_argument('--gadget_db', type=str, default='./gadgets/gadget_db.pkl',
+                        help='Path to the VCG gadget database pickle')
     parser.add_argument('--results_dir', type=str, default='./results/')
     parser.add_argument('--data_dir', type=str, default='./data/')
     args = parser.parse_args()
 
     if args.corp == 'constraint':
-        run_vcg(args.max_n, result_dir=args.results_dir, data_dir=args.data_dir)
+        run_vcg(args.max_n, result_dir=args.results_dir, data_dir=args.data_dir, gadget_db_path=args.gadget_db)
     elif args.corp == 'hybrid':
         run_hybrid(args.max_n, n_layers=args.n_layers,
-                   result_dir=args.results_dir, data_dir=args.data_dir)
+                   result_dir=args.results_dir, data_dir=args.data_dir, gadget_db_path=args.gadget_db)
     else:
         raise ValueError('--corp must be "constraint" or "hybrid"')
