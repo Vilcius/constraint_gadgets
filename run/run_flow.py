@@ -22,7 +22,7 @@ from core import vcg as vcg_module
 from core import hybrid_qaoa as hq
 from core import constraint_handler as ch
 from data import make_data as data
-from run.run_utils import read_typed_csv, collect_vcg_data, collect_hybrid_data
+from run.run_utils import read_typed_csv, collect_vcg_data, collect_hybrid_data, remap_constraint_to_vars
 
 
 def run_vcg(max_in: int = 3, max_out: int = 3,
@@ -72,43 +72,50 @@ def run_hybrid(max_in: int = 3, max_out: int = 3, n_layers: int = 1,
 
     for p in range(1, n_layers + 1):
         for n_vars, constraints in all_constraints:
-            if n_vars not in qubos:
-                continue
-            parsed = ch.parse_constraints(constraints)
-            structural_indices = list(range(len(parsed)))
-            for q in qubos[n_vars]:
-                min_val, optimal_x, total_min = data.get_optimal_x(
-                    qubos[n_vars][q]['Q'], constraints
+            for n_qubo, qubo_dict in sorted(qubos.items()):
+                if n_qubo < n_vars:
+                    continue
+                # Randomly assign constraint variables to a subset of QUBO positions.
+                var_assignment = sorted(
+                    np.random.choice(n_qubo, n_vars, replace=False).tolist()
                 )
-                hybrid = hq.HybridQAOA(
-                    qubo=qubos[n_vars][q]['Q'],
-                    all_constraints=parsed,
-                    structural_indices=structural_indices,
-                    penalty_indices=[],
-                    penalty_str=[float(5 + 2 * np.abs(total_min))],
-                    angle_strategy='ma-QAOA',
-                    mixer='Grover',
-                    n_layers=p,
-                    learning_rate=0.01,
-                    steps=100,
-                    num_restarts=10,
-                    pre_made=True,
-                    gadget_path=gadget_path,
-                )
-                previous_angles = None
-                if p > 1:
-                    mask = (
-                        (df['n_layers'] == p - 1) &
-                        (df['qubo_string'] == qubos[n_vars][q]['qubo_string']) &
-                        (df['constraints'].map(tuple) == tuple(constraints))
+                remapped = [remap_constraint_to_vars(c, var_assignment) for c in constraints]
+                parsed = ch.parse_constraints(remapped)
+                structural_indices = list(range(len(parsed)))
+                for q in qubo_dict:
+                    min_val, optimal_x, total_min = data.get_optimal_x(
+                        qubo_dict[q]['Q'], remapped
                     )
-                    previous_angles = np.array(df[mask]['opt_angles'].values[0])
-                row = collect_hybrid_data(
-                    constraints, hybrid, qubos[n_vars][q]['qubo_string'],
-                    min_val=min_val, previous_angles=previous_angles,
-                )
-                df = pd.concat([df, pd.DataFrame(row)], ignore_index=True)
-                df.to_pickle(f'{result_dir}{result_file}.pkl')
+                    hybrid = hq.HybridQAOA(
+                        qubo=qubo_dict[q]['Q'],
+                        all_constraints=parsed,
+                        structural_indices=structural_indices,
+                        penalty_indices=[],
+                        penalty_str=[float(5 + 2 * np.abs(total_min))],
+                        angle_strategy='ma-QAOA',
+                        mixer='Grover',
+                        n_layers=p,
+                        learning_rate=0.01,
+                        steps=100,
+                        num_restarts=10,
+                        pre_made=True,
+                        gadget_path=gadget_path,
+                    )
+                    previous_angles = None
+                    if p > 1:
+                        mask = (
+                            (df['n_layers'] == p - 1) &
+                            (df['qubo_string'] == qubo_dict[q]['qubo_string']) &
+                            (df['constraints'].map(tuple) == tuple(remapped))
+                        )
+                        previous_angles = np.array(df[mask]['opt_angles'].values[0])
+                    row = collect_hybrid_data(
+                        remapped, hybrid, qubo_dict[q]['qubo_string'],
+                        min_val=min_val, previous_angles=previous_angles,
+                        var_assignment=var_assignment,
+                    )
+                    df = pd.concat([df, pd.DataFrame(row)], ignore_index=True)
+                    df.to_pickle(f'{result_dir}{result_file}.pkl')
 
     print(f"Saved {len(df)} rows to {result_dir}{result_file}.pkl")
 

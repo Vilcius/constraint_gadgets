@@ -257,3 +257,14 @@ def get_optimal_x(qubo: np.ndarray, constraints: list) -> [float, list, float]:
 
     return min_feas_val, optimal_x, total_min_val
 
+
+if __name__ == '__main__':
+    import os
+    # Regenerate qubos.csv with sizes 2-10, 10 QUBOs per size.
+    # Max size = 2 * max single-constraint support (max support = 5 -> max QUBO = 10).
+    MIN_N, MAX_N, NUM_QUBO = 2, 10, 10
+    out_dir = os.path.dirname(os.path.abspath(__file__)) + '/'
+    qubos = generate_n_qubos(NUM_QUBO, MIN_N, MAX_N)
+    write_qubos_to_file(qubos, 'qubos.csv', MIN_N, MAX_N, results_dir=out_dir)
+    total = sum(len(v) for v in qubos.values())
+    print(f"Generated {total} QUBOs (sizes {MIN_N}-{MAX_N}, {NUM_QUBO} per size) -> {out_dir}qubos.csv")

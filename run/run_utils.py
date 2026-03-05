@@ -2,9 +2,11 @@
 run_utils.py -- Shared helpers for domain-based run scripts.
 
 Provides:
-    read_typed_csv(filepath)        -- parse n_vars; ['c1', ...] CSV format
-    collect_vcg_data(...)           -- collect metrics from a VCG instance
-    collect_hybrid_data(...)        -- collect metrics from a HybridQAOA instance
+    read_typed_csv(filepath)                    -- parse n_vars; ['c1', ...] CSV format
+    remap_to_zero_indexed(constraint, vars)     -- canonicalise constraint to x_0, x_1, ...
+    remap_constraint_to_vars(constraint, idx)   -- embed zero-indexed constraint into QUBO positions
+    collect_vcg_data(...)                       -- collect metrics from a VCG instance
+    collect_hybrid_data(...)                    -- collect metrics from a HybridQAOA instance
 """
 
 import sys
@@ -41,6 +43,30 @@ def remap_to_zero_indexed(constraint_str: str, variables: set) -> tuple:
         return f'x_{var_map[idx]}' if idx in var_map else m.group(0)
 
     return re.sub(r'x_(\d+)', _replace, constraint_str), len(var_list)
+
+
+def remap_constraint_to_vars(constraint_str: str, target_indices: list) -> str:
+    """Embed a zero-indexed constraint into specific QUBO variable positions.
+
+    Maps x_0 → x_{target_indices[0]}, x_1 → x_{target_indices[1]}, etc.
+    Used to place a constraint on an arbitrary subset of a larger QUBO.
+
+    Parameters
+    ----------
+    constraint_str : str
+        Zero-indexed constraint, e.g. 'x_0 + x_1 + x_2 == 1'.
+    target_indices : list[int]
+        QUBO variable indices to assign, e.g. [2, 3, 4].
+
+    Returns
+    -------
+    str
+        Remapped constraint, e.g. 'x_2 + x_3 + x_4 == 1'.
+    """
+    def _replace(m):
+        idx = int(m.group(1))
+        return f'x_{target_indices[idx]}'
+    return re.sub(r'x_(\d+)', _replace, constraint_str)
 
 
 def read_typed_csv(filepath: str) -> list:
@@ -117,7 +143,8 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
 def collect_hybrid_data(constraints: list, hybrid: hq.HybridQAOA,
                         qubo_string: str, min_val: float = None,
                         previous_angles=None,
-                        constraint_type: str = '') -> dict:
+                        constraint_type: str = '',
+                        var_assignment: list = None) -> dict:
     """Collect metrics from a HybridQAOA instance after optimisation.
 
     Returns a single-row dict suitable for pd.DataFrame().
@@ -136,6 +163,7 @@ def collect_hybrid_data(constraints: list, hybrid: hq.HybridQAOA,
         'constraint_type': [constraint_type],
         'qubo_string': [qubo_string],
         'constraints': [constraints],
+        'var_assignment': [var_assignment],
         'n_x': [hybrid.n_x],
         'n_c': [len(constraints)],
         'Hamiltonian': [hybrid.problem_ham],

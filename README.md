@@ -59,7 +59,7 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 │   ├── flow_constraints.csv
 │   ├── assignment_constraints.csv
 │   ├── subtour_constraints.csv
-│   └── qubos.csv
+│   └── qubos.csv             ← Random QUBOs, sizes 2–10 (10 per size; max = 2 × max constraint support)
 │
 ├── 📁 results/               ← Collected experiment results (.pkl) (gitignored)
 └── 📁 analysis_output/       ← Figures, stats, summaries from analysis pipeline (gitignored)
@@ -273,8 +273,9 @@ df = collector.to_dataframe()          # pandas DataFrame
 | Column | Description |
 |---|---|
 | `constraint_type` | Constraint family label (e.g. `"cardinality"`) |
-| `constraints` | List of constraint strings |
-| `n_x` | Number of decision variables |
+| `constraints` | Constraint strings remapped to their QUBO variable positions |
+| `var_assignment` | List of QUBO variable indices the constraint acts on |
+| `n_x` | Total number of QUBO variables (>= constraint support) |
 | `n_c` | Number of constraints |
 | `angle_strategy` | `"QAOA"` or `"ma-QAOA"` |
 | `n_layers` | Number of QAOA layers |
