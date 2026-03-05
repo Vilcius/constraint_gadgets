@@ -131,9 +131,87 @@ df = collector.to_dataframe()
 # VCG demo: train on x_0 + x_1 + x_2 == 1, print AR / P(feasible), plot counts
 python examples/example_vcg.py
 
-# HybridQAOA vs PenaltyQAOA on a 3-variable cardinality-constrained QUBO
+# HybridQAOA vs PenaltyQAOA – three-constraint COP on 7 decision variables
 python examples/example_hybrid.py
 ```
+
+#### How `example_hybrid.py` works
+
+The example builds a three-constraint combinatorial optimisation problem on 7 binary decision
+variables (`x_0 … x_6`) and compares HybridQAOA against a full-penalisation baseline.
+
+**Step 1 – Load constraints from data/**
+
+Two CSV files are read (`data/cardinality_constraints.csv` and `data/knapsack_constraints.csv`).
+Three constraints are selected and embedded onto specific variable subsets using
+`remap_constraint_to_vars`:
+
+| Label | Constraint | Variables | Handling |
+|---|---|---|---|
+| A | `x_0 + x_1 + x_2 == 1` | {0, 1, 2} | Structural – Dicke state prep |
+| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural – VCG gadget |
+| C | `x_1 + x_4 + x_6 <= 1` | {1, 4, 6} | Penalized (overlaps A and B) |
+
+Constraints A and B are **disjoint** (no shared variables), while C deliberately overlaps both groups
+(x_1 ∈ A, x_4 ∈ B, x_6 is free).
+
+**Step 2 – Route constraints by type**
+
+`constraint_handler.is_dicke_compatible` classifies each parsed constraint:
+
+- **Dicke-compatible** (A): all coefficients are +1, equality operator, integer RHS.
+  HybridQAOA prepares the uniform superposition over feasible assignments exactly using a log-depth
+  W-state circuit and an XY mixer – no flag qubit, zero approximation error.
+
+- **Not Dicke-compatible** (B): non-unit coefficients or inequality operator.
+  HybridQAOA trains a Variable Constraint Gadget (VCG) whose ground state is the uniform
+  superposition over feasible assignments for B, then embeds it as the initial state and uses a
+  Grover mixer with one flag qubit marking (un)satisfying assignments.
+
+- **Penalized** (C): constraint spans variables from both groups, so it cannot be folded into either
+  structural circuit cleanly.  It is instead converted to a quadratic penalty term
+  δ·(x_1 + x_4 + x_6 − 1 + s)² and added to the cost Hamiltonian.
+
+**Step 3 – Solve with HybridQAOA**
+
+```python
+hybrid = HybridQAOA(
+    qubo=Q,                         # 7×7 QUBO loaded from data/qubos.csv
+    all_constraints=parsed,         # [A, B, C]
+    structural_indices=[0, 1],      # A (Dicke) + B (VCG) enforced structurally
+    penalty_indices=[2],            # C penalized
+    penalty_str=[delta],            # flag-qubit penalty weight
+    penalty_pen=delta,              # cost-Hamiltonian penalty weight
+    angle_strategy='ma-QAOA',
+    mixer='Grover',                 # reflects about the composed A+B state
+    n_layers=1,
+    steps=50,
+    num_restarts=10,
+    pre_made=False,                 # train the VCG for B from scratch
+)
+opt_cost, counts, opt_angles = hybrid.solve()
+```
+
+The Grover mixer reflects about the state prepared by the **composed** A+B circuit, so the search
+stays within the joint feasible subspace of A and B throughout optimisation.
+
+**Step 4 – Baseline: PenaltyQAOA**
+
+All three constraints are converted to penalty terms and added to the Hamiltonian.  The circuit
+starts from |+⟩^n with no structured state preparation, providing a direct comparison.
+
+**Step 5 – Analyse and plot**
+
+Metrics are computed over 10 000 measurement shots (auxiliary bits stripped):
+
+- **AR** (Approximation Ratio): `(⟨H⟩ − C_max) / (C_min − C_max)`
+- **P(feasible)**: fraction of samples satisfying all three constraints
+- **P(optimal)**: fraction of samples achieving the brute-force optimal QUBO value
+
+Two figures are saved to `examples/figures/`:
+
+- `hybrid_example_metrics.png` – side-by-side bar chart of AR, P(feasible), P(optimal)
+- `hybrid_example_counts.png` – top-20 outcome distributions coloured by feasibility/optimality
 
 ## Running Experiments
 
