@@ -250,7 +250,7 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
     opt_cost, opt_angles = vcg.optimize_angles(vcg.do_evolution_circuit)
     resources, est_shots, est_error, group_est_shots, group_est_error = vcg.get_circuit_resources()
     counts = vcg.do_counts_circuit(shots=est_shots)
-    return {
+    row = {
         'constraint_type': [constraint_type],
         'constraints': [vcg.constraints],
         'n_x': [vcg.n_x],
