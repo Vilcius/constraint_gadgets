@@ -7,6 +7,69 @@ import pandas as pd
 
 
 # ---------------------------------------------------------------------------
+# Raw-counts helpers (used by examples and DataFrame augmentation)
+# ---------------------------------------------------------------------------
+
+def aggregate_counts(counts: dict, n_x: int) -> dict:
+    """Collapse auxiliary bits; return {decision_bitstring: probability}.
+
+    Parameters
+    ----------
+    counts : dict mapping full bitstring -> shot count
+    n_x : number of decision-variable bits (prefix to keep)
+    """
+    total = sum(counts.values())
+    agg: dict = {}
+    for bs, cnt in counts.items():
+        key = bs[:n_x]
+        agg[key] = agg.get(key, 0) + cnt / total
+    return agg
+
+
+def feasibility_check(bitstring: str, constraints: list, n_x: int) -> bool:
+    """Return True if the first n_x bits of bitstring satisfy all constraints.
+
+    Parameters
+    ----------
+    bitstring : str of '0'/'1' characters (may include auxiliary bits)
+    constraints : list of constraint strings, e.g. ['x_0 + x_1 == 1']
+    n_x : number of decision variables to read from the prefix
+    """
+    vd = {f'x_{i}': int(bitstring[i]) for i in range(n_x)}
+    return all(eval(c, {"__builtins__": {}}, vd) for c in constraints)
+
+
+def compute_comparison_metrics(counts: dict, opt_cost: float,
+                                C_max: float, C_min: float,
+                                constraints: list, n_x: int,
+                                optimal_x: list = None) -> dict:
+    """Compute AR, P(feasible), P(optimal) from raw measurement counts.
+
+    Parameters
+    ----------
+    counts : dict mapping bitstring -> shot count
+    opt_cost : optimised expectation value ⟨H⟩
+    C_max, C_min : max/min eigenvalues of the cost Hamiltonian
+    constraints : list of constraint strings (decision-variable indexed)
+    n_x : number of decision variables
+    optimal_x : list of optimal decision bitstrings, or None
+
+    Returns
+    -------
+    dict with keys AR, p_feasible, p_optimal
+    """
+    agg = aggregate_counts(counts, n_x)
+    p_feas = sum(p for bs, p in agg.items()
+                 if feasibility_check(bs, constraints, n_x))
+    if optimal_x:
+        p_opt = sum(p for bs, p in agg.items() if bs in optimal_x)
+    else:
+        p_opt = float('nan')
+    ar = (float(opt_cost) - C_max) / (C_min - C_max)
+    return dict(AR=ar, p_feasible=p_feas, p_optimal=p_opt)
+
+
+# ---------------------------------------------------------------------------
 # Per-row metric functions
 # ---------------------------------------------------------------------------
 

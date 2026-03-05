@@ -2,10 +2,13 @@
 plot_feasibility.py -- P(feasible) and P(optimal) plots.
 """
 
+import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import pandas as pd
 
 from . import plot_utils as pu
+from .metrics import aggregate_counts, feasibility_check
 
 
 def plot_p_feasible_vcg(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
@@ -97,6 +100,112 @@ def plot_ar_vs_p_feasible(df: pd.DataFrame, save_path: str = None) -> plt.Figure
     ax.set_ylabel('AR')
     ax.set_title('AR vs P(feasible)')
     ax.legend()
+
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
+def plot_method_comparison(metrics: dict, title: str = 'HybridQAOA vs PenaltyQAOA',
+                           save_path: str = None) -> plt.Figure:
+    """Grouped bar chart comparing methods on AR, P(feasible), P(optimal).
+
+    Parameters
+    ----------
+    metrics : dict mapping method name -> dict with keys AR, p_feasible, p_optimal
+              e.g. {'HybridQAOA': {...}, 'PenaltyQAOA': {...}}
+    title : plot title
+    save_path : if given, save figure to this path
+    """
+    pu.setup_style()
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    metric_keys = ['AR', 'p_feasible', 'p_optimal']
+    labels = ['Approximation Ratio', 'P(feasible)', 'P(optimal)']
+    x = np.arange(len(metric_keys))
+    n_methods = len(metrics)
+    width = 0.7 / n_methods
+
+    method_names = list(metrics.keys())
+    for i, name in enumerate(method_names):
+        vals = [metrics[name][k] for k in metric_keys]
+        color = pu.METHOD_COLORS.get(name, pu._ROSE_PINE['subtle'])
+        offset = (i - n_methods / 2 + 0.5) * width
+        bars = ax.bar(x + offset, vals, width, label=name, color=color, alpha=0.85)
+        for bar in bars:
+            h = bar.get_height()
+            if not np.isnan(h):
+                ax.text(bar.get_x() + bar.get_width() / 2, h + 0.01,
+                        f'{h:.3f}', ha='center', va='bottom', fontsize=9)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_ylim(0, 1.15)
+    ax.set_ylabel('Value')
+    ax.set_title(title)
+    ax.legend()
+
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
+def plot_outcome_distributions(counts: dict, constraints: list, n_x: int,
+                                optimal_x: list = None, top_n: int = 20,
+                                title: str = 'Measurement distributions',
+                                save_path: str = None) -> plt.Figure:
+    """Side-by-side bar charts of top-N measurement outcomes, coloured by status.
+
+    Parameters
+    ----------
+    counts : dict mapping method name -> {bitstring: shot_count}
+    constraints : list of constraint strings (decision-variable indexed)
+    n_x : number of decision variables
+    optimal_x : list of optimal decision bitstrings for colour coding
+    top_n : number of top outcomes to show per method
+    title : overall figure title
+    save_path : if given, save figure to this path
+    """
+    pu.setup_style()
+    method_names = list(counts.keys())
+    fig, axes = plt.subplots(1, len(method_names),
+                             figsize=(7 * len(method_names), 5), sharey=False)
+    if len(method_names) == 1:
+        axes = [axes]
+
+    def _bar_color(bs):
+        if optimal_x and bs in optimal_x:
+            return pu._ROSE_PINE['foam']
+        if feasibility_check(bs, constraints, n_x):
+            return pu._ROSE_PINE['pine']
+        return pu._ROSE_PINE['love']
+
+    for ax, name in zip(axes, method_names):
+        agg = aggregate_counts(counts[name], n_x)
+        top = sorted(agg.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+        bstrings = [bs for bs, _ in top]
+        probs = [p for _, p in top]
+        colors = [_bar_color(bs) for bs in bstrings]
+
+        ax.bar(range(len(bstrings)), probs, color=colors, alpha=0.85)
+        ax.set_xticks(range(len(bstrings)))
+        ax.set_xticklabels(bstrings, rotation=90, fontsize=7)
+        ax.set_xlabel(f'Bitstring (decision variables x_0..x_{n_x - 1})')
+        ax.set_ylabel('Probability')
+        ax.set_title(f'{name} – top {top_n} outcomes')
+
+        p_f = sum(p for bs, p in top if feasibility_check(bs, constraints, n_x))
+        ax.text(0.98, 0.97, f'P(feas) shown: {p_f:.3f}',
+                transform=ax.transAxes, ha='right', va='top', fontsize=9)
+
+    legend_patches = [
+        mpatches.Patch(color=pu._ROSE_PINE['foam'], label='Optimal'),
+        mpatches.Patch(color=pu._ROSE_PINE['pine'], label='Feasible'),
+        mpatches.Patch(color=pu._ROSE_PINE['love'], label='Infeasible'),
+    ]
+    fig.legend(handles=legend_patches, loc='upper center', ncol=3,
+               bbox_to_anchor=(0.5, 1.02))
+    fig.suptitle(title, y=1.05)
 
     if save_path:
         pu.save_fig(fig, save_path)

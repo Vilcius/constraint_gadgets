@@ -54,9 +54,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import warnings
 warnings.filterwarnings('ignore')
 
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import pennylane as qml
 
 from core import constraint_handler as ch
@@ -64,7 +61,8 @@ from core import hybrid_qaoa as hq
 from core import penalty_qaoa as pq
 from data.make_data import read_qubos_from_file, get_optimal_x
 from run.run_utils import read_typed_csv, remap_constraint_to_vars
-from analyze_results.plot_utils import setup_style, _ROSE_PINE, save_fig
+from analyze_results.metrics import compute_comparison_metrics
+from analyze_results.plot_feasibility import plot_method_comparison, plot_outcome_distributions
 
 os.makedirs('examples/figures', exist_ok=True)
 
@@ -191,38 +189,10 @@ print(f"  Done. AR = {ar_p:.4f}\n")
 # 6. Metrics
 # ══════════════════════════════════════════════════════════════════════════════
 
-def is_feasible(bitstring: str, n_x: int = N_X) -> bool:
-    """Check first n_x bits against all three constraints."""
-    vd = {f'x_{i}': int(bitstring[i]) for i in range(n_x)}
-    return all(eval(c, {"__builtins__": {}}, vd) for c in all_constraints)
-
-
-def aggregate_counts(counts: dict, n_x: int = N_X) -> dict:
-    """Collapse auxiliary bits; return {decision_bitstring: probability}."""
-    total = sum(counts.values())
-    agg: dict = {}
-    for bs, cnt in counts.items():
-        key = bs[:n_x]
-        agg[key] = agg.get(key, 0) + cnt / total
-    return agg
-
-
-def compute_metrics(counts: dict, opt_cost: float,
-                    ham: qml.Hamiltonian, C_max: float, C_min: float,
-                    n_x: int = N_X) -> dict:
-    agg = aggregate_counts(counts, n_x)
-    p_feas = sum(p for bs, p in agg.items() if is_feasible(bs))
-    p_opt = (sum(p for bs, p in agg.items()
-                 if bs in (optimal_x or []))
-             if optimal_x else float('nan'))
-    ar = (float(opt_cost) - C_max) / (C_min - C_max)
-    return dict(AR=ar, p_feasible=p_feas, p_optimal=p_opt)
-
-
-m_hybrid  = compute_metrics(counts_h, opt_cost_h, hybrid.problem_ham,
-                             C_max_h, C_min_h)
-m_penalty = compute_metrics(counts_p, opt_cost_p, penalty_solver.full_Ham,
-                             C_max_p, C_min_p)
+m_hybrid  = compute_comparison_metrics(
+    counts_h, opt_cost_h, C_max_h, C_min_h, all_constraints, N_X, optimal_x)
+m_penalty = compute_comparison_metrics(
+    counts_p, opt_cost_p, C_max_p, C_min_p, all_constraints, N_X, optimal_x)
 
 print("Results:")
 print(f"  {'Method':<16} {'AR':>8} {'P(feasible)':>12} {'P(optimal)':>11}")
@@ -236,37 +206,11 @@ print()
 # 7. Plot 1 – Metric comparison bar chart
 # ══════════════════════════════════════════════════════════════════════════════
 
-setup_style()
-fig, ax = plt.subplots(figsize=(8, 5))
-
-metrics  = ['AR', 'p_feasible', 'p_optimal']
-labels   = ['Approximation Ratio', 'P(feasible)', 'P(optimal)']
-x        = np.arange(len(metrics))
-width    = 0.32
-colors   = [_ROSE_PINE['pine'], _ROSE_PINE['love']]
-
-vals_h = [m_hybrid[m]  for m in metrics]
-vals_p = [m_penalty[m] for m in metrics]
-
-bars_h = ax.bar(x - width / 2, vals_h, width, label='HybridQAOA',
-                color=colors[0], alpha=0.85)
-bars_p = ax.bar(x + width / 2, vals_p, width, label='PenaltyQAOA',
-                color=colors[1], alpha=0.85)
-
-for bar in list(bars_h) + list(bars_p):
-    h = bar.get_height()
-    if not np.isnan(h):
-        ax.text(bar.get_x() + bar.get_width() / 2, h + 0.01,
-                f'{h:.3f}', ha='center', va='bottom', fontsize=9)
-
-ax.set_xticks(x)
-ax.set_xticklabels(labels)
-ax.set_ylim(0, 1.15)
-ax.set_ylabel('Value')
-ax.set_title('HybridQAOA vs PenaltyQAOA – 3-constraint COP')
-ax.legend()
-
-save_fig(fig, 'examples/figures/hybrid_example_metrics.png')
+plot_method_comparison(
+    {'HybridQAOA': m_hybrid, 'PenaltyQAOA': m_penalty},
+    title='HybridQAOA vs PenaltyQAOA – 3-constraint COP',
+    save_path='examples/figures/hybrid_example_metrics.png',
+)
 print("Saved: examples/figures/hybrid_example_metrics.png")
 
 
@@ -274,55 +218,14 @@ print("Saved: examples/figures/hybrid_example_metrics.png")
 # 8. Plot 2 – Measurement distributions (top outcomes)
 # ══════════════════════════════════════════════════════════════════════════════
 
-TOP_N = 20
-
-def top_outcomes(counts: dict, n: int = TOP_N, n_x: int = N_X):
-    agg = aggregate_counts(counts, n_x)
-    return sorted(agg.items(), key=lambda kv: kv[1], reverse=True)[:n]
-
-def bar_colors(outcomes: list) -> list:
-    """Green=feasible+optimal, blue=feasible, red=infeasible."""
-    out = []
-    for bs, _ in outcomes:
-        if optimal_x and bs in optimal_x:
-            out.append(_ROSE_PINE['foam'])       # optimal
-        elif is_feasible(bs):
-            out.append(_ROSE_PINE['pine'])       # feasible only
-        else:
-            out.append(_ROSE_PINE['love'])       # infeasible
-    return out
-
-
-fig2, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
-
-for ax, name, top in [
-    (axes[0], 'HybridQAOA',  top_outcomes(counts_h)),
-    (axes[1], 'PenaltyQAOA', top_outcomes(counts_p)),
-]:
-    bstrings = [bs for bs, _ in top]
-    probs    = [p  for _, p  in top]
-    colors_b = bar_colors(top)
-
-    ax.bar(range(len(bstrings)), probs, color=colors_b, alpha=0.85)
-    ax.set_xticks(range(len(bstrings)))
-    ax.set_xticklabels(bstrings, rotation=90, fontsize=7)
-    ax.set_xlabel('Bitstring (decision variables x_0..x_6)')
-    ax.set_ylabel('Probability')
-    ax.set_title(f'{name} – top {TOP_N} outcomes')
-
-    p_f = sum(p for bs, p in top if is_feasible(bs))
-    ax.text(0.98, 0.97, f'P(feas) shown: {p_f:.3f}',
-            transform=ax.transAxes, ha='right', va='top', fontsize=9)
-
-legend_patches = [
-    mpatches.Patch(color=_ROSE_PINE['foam'], label='Optimal'),
-    mpatches.Patch(color=_ROSE_PINE['pine'], label='Feasible'),
-    mpatches.Patch(color=_ROSE_PINE['love'], label='Infeasible'),
-]
-fig2.legend(handles=legend_patches, loc='upper center', ncol=3,
-            bbox_to_anchor=(0.5, 1.02))
-fig2.suptitle('Measurement distributions: decision variables only', y=1.05)
-
-save_fig(fig2, 'examples/figures/hybrid_example_counts.png')
+plot_outcome_distributions(
+    counts={'HybridQAOA': counts_h, 'PenaltyQAOA': counts_p},
+    constraints=all_constraints,
+    n_x=N_X,
+    optimal_x=optimal_x,
+    top_n=20,
+    title='Measurement distributions: decision variables only',
+    save_path='examples/figures/hybrid_example_counts.png',
+)
 print("Saved: examples/figures/hybrid_example_counts.png")
 print("\nDone.")
