@@ -59,7 +59,7 @@ from core import constraint_handler as ch
 from core import hybrid_qaoa as hq
 from core import penalty_qaoa as pq
 from data.make_data import read_qubos_from_file, get_optimal_x
-from experiment import (
+from analyze_results.results_helper import (
     ResultsCollector,
     read_typed_csv, remap_constraint_to_vars,
     collect_hybrid_data, collect_penalty_data,

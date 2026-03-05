@@ -26,7 +26,7 @@ from core import vcg as vcg_module
 from core import hybrid_qaoa as hq
 from core import constraint_handler as ch
 from data import make_data as data
-from experiment import (
+from analyze_results.results_helper import (
     read_typed_csv, collect_vcg_data, collect_hybrid_data,
     remap_to_zero_indexed, remap_constraint_to_vars,
 )

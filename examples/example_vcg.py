@@ -22,7 +22,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from core import vcg as vcg_module
-from experiment import ResultsCollector, collect_vcg_data
+from analyze_results.results_helper import ResultsCollector, collect_vcg_data
 from analyze_results.plot_feasibility import plot_vcg_counts
 
 os.makedirs('examples/figures', exist_ok=True)

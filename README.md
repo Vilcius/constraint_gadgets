@@ -19,8 +19,7 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 │   ├── penalty_qaoa.py       ← Standard penalty-based QAOA baseline
 │   └── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
 │
-├── 📄 experiment.py              ← Shared utilities: ResultsCollector, read_typed_csv,
-│                                    remap helpers, collect_vcg/hybrid/penalty_data
+│   ├── results_helper.py     ← ResultsCollector, read_typed_csv, remap helpers, collect_vcg/hybrid/penalty_data
 │
 ├── 📁 run/
 │   ├── run_cardinality.py    ← VCG + HybridQAOA for cardinality constraints (∑xᵢ op b)
@@ -113,7 +112,7 @@ opt_cost, counts, opt_angles = solver.solve()
 ### Collect results incrementally
 
 ```python
-from experiment import ResultsCollector, collect_vcg_data, collect_hybrid_data, collect_penalty_data
+from analyze_results.results_helper import ResultsCollector, collect_vcg_data, collect_hybrid_data, collect_penalty_data
 
 collector = ResultsCollector()
 collector.load("results/cardinality_constraint_results.pkl")  # resume if exists
@@ -262,10 +261,10 @@ python slurm/generate_params.py
 
 ## Core API
 
-### `experiment.py`
+### `analyze_results/results_helper.py`
 
 ```python
-from experiment import (
+from analyze_results.results_helper import (
     ResultsCollector,
     read_typed_csv, remap_constraint_to_vars, remap_to_zero_indexed,
     collect_vcg_data, collect_hybrid_data, collect_penalty_data,
