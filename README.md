@@ -154,6 +154,19 @@ Three constraints are selected and embedded onto specific variable subsets using
 Constraints A and B are **disjoint** (no shared variables), while C deliberately overlaps both groups
 (x_1 ∈ A, x_4 ∈ B, x_6 is free).
 
+**Qubit layout – 9 qubits total**
+
+| Wires | Count | Role |
+|---|---|---|
+| 0–6 | 7 | Decision variables x_0 … x_6 |
+| 7 | 1 | VCG flag qubit for constraint B (marks infeasible assignments) |
+| 8 | 1 | Slack qubit for constraint C (`x_1+x_4+x_6 + s = 1`, s ∈ {0,1}) |
+
+Constraint A (Dicke) uses no extra qubits — the W-state circuit operates directly on wires 0–2.
+Constraint B's VCG flag is allocated at the next free wire after the decision variables.
+Constraint C's inequality `<= 1` needs one binary slack qubit because the minimum feasible LHS value
+is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
+
 **Step 2 – Route constraints by type**
 
 `constraint_handler.is_dicke_compatible` classifies each parsed constraint:
