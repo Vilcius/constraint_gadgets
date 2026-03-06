@@ -2,18 +2,32 @@
 test_vcg_layers.py -- QAOA vs ma-QAOA VCG layer sweep.
 
 Trains a VCG with increasing QAOA depth until AR >= THRESHOLD or MAX_LAYERS
-is reached.  Uses layer-freezing warm start: when going from p to p+1 layers,
-the first p layers' angles are frozen and only the new layer is optimised.
-This avoids re-optimising the full (p+1)*k parameter space from scratch.
+is reached.  Two key optimisation improvements over a naive sweep:
+
+  1. Layer-freezing warm start – when going from p to p+1 layers the first p
+     layers' angles are frozen; only the new (p+1)-th layer is optimised.
+     This keeps the active parameter count at k (one layer) rather than (p+1)k.
+
+  2. QAOA-seeded initialisation for ma-QAOA – the QAOA sweep runs first and
+     stores its optimal angles at every depth.  For ma-QAOA:
+       • p=1  : first restart starts from the QAOA p=1 solution (broadcast
+                gamma → all num_gamma entries, beta → all num_beta entries).
+       • p>1  : as above, but the new-layer warm-start broadcasts the QAOA
+                best angles at that depth's new layer.
+     Subsequent restarts are random, providing diversity.  This guarantees
+     ma-QAOA starts from a point at least as good as QAOA and only improves.
+
+  3. Budget scaled by parameter count – ma-QAOA optimises 38 params per layer
+     vs QAOA's 2, so it gets proportionally more restarts and steps.
 
 Constraint types compared (both 5 variables, 1 flag qubit):
   - Linear knapsack    (5 vars): compact Pauli structure due to dominance
   - Quadratic knapsack (5 vars): dense Pauli structure from cross terms
 
 Saves:
-  examples/results/vcg_layer_sweep.pkl              -- DataFrame (all runs)
-  examples/figures/vcg_layer_sweep_ar.png           -- AR vs depth
-  examples/figures/vcg_layer_sweep_time.png         -- Optimisation time vs depth
+  examples/results/vcg_layer_sweep.pkl               -- DataFrame (all runs)
+  examples/figures/vcg_layer_sweep_ar.png            -- AR vs depth
+  examples/figures/vcg_layer_sweep_time.png          -- Optimisation time vs depth
   examples/figures/vcg_layer_sweep_distributions.png -- Measurement distributions
 
 Run from project root:
@@ -45,21 +59,24 @@ os.makedirs('examples/figures', exist_ok=True)
 # 1. Configuration
 # ══════════════════════════════════════════════════════════════════════════════
 
-knap_rows = read_typed_csv('data/knapsack_constraints.csv')
+knap_rows  = read_typed_csv('data/knapsack_constraints.csv')
 qknap_rows = read_typed_csv('data/quadratic_knapsack_constraints.csv')
 
 CONSTRAINTS = {
-    'knapsack': next(cs[0] for n, cs in knap_rows if n == 5),
+    'knapsack':      next(cs[0] for n, cs in knap_rows  if n == 5),
     'quad_knapsack': next(cs[0] for n, cs in qknap_rows if n == 5),
 }
 
-THRESHOLD = 0.95    # AR target
-MAX_LAYERS = 5       # give up after this many layers
-STEPS = 100     # Adam steps per restart
-NUM_RESTARTS = 5       # random restarts per layer
-LR = 0.01    # Adam learning rate
-SHOTS = 10_000  # measurement shots for distributions
-FLAG_WIRE = 5       # flag qubit index (one per 5-var constraint)
+THRESHOLD  = 0.95   # AR target
+MAX_LAYERS = 8      # give up after this many layers
+LR         = 0.05   # Adam learning rate (larger → faster escape from flat regions)
+SHOTS      = 10_000 # measurement shots for distributions
+FLAG_WIRE  = 5      # flag qubit index (one per 5-var constraint)
+
+# Per-strategy budgets: ma-QAOA has ~19× more parameters per layer than QAOA,
+# so it gets more restarts and steps to give the optimiser a fair chance.
+RESTARTS = {'QAOA': 5,  'ma-QAOA': 20}
+STEPS    = {'QAOA': 150, 'ma-QAOA': 200}
 
 RESULTS_PATH = 'examples/results/vcg_layer_sweep.pkl'
 
@@ -69,13 +86,9 @@ RESULTS_PATH = 'examples/results/vcg_layer_sweep.pkl'
 # ══════════════════════════════════════════════════════════════════════════════
 
 def optimize_new_layer(gadget: vcg_module.VCG,
-                       frozen_angles: np.ndarray) -> tuple:
+                       frozen_angles: np.ndarray,
+                       starting_new_angles: np.ndarray = None) -> tuple:
     """Freeze all previous layer angles; optimise only the new (last) layer.
-
-    When growing from p to p+1 layers the first p layers' angles are held
-    constant and only the (p+1)-th layer's angles are updated.  This reduces
-    the optimised parameter count from (p+1)*k to k at every step, giving a
-    significant speed-up for wide circuits (large num_gamma).
 
     Parameters
     ----------
@@ -83,12 +96,15 @@ def optimize_new_layer(gadget: vcg_module.VCG,
         Must already be built with n_layers = p+1.
     frozen_angles : np.ndarray
         Optimal angles from the p-layer run, shape (p, params_per_layer).
+    starting_new_angles : np.ndarray or None
+        Optional warm-start for the first restart, shape (1, params_per_layer).
+        Subsequent restarts are always random.  Pass the QAOA new-layer angles
+        (broadcast to ma-QAOA format) to seed ma-QAOA from a strong prior.
 
     Returns
     -------
     best_cost : float
     full_angles : np.ndarray, shape (p+1, params_per_layer)
-        Sets gadget.opt_angles and gadget.optimize_time as a side-effect.
     """
     params_per_layer = (
         gadget.num_gamma + gadget.num_beta
@@ -112,6 +128,7 @@ def optimize_new_layer(gadget: vcg_module.VCG,
         steps=gadget.steps,
         num_restarts=gadget.num_restarts,
         learning_rate=gadget.learning_rate,
+        starting_angles=starting_new_angles,
     )
 
     full_angles = np.concatenate([frozen, new_layer_angles.flatten()])
@@ -125,8 +142,8 @@ def optimize_new_layer(gadget: vcg_module.VCG,
 # 3. Sweep
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Start fresh — do not load a previous run with different settings.
 collector = ResultsCollector()
-collector.load(RESULTS_PATH)
 
 for ctype, constraint in CONSTRAINTS.items():
     # Inspect Hamiltonian structure once (cheap: 1 step, 1 restart)
@@ -134,8 +151,8 @@ for ctype, constraint in CONSTRAINTS.items():
         constraints=[constraint], flag_wires=[FLAG_WIRE],
         angle_strategy='ma-QAOA', decompose=True, n_layers=1, steps=1, num_restarts=1,
     )
-    n_good = probe.outcomes.count(-1)
-    n_bad = probe.outcomes.count(1)
+    n_good  = probe.outcomes.count(-1)
+    n_bad   = probe.outcomes.count(1)
     n_pauli = probe.num_gamma
 
     print('=' * 70, flush=True)
@@ -146,10 +163,16 @@ for ctype, constraint in CONSTRAINTS.items():
     print(f'Pauli terms     : {n_pauli}   (wires: {probe.num_beta})', flush=True)
     print('=' * 70, flush=True)
 
+    # QAOA angles stored per depth for seeding ma-QAOA warm start.
+    # qaoa_angles_by_layer[p] has shape (p, 2).
+    qaoa_angles_by_layer = {}
+
     for angle_strategy in ('QAOA', 'ma-QAOA'):
-        print(f'\n  Strategy: {angle_strategy}', flush=True)
+        print(f'\n  Strategy: {angle_strategy}  '
+              f'(restarts={RESTARTS[angle_strategy]}, steps={STEPS[angle_strategy]})',
+              flush=True)
         reached = False
-        prev_best_angles = None   # frozen angles carried forward layer-by-layer
+        prev_best_angles = None
 
         for n_layers in range(1, MAX_LAYERS + 1):
             gadget = vcg_module.VCG(
@@ -158,8 +181,8 @@ for ctype, constraint in CONSTRAINTS.items():
                 angle_strategy=angle_strategy,
                 decompose=(angle_strategy == 'ma-QAOA'),
                 n_layers=n_layers,
-                steps=STEPS,
-                num_restarts=NUM_RESTARTS,
+                steps=STEPS[angle_strategy],
+                num_restarts=RESTARTS[angle_strategy],
                 learning_rate=LR,
             )
 
@@ -169,12 +192,36 @@ for ctype, constraint in CONSTRAINTS.items():
                 else n_layers * 2
             )
 
-            if prev_best_angles is None:
-                # p=1: full optimisation over k parameters
-                opt_cost, _ = gadget.optimize_angles(gadget.do_evolution_circuit)
+            if angle_strategy == 'QAOA':
+                # ── standard QAOA sweep ───────────────────────────────────
+                if prev_best_angles is None:
+                    opt_cost, _ = gadget.optimize_angles(gadget.do_evolution_circuit)
+                else:
+                    opt_cost, _ = optimize_new_layer(gadget, prev_best_angles)
+                qaoa_angles_by_layer[n_layers] = gadget.opt_angles  # shape (p, 2)
+
             else:
-                # p>1: freeze previous layers, optimise only the new one (k params)
-                opt_cost, _ = optimize_new_layer(gadget, prev_best_angles)
+                # ── ma-QAOA sweep with QAOA-seeded warm start ─────────────
+                if prev_best_angles is None:
+                    # p=1: broadcast QAOA p=1 optimal angles to ma-QAOA shape
+                    qaoa_seed = qaoa_angles_by_layer.get(1)  # shape (1, 2)
+                    opt_cost, _ = gadget.optimize_angles(
+                        gadget.do_evolution_circuit,
+                        starting_angles_from_qaoa=qaoa_seed,
+                    )
+                else:
+                    # p>1: freeze previous layers; warm-start new layer from
+                    # the corresponding QAOA depth's last-layer angles.
+                    starting_new = None
+                    if n_layers in qaoa_angles_by_layer:
+                        # Take the new layer slice from QAOA and broadcast.
+                        last_qaoa = qaoa_angles_by_layer[n_layers][-1:, :]  # (1,2)
+                        starting_new = base.convert_qaoa_to_ma_angles(
+                            last_qaoa, gadget.num_gamma, gadget.num_beta, 1
+                        )  # (1, num_gamma + num_beta)
+                    opt_cost, _ = optimize_new_layer(
+                        gadget, prev_best_angles, starting_new_angles=starting_new
+                    )
 
             prev_best_angles = gadget.opt_angles
             ar = (float(opt_cost) - 1.0) / -2.0
@@ -186,7 +233,6 @@ for ctype, constraint in CONSTRAINTS.items():
                 flush=True,
             )
 
-            # Collect full metrics using already-optimised gadget
             row = collect_vcg_data(
                 gadget,
                 constraint_type=ctype,
@@ -194,7 +240,7 @@ for ctype, constraint in CONSTRAINTS.items():
                 shots=SHOTS,
             )
             row['threshold_reached'] = [ar >= THRESHOLD]
-            row['n_params'] = [n_params]
+            row['n_params']          = [n_params]
             collector.add(row)
 
             if ar >= THRESHOLD:
@@ -215,25 +261,19 @@ for ctype, constraint in CONSTRAINTS.items():
 collector.save(RESULTS_PATH)
 df = collector.to_dataframe()
 
-# collect_vcg_data wraps every value in a length-1 list so that a single row
-# dict can be passed directly to pd.DataFrame().  When many rows are stacked
-# via ResultsCollector the lists end up as cell values rather than scalars.
-# Unwrap any column whose first cell is a length-1 list of a non-collection
-# type (leave counts, outcomes, opt_angles, constraints etc. as lists).
-def _unwrap_scalars(df):
-    # collect_vcg_data wraps every value in a [value] list for single-row
-    # DataFrame construction compatibility.  Unwrap all such columns so that
-    # downstream filtering and plotting see plain scalars / dicts / lists.
+def _unwrap(df):
+    """Unwrap single-element list cells left by collect_vcg_data."""
     for col in df.columns:
         if df.empty:
             break
         sample = df[col].iloc[0]
         if isinstance(sample, list) and len(sample) == 1:
-            df[col] = df[col].apply(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x)
+            df[col] = df[col].apply(
+                lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x
+            )
     return df
 
-df = _unwrap_scalars(df)
-
+df = _unwrap(df)
 print(f'Saved {len(df)} rows to {RESULTS_PATH}\n', flush=True)
 
 
@@ -241,18 +281,17 @@ print(f'Saved {len(df)} rows to {RESULTS_PATH}\n', flush=True)
 # 5. Summary table
 # ══════════════════════════════════════════════════════════════════════════════
 
-print('Summary (threshold / best layer per run)')
+print('Summary (all runs)')
 print('-' * 76)
-print(f"  {'Constraint':<16} {'Strategy':<10} {'p*':>3}  {'AR':>7}  "
+print(f"  {'Constraint':<16} {'Strategy':<10} {'p':>2}  {'AR':>7}  "
       f"{'params':>6}  {'Pauli terms':>11}  {'time(s)':>8}")
 print('  ' + '-' * 66)
-
-thresh_df = df[df['threshold_reached']]
-for _, r in thresh_df.iterrows():
+for _, r in df.sort_values(['constraint_type', 'angle_strategy', 'n_layers']).iterrows():
+    mark = '✓' if r['threshold_reached'] else ' '
     print(
-        f"  {r['constraint_type']:<16} {r['angle_strategy']:<10} {r['n_layers']:>3}"
-        f"  {r['AR']:>7.4f}  {r['n_params']:>6}  {r['num_gamma']:>11}  "
-        f"{r['optimize_time']:>8.1f}",
+        f"  {mark} {r['constraint_type']:<16} {r['angle_strategy']:<10}"
+        f" {r['n_layers']:>2}  {r['AR']:>7.4f}  {r['n_params']:>6}"
+        f"  {r['num_gamma']:>11}  {r['optimize_time']:>8.1f}",
     )
 print()
 
@@ -261,11 +300,11 @@ print()
 # 6. Plots
 # ══════════════════════════════════════════════════════════════════════════════
 
-CTYPES = list(CONSTRAINTS.keys())
+CTYPES     = list(CONSTRAINTS.keys())
 STRATEGIES = ['QAOA', 'ma-QAOA']
 
 
-def plot_ar_sweep(df: 'pd.DataFrame', save_path: str) -> None:
+def plot_ar_sweep(df, save_path: str) -> None:
     """AR vs QAOA depth, one panel per constraint type."""
     pu.setup_style()
     fig, axes = plt.subplots(1, len(CTYPES), figsize=(6 * len(CTYPES), 5), sharey=True)
@@ -284,17 +323,18 @@ def plot_ar_sweep(df: 'pd.DataFrame', save_path: str) -> None:
                    linestyle='--', linewidth=1.2, label=f'Threshold {THRESHOLD}')
         ax.set_title(ctype, fontsize=11)
         ax.set_xlabel('Layers (p)')
-        ax.set_ylim(0, 1.05)
+        ax.set_ylim(0.5, 1.05)
         ax.set_xticks(range(1, MAX_LAYERS + 1))
         ax.legend(fontsize=9)
 
     axes[0].set_ylabel('Approximation Ratio (AR)')
-    fig.suptitle('VCG: AR vs QAOA depth  (layer-freezing warm start)')
+    fig.suptitle('VCG: AR vs QAOA depth  '
+                 '(layer-freezing + QAOA-seeded ma-QAOA warm start)')
     pu.save_fig(fig, save_path)
     print(f'Saved: {save_path}')
 
 
-def plot_time_sweep(df: 'pd.DataFrame', save_path: str) -> None:
+def plot_time_sweep(df, save_path: str) -> None:
     """Optimisation time vs QAOA depth, one panel per constraint type."""
     pu.setup_style()
     fig, axes = plt.subplots(1, len(CTYPES), figsize=(6 * len(CTYPES), 5))
@@ -315,13 +355,14 @@ def plot_time_sweep(df: 'pd.DataFrame', save_path: str) -> None:
         ax.set_xticks(range(1, MAX_LAYERS + 1))
         ax.legend(fontsize=9)
 
-    fig.suptitle('VCG: optimisation time vs depth  (layer-freezing warm start)')
+    fig.suptitle('VCG: optimisation time vs depth  '
+                 '(layer-freezing + QAOA-seeded ma-QAOA warm start)')
     pu.save_fig(fig, save_path)
     print(f'Saved: {save_path}')
 
 
-def plot_distributions(df: 'pd.DataFrame', save_path: str) -> None:
-    """Measurement distributions at threshold / final layer (2×2 grid)."""
+def plot_distributions(df, save_path: str) -> None:
+    """Measurement distributions at threshold / best-AR layer (2×2 grid)."""
     pu.setup_style()
     fig, axes = plt.subplots(
         len(CTYPES), len(STRATEGIES),
@@ -337,27 +378,25 @@ def plot_distributions(df: 'pd.DataFrame', save_path: str) -> None:
                 ax.axis('off')
                 continue
 
-            # Use threshold row if reached, else the best-AR layer
+            # Threshold row if reached, else best-AR layer
             thresh = grp[grp['threshold_reached']]
             row = thresh.iloc[0] if not thresh.empty else grp.loc[grp['AR'].idxmax()]
 
-            counts = row['counts']
+            counts   = row['counts']
             outcomes = row['outcomes']
-            total = sum(counts.values())
-            n_good = outcomes.count(-1)
-            states = sorted(counts.keys())
-            probs = [counts[s] / total for s in states]
-            colors = [
+            total    = sum(counts.values())
+            n_good   = outcomes.count(-1)
+            states   = sorted(counts.keys())
+            probs    = [counts[s] / total for s in states]
+            colors   = [
                 pu._ROSE_PINE['foam'] if outcomes[int(s, 2)] == -1
                 else pu._ROSE_PINE['love']
                 for s in states
             ]
 
             ax.bar(range(len(states)), probs, color=colors, width=1.0, linewidth=0)
-            ax.axhline(
-                1 / n_good, color=pu._ROSE_PINE['gold'],
-                linewidth=1.2, linestyle='--', label=f'Uniform 1/{n_good}',
-            )
+            ax.axhline(1 / n_good, color=pu._ROSE_PINE['gold'],
+                       linewidth=1.2, linestyle='--')
             ax.set_title(
                 f"{ctype}  |  {strategy}  p={row['n_layers']}\n"
                 f"AR={row['AR']:.4f}",
@@ -380,8 +419,8 @@ def plot_distributions(df: 'pd.DataFrame', save_path: str) -> None:
     print(f'Saved: {save_path}')
 
 
-plot_ar_sweep(df, 'examples/figures/vcg_layer_sweep_ar.png')
-plot_time_sweep(df, 'examples/figures/vcg_layer_sweep_time.png')
+plot_ar_sweep(df,      'examples/figures/vcg_layer_sweep_ar.png')
+plot_time_sweep(df,    'examples/figures/vcg_layer_sweep_time.png')
 plot_distributions(df, 'examples/figures/vcg_layer_sweep_distributions.png')
 
 print('\nDone.')
