@@ -242,9 +242,13 @@ opt_cost, _ = gadget_ma.optimize_angles(
 
 ## 6. Open Questions / Future Work
 
-- **Scaling to larger n** — all tests here are n=5 variables.  The 2^(n+1)
-  truth table and Pauli decomposition become expensive beyond n≈10–12.  The
-  `hamiltonian_time` field in the results DataFrame tracks this cost.
+- **Scaling to larger n** — all tests here are n=5 variables.  The
+  Hamiltonian construction bottleneck (previously O(4^n) via
+  `qml.pauli_decompose` on a full matrix) is now resolved: the implementation
+  uses a Walsh-Hadamard transform (WHT) that runs in O(n · 2^n) time and
+  O(2^n) memory, making construction negligible even at n=15+.  The remaining
+  bottleneck is truth table enumeration (2^n states) and the optimisation
+  itself, which grow with n_x.
 
 - **Optimiser alternatives** — Adam with random restarts works but is not
   ideal for a 38-dimensional landscape.  L-BFGS-B (gradient + Hessian
