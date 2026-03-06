@@ -19,7 +19,6 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 │   ├── penalty_qaoa.py       ← Standard penalty-based QAOA baseline
 │   └── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
 │
-│   ├── results_helper.py     ← ResultsCollector, read_typed_csv, remap helpers, collect_vcg/hybrid/penalty_data
 │
 ├── 📁 run/
 │   ├── run_cardinality.py    ← VCG + HybridQAOA for cardinality constraints (∑xᵢ op b)
@@ -31,6 +30,7 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 │
 ├── 📁 analyze_results/       ← Analysis and plotting package
 │   ├── __init__.py
+│   ├── results_helper.py     ← ResultsCollector, GadgetDatabase, remap helpers, collect_vcg/hybrid/penalty_data
 │   ├── data_loader.py        ← Load/filter/clean results DataFrames
 │   ├── metrics.py            ← P(feasible), P(optimal), AR augmentation, summary stats
 │   ├── plot_utils.py         ← Shared matplotlib styling (rose-pine palette)
@@ -43,7 +43,11 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 │
 ├── 📁 examples/
 │   ├── example_vcg.py        ← VCG demo: train on a single constraint, plot counts
-│   └── example_hybrid.py     ← HybridQAOA vs PenaltyQAOA on a cardinality-constrained QUBO
+│   ├── example_hybrid.py     ← HybridQAOA vs PenaltyQAOA on a cardinality-constrained QUBO
+│   ├── test_vcg_layers.py    ← QAOA vs ma-QAOA layer sweep on knapsack constraints
+│   ├── vcg_results.md        ← Detailed results and analysis: QAOA vs ma-QAOA VCG training
+│   ├── results/              ← Saved result pickles (e.g. vcg_layer_sweep.pkl)
+│   └── figures/              ← Generated plots (AR, timing, distributions)
 │
 ├── 📁 slurm/  (HPC)
 │   ├── generate_params.py    ← Regenerate all param files declaratively
@@ -292,30 +296,64 @@ Concretely:
 | `QAOA` | 2 (one γ, one β) | All Pauli terms share γ; all qubits share β |
 | `ma-QAOA` | `num_gamma + num_beta` | Independent angle per Pauli term and per qubit |
 
-ma-QAOA has a strictly larger expressibility at the cost of more parameters.
-For VCGs with many Pauli terms (e.g. quadratic knapsack) it can reach the AR
-threshold at fewer layers.
+QAOA is a special case of ma-QAOA (all γ equal, all β equal), so ma-QAOA's
+optimal AR is always ≥ QAOA's.  In practice, QAOA has a **structural
+ceiling** below AR=1 for constraints with many Pauli terms — the shared γ
+cannot independently weight each term.  For a 5-variable knapsack, QAOA
+saturates at AR≈0.985 regardless of depth.
 
-### Step 4 — Layer-freezing warm start
+### Step 4 — Depth sweep strategy
 
-Naively sweeping depth re-optimises all `p·k` parameters from scratch at
-each layer, which is expensive.  Instead, fix the first `p` layers' angles
-at their optimum and optimise only the new `(p+1)`-th layer's `k` angles:
+How layers are added depends on the angle strategy:
+
+**QAOA — joint re-optimisation (all layers free):**
+
+At each depth `p`, all `2p` parameters are optimised jointly using the
+previous depth's optimal angles as a warm start.  Because QAOA has only
+2 params/layer, even p=8 means only 16 free parameters — trivially fast
+to optimise jointly.  Freezing earlier layers is unnecessary and harmful
+(it prevents the circuit from adjusting to the new layer).
 
 ```python
-# p layers already optimal: frozen_angles shape (p, k)
+# warm-start from previous depth, re-optimise everything
+opt_cost, _ = gadget.optimize_angles(
+    gadget.do_evolution_circuit,
+    prev_layer_angles=prev_best_angles,  # None at p=1
+)
+```
+
+**ma-QAOA — layer-freezing (only new layer is free):**
+
+With `k = num_gamma + num_beta` params/layer (≈38 for a 5-variable
+knapsack), joint optimisation at depth p requires 38p parameters.
+Instead, freeze the first `p` layers at their optimum and optimise only
+the new `(p+1)`-th layer's 38 angles:
+
+```python
 frozen = np.array(frozen_angles.flatten(), requires_grad=False)
 
-def cost_fn(new_angles):          # new_angles shape (1, k)
+def cost_fn(new_angles):
     full = np.concatenate([frozen, new_angles.flatten()])
     return gadget.do_evolution_circuit(full.reshape(p+1, k))
 
-# Adam sees only k free parameters, not (p+1)*k
 base.run_optimization(cost_fn, n_layers=1, ...)
 ```
 
-For a 5-variable quadratic knapsack with ma-QAOA (≈38 params/layer), going
-from p=4 to p=5 optimises 38 parameters instead of 190.
+This keeps the active parameter count at 38 regardless of depth.
+
+**QAOA-seeded warm start for ma-QAOA:**
+
+Run the QAOA depth sweep first (fast: ~25 s total).  For each depth `p`,
+broadcast the QAOA optimal angles (one γ → all `num_gamma` entries, one β
+→ all `num_beta` entries) as the first restart's starting point for
+ma-QAOA.  This guarantees ma-QAOA begins from a point at least as good as
+QAOA, giving the optimiser a strong prior.
+
+```python
+starting_angles = base.convert_qaoa_to_ma_angles(
+    qaoa_angles, num_gamma, num_beta, n_layers
+)
+```
 
 ### Step 5 — Quality metric
 
