@@ -236,6 +236,97 @@ Two figures are saved to `examples/figures/`:
 - `hybrid_example_metrics.png` – side-by-side bar chart of AR, P(feasible), P(optimal)
 - `hybrid_example_counts.png` – top-20 outcome distributions coloured by feasibility/optimality
 
+## How the VCG Works
+
+A **Variable Constraint Gadget (VCG)** is a small QAOA circuit whose ground
+state is the uniform superposition over all bitstrings that satisfy a given
+constraint.  Once trained, it acts as both the initial state and the Grover
+mixer inside HybridQAOA, keeping the search within the feasible subspace.
+
+### Step 1 — Constraint Hamiltonian
+
+The VCG builds a diagonal Hamiltonian whose eigenvalues encode feasibility:
+
+```
+H_constraint = diag(outcomes)   where outcomes[s] = -1 if s is feasible, +1 otherwise
+```
+
+Concretely:
+
+1. **Truth table** — enumerate every assignment of the `n_x` decision variables
+   plus `n_c` flag qubits.  For each decision-variable assignment, compute
+   whether the constraint is satisfied and set the corresponding flag bit.
+   All `2^(n_x + n_c)` states are labelled −1 (valid) or +1 (invalid).
+
+2. **Pauli decomposition** — `qml.pauli_decompose` expresses the diagonal
+   matrix as a sum of Z-only Pauli terms (all off-diagonal terms vanish for a
+   diagonal Hamiltonian).  This gives the circuit its `MultiRZ` structure and
+   determines `num_gamma` (the number of independent cost angles for ma-QAOA).
+
+> **The `decompose` flag.**  Because the VCG Hamiltonian is always diagonal,
+> all its Pauli terms are products of Z operators and therefore mutually
+> commute.  The decomposed product `∏_k exp(−iγ w_k P_k)` and the
+> matrix-exponential form `exp(−iγ H)` implement **exactly the same unitary**
+> for standard QAOA.  `decompose=True` is nonetheless always recommended
+> because:
+> - it is **required** for ma-QAOA (each Pauli term needs its own angle), and
+> - it keeps the circuit in native gate form (MultiRZ), enabling exact
+>   parameter-shift gradients and transparent resource counting.
+
+### Step 2 — QAOA circuit
+
+```
+|+⟩^n  →  [Cost(γ) · Mixer(β)]^p  →  measure
+```
+
+- **Initialisation**: Hadamard on every qubit → equal superposition.
+- **Cost layer**: for each non-identity Pauli term `k`,
+  apply `MultiRZ(w_k · γ_k, wires)`.
+- **Mixer layer**: `RX(β_i, wire_i)` on every qubit (standard X-mixer).
+- Repeat for `p = n_layers` rounds.
+
+### Step 3 — Angle strategies
+
+| Strategy | Parameters per layer | Description |
+|---|---|---|
+| `QAOA` | 2 (one γ, one β) | All Pauli terms share γ; all qubits share β |
+| `ma-QAOA` | `num_gamma + num_beta` | Independent angle per Pauli term and per qubit |
+
+ma-QAOA has a strictly larger expressibility at the cost of more parameters.
+For VCGs with many Pauli terms (e.g. quadratic knapsack) it can reach the AR
+threshold at fewer layers.
+
+### Step 4 — Layer-freezing warm start
+
+Naively sweeping depth re-optimises all `p·k` parameters from scratch at
+each layer, which is expensive.  Instead, fix the first `p` layers' angles
+at their optimum and optimise only the new `(p+1)`-th layer's `k` angles:
+
+```python
+# p layers already optimal: frozen_angles shape (p, k)
+frozen = np.array(frozen_angles.flatten(), requires_grad=False)
+
+def cost_fn(new_angles):          # new_angles shape (1, k)
+    full = np.concatenate([frozen, new_angles.flatten()])
+    return gadget.do_evolution_circuit(full.reshape(p+1, k))
+
+# Adam sees only k free parameters, not (p+1)*k
+base.run_optimization(cost_fn, n_layers=1, ...)
+```
+
+For a 5-variable quadratic knapsack with ma-QAOA (≈38 params/layer), going
+from p=4 to p=5 optimises 38 parameters instead of 190.
+
+### Step 5 — Quality metric
+
+```
+AR = (⟨H_constraint⟩ − C_max) / (C_min − C_max)
+```
+
+For a binary VCG, `C_min = −1` (all weight on good states) and
+`C_max = +1` (all weight on bad states), so `AR = (⟨H⟩ − 1) / −2`.
+A gadget is considered well-trained when `AR ≥ 0.95`.
+
 ## Running Experiments
 
 ### Single constraint family (command line)

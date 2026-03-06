@@ -233,23 +233,41 @@ def read_typed_csv(filepath: str) -> list:
 def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
                      single_flag: bool = False, decompose: bool = True,
                      constraint_type: str = '',
-                     gadget_db_path: str = None) -> dict:
+                     gadget_db_path: str = None,
+                     skip_optimize: bool = False,
+                     shots: int = None) -> dict:
     """Train a VCG and collect metrics.
 
     Calls optimize_angles → get_circuit_resources → do_counts_circuit internally.
+
+    If ``skip_optimize=True`` the gadget must already have ``opt_angles`` set
+    (e.g. via a custom layer-freezing optimisation loop).  The cost is
+    re-evaluated at the stored angles rather than re-running optimisation.
 
     If ``gadget_db_path`` is provided the minimal gadget entry (constraints,
     n_layers, angle_strategy, outcomes, Hamiltonian, opt_angles) is appended to
     the GadgetDatabase at that path immediately after optimisation.  Duplicate
     entries are silently skipped.
 
+    Parameters
+    ----------
+    skip_optimize : bool
+        If True, skip optimize_angles and use vcg.opt_angles directly.
+    shots : int or None
+        Shot count for do_counts_circuit.  Defaults to est_shots when None.
+
     Returns a single-row dict suitable for pd.DataFrame() or ResultsCollector.
     """
     C_max = float(max(qml.eigvals(vcg.constraint_Ham)))
     C_min = float(min(qml.eigvals(vcg.constraint_Ham)))
-    opt_cost, opt_angles = vcg.optimize_angles(vcg.do_evolution_circuit)
+    if skip_optimize:
+        opt_angles = vcg.opt_angles
+        opt_cost = float(vcg.do_evolution_circuit(opt_angles))
+    else:
+        opt_cost, opt_angles = vcg.optimize_angles(vcg.do_evolution_circuit)
     resources, est_shots, est_error, group_est_shots, group_est_error = vcg.get_circuit_resources()
-    counts = vcg.do_counts_circuit(shots=est_shots)
+    _shots = shots if shots is not None else est_shots
+    counts = vcg.do_counts_circuit(shots=_shots)
     row = {
         'constraint_type': [constraint_type],
         'constraints': [vcg.constraints],
@@ -268,7 +286,7 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
         'opt_cost': [float(opt_cost)],
         'counts': [counts],
         'resources': [resources],
-        'est_shots': [est_shots],
+        'est_shots': [_shots],
         'est_error': [est_error],
         'group_est_shots': [group_est_shots],
         'group_est_error': [group_est_error],
