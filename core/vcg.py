@@ -224,15 +224,14 @@ class VCG:
         N = 1 << n  # 2^n
         coeffs = np.array(outcomes, dtype=float)
 
-        # In-place WHT (Hadamard transform)
+        # In-place WHT (Hadamard transform) — vectorised over numpy axes
         step = 1
         while step < N:
-            for i in range(0, N, 2 * step):
-                for j in range(step):
-                    u = coeffs[i + j]
-                    v = coeffs[i + j + step]
-                    coeffs[i + j] = u + v
-                    coeffs[i + j + step] = u - v
+            view = coeffs.reshape(-1, 2 * step)
+            u = view[:, :step].copy()
+            v = view[:, step:].copy()
+            view[:, :step] = u + v
+            view[:, step:] = u - v
             step <<= 1
         coeffs /= N
 
