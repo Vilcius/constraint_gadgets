@@ -238,7 +238,15 @@ Metrics are computed over 10 000 measurement shots (auxiliary bits stripped):
 Two figures are saved to `examples/figures/`:
 
 - `hybrid_example_metrics.png` – side-by-side bar chart of AR, P(feasible), P(optimal)
-- `hybrid_example_counts.png` – top-20 outcome distributions coloured by feasibility/optimality
+- `hybrid_example_counts.png` – top-20 outcome distributions with 5-category colour coding:
+
+| Colour | Meaning |
+|---|---|
+| foam | Optimal |
+| pine | All feasible |
+| gold | Structural ✓, Penalty ✗ |
+| rose | Structural ✗, Penalty ✓ |
+| love | All infeasible |
 
 ## How the VCG Works
 
