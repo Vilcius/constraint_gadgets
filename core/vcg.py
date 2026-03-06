@@ -197,18 +197,60 @@ class VCG:
 
         Valid states (satisfying all constraints) receive eigenvalue -1;
         invalid states receive +1.
+
+        For decompose=True, uses a Walsh-Hadamard transform (WHT) to compute
+        Pauli coefficients directly from the diagonal in O(n * 2^n) time and
+        O(2^n) space, avoiding the O(4^n) full-matrix construction.
         """
         _, outcomes = self.generate_truth_table(False)
-        diag = np.diag(outcomes, requires_grad=False)
         start = time.time()
         if self.decompose:
-            hamiltonian = qml.pauli_decompose(
-                diag, hide_identity=True, wire_order=self.all_wires
-            )
+            hamiltonian = self._pauli_decompose_diagonal(outcomes)
         else:
+            diag = np.diag(outcomes, requires_grad=False)
             hamiltonian = qml.Hermitian(diag, wires=self.all_wires)
         self.hamiltonian_time = time.time() - start
         return hamiltonian
+
+    def _pauli_decompose_diagonal(self, outcomes: list) -> qml.Hamiltonian:
+        """Decompose a diagonal {±1} Hamiltonian into Pauli Z terms via WHT.
+
+        The Pauli coefficient for Z-string S is:
+            c_S = (1/2^n) * sum_x  outcomes[x] * (-1)^{popcount(x & S)}
+        which is the Walsh-Hadamard transform of outcomes, normalised by 2^n.
+        Memory: O(2^n).  Time: O(n * 2^n).
+        """
+        n = self.n
+        N = 1 << n  # 2^n
+        coeffs = np.array(outcomes, dtype=float)
+
+        # In-place WHT (Hadamard transform)
+        step = 1
+        while step < N:
+            for i in range(0, N, 2 * step):
+                for j in range(step):
+                    u = coeffs[i + j]
+                    v = coeffs[i + j + step]
+                    coeffs[i + j] = u + v
+                    coeffs[i + j + step] = u - v
+            step <<= 1
+        coeffs /= N
+
+        # Build Pauli terms — skip near-zero coefficients and the identity
+        pauli_coeffs = []
+        pauli_ops = []
+        for S in range(N):
+            if S == 0 or abs(coeffs[S]) < 1e-10:
+                continue
+            # bit k of S → Z on wire all_wires[k]
+            obs = qml.prod(*(
+                qml.PauliZ(self.all_wires[k])
+                for k in range(n) if S & (1 << k)
+            ))
+            pauli_coeffs.append(float(coeffs[S]))
+            pauli_ops.append(obs)
+
+        return qml.Hamiltonian(pauli_coeffs, pauli_ops)
 
     # ------------------------------------------------------------------
     # Truth table
