@@ -194,6 +194,8 @@ def plot_method_comparison(metrics: dict, title: str = 'HybridQAOA vs PenaltyQAO
 
 def plot_outcome_distributions(counts: dict, constraints: list, n_x: int,
                                 optimal_x: list = None, top_n: int = 20,
+                                structural_constraints: list = None,
+                                penalty_constraints: list = None,
                                 title: str = 'Measurement distributions',
                                 save_path: str = None) -> plt.Figure:
     """Side-by-side bar charts of top-N measurement outcomes, coloured by status.
@@ -201,26 +203,52 @@ def plot_outcome_distributions(counts: dict, constraints: list, n_x: int,
     Parameters
     ----------
     counts : dict mapping method name -> {bitstring: shot_count}
-    constraints : list of constraint strings (decision-variable indexed)
+    constraints : list of all constraint strings (decision-variable indexed)
     n_x : number of decision variables
     optimal_x : list of optimal decision bitstrings for colour coding
     top_n : number of top outcomes to show per method
+    structural_constraints : list of structural constraint strings; when provided
+        together with penalty_constraints, enables 5-category colour coding
+    penalty_constraints : list of penalized constraint strings
     title : overall figure title
     save_path : if given, save figure to this path
+
+    Colour scheme (5-category, when structural/penalty constraints are given)
+    -------------------------------------------------------------------------
+    foam  : Optimal (feasible + achieves optimal value)
+    pine  : Fully feasible (all constraints satisfied)
+    gold  : Structural ✓, Penalty ✗
+    rose  : Structural ✗, Penalty ✓
+    love  : All infeasible
+
+    Falls back to 3-category (foam/pine/love) when constraints are not split.
     """
     pu.setup_style()
+    five_category = (structural_constraints is not None
+                     and penalty_constraints is not None)
+
+    def _bar_color(bs):
+        if optimal_x and bs in optimal_x:
+            return pu._ROSE_PINE['foam']
+        if five_category:
+            feas_s = feasibility_check(bs, structural_constraints, n_x)
+            feas_p = feasibility_check(bs, penalty_constraints, n_x)
+            if feas_s and feas_p:
+                return pu._ROSE_PINE['pine']
+            if feas_s:
+                return pu._ROSE_PINE['gold']
+            if feas_p:
+                return pu._ROSE_PINE['rose']
+            return pu._ROSE_PINE['love']
+        if feasibility_check(bs, constraints, n_x):
+            return pu._ROSE_PINE['pine']
+        return pu._ROSE_PINE['love']
+
     method_names = list(counts.keys())
     fig, axes = plt.subplots(1, len(method_names),
                              figsize=(7 * len(method_names), 5), sharey=False)
     if len(method_names) == 1:
         axes = [axes]
-
-    def _bar_color(bs):
-        if optimal_x and bs in optimal_x:
-            return pu._ROSE_PINE['foam']
-        if feasibility_check(bs, constraints, n_x):
-            return pu._ROSE_PINE['pine']
-        return pu._ROSE_PINE['love']
 
     for ax, name in zip(axes, method_names):
         agg = aggregate_counts(counts[name], n_x)
@@ -240,12 +268,24 @@ def plot_outcome_distributions(counts: dict, constraints: list, n_x: int,
         ax.text(0.98, 0.97, f'P(feas) shown: {p_f:.3f}',
                 transform=ax.transAxes, ha='right', va='top', fontsize=9)
 
-    legend_patches = [
-        mpatches.Patch(color=pu._ROSE_PINE['foam'], label='Optimal'),
-        mpatches.Patch(color=pu._ROSE_PINE['pine'], label='Feasible'),
-        mpatches.Patch(color=pu._ROSE_PINE['love'], label='Infeasible'),
-    ]
-    fig.legend(handles=legend_patches, loc='upper center', ncol=3,
+    if five_category:
+        legend_patches = [
+            mpatches.Patch(color=pu._ROSE_PINE['foam'], label='Optimal'),
+            mpatches.Patch(color=pu._ROSE_PINE['pine'], label='All feasible'),
+            mpatches.Patch(color=pu._ROSE_PINE['gold'], label='Structural ✓  Penalty ✗'),
+            mpatches.Patch(color=pu._ROSE_PINE['rose'], label='Structural ✗  Penalty ✓'),
+            mpatches.Patch(color=pu._ROSE_PINE['love'], label='All infeasible'),
+        ]
+        ncol = 5
+    else:
+        legend_patches = [
+            mpatches.Patch(color=pu._ROSE_PINE['foam'], label='Optimal'),
+            mpatches.Patch(color=pu._ROSE_PINE['pine'], label='Feasible'),
+            mpatches.Patch(color=pu._ROSE_PINE['love'], label='Infeasible'),
+        ]
+        ncol = 3
+
+    fig.legend(handles=legend_patches, loc='upper center', ncol=ncol,
                bbox_to_anchor=(0.5, 1.02))
     fig.suptitle(title, y=1.05)
 

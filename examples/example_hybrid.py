@@ -240,6 +240,8 @@ plot_outcome_distributions(
     n_x=N_X,
     optimal_x=optimal_x,
     top_n=20,
+    structural_constraints=[c_a, c_b],
+    penalty_constraints=[c_c],
     title='Measurement distributions: decision variables only',
     save_path='examples/figures/hybrid_example_counts.png',
 )
