@@ -249,7 +249,7 @@ class VCG:
             pauli_coeffs.append(float(coeffs[S]))
             pauli_ops.append(obs)
 
-        return qml.Hamiltonian(pauli_coeffs, pauli_ops)
+        return qml.Hamiltonian(np.array(pauli_coeffs), pauli_ops)
 
     # ------------------------------------------------------------------
     # Truth table

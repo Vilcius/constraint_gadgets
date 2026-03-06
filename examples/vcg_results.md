@@ -146,10 +146,10 @@ the fully generalised optimum.
 
 | Constraint | Strategy | Layers p* | AR | Opt. time |
 |---|---|---|---|---|
-| knapsack | QAOA | 2 | 0.9840 | ~25 s total |
-| knapsack | **ma-QAOA** | **1** | **1.0000** | ~542 s |
-| quad_knapsack | QAOA | 2 | 0.9852 | ~26 s total |
-| quad_knapsack | **ma-QAOA** | **1** | **1.0000** | ~536 s |
+| knapsack | QAOA | 2 | 0.9840 | ~24 s total |
+| knapsack | **ma-QAOA** | **1** | **1.0000** | ~492 s |
+| quad_knapsack | QAOA | 2 | 0.9818 | ~25 s total |
+| quad_knapsack | **ma-QAOA** | **1** | **1.0000** | ~533 s |
 
 AR threshold: 0.95.  Both strategies pass it; ma-QAOA hits the exact ground
 state.
@@ -166,10 +166,10 @@ is real: the shared-angle constraint limits expressibility regardless of depth.
 
 ![Time vs layers](figures/vcg_layer_sweep_time.png)
 
-QAOA is fast: ~8 s at p=1, ~17 s at p=2.  ma-QAOA takes ~540 s at p=1 due to
-the 19× larger parameter space and higher restart count.  With layer-freezing,
-ma-QAOA time scales roughly linearly with depth (not quadratically) since only
-38 params are optimised at each new layer.
+QAOA is fast: ~8–9 s at p=1, ~15–18 s at p=2.  ma-QAOA takes ~490–535 s at
+p=1 due to the 19× larger parameter space and higher restart count.  With
+layer-freezing, ma-QAOA time scales roughly linearly with depth (not
+quadratically) since only 38 params are optimised at each new layer.
 
 ### Measurement distributions (best layer per run)
 
@@ -200,7 +200,7 @@ toward good states.
    in a 38-dimensional space is still insufficient to reliably find the ground
    state.  With it, ma-QAOA converges reliably at p=1.
 
-5. **Training cost is a one-time expense** — the 540 s ma-QAOA training is
+5. **Training cost is a one-time expense** — the ~490–535 s ma-QAOA training is
    cached in `GadgetDatabase`.  HybridQAOA looks up the stored gadget and
    reuses it at no additional cost.
 

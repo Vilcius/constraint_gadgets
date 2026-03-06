@@ -437,8 +437,9 @@ def estimate_hamiltonian_resources(
     est_shots = qml.resource.estimate_shots(coeffs)
     est_error = qml.resource.estimate_error(coeffs)
     group_ops, group_coeffs = qml.pauli.group_observables(ops, coeffs)
-    group_shots = qml.resource.estimate_shots(group_coeffs)
-    group_error = qml.resource.estimate_error(group_coeffs)
+    group_coeffs_arr = [np.array(gc) for gc in group_coeffs]
+    group_shots = qml.resource.estimate_shots(group_coeffs_arr)
+    group_error = qml.resource.estimate_error(group_coeffs_arr)
     return est_shots, est_error, group_shots, group_error
 
 
