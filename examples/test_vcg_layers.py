@@ -194,10 +194,16 @@ for ctype, constraint in CONSTRAINTS.items():
 
             if angle_strategy == 'QAOA':
                 # ── standard QAOA sweep ───────────────────────────────────
-                if prev_best_angles is None:
-                    opt_cost, _ = gadget.optimize_angles(gadget.do_evolution_circuit)
-                else:
-                    opt_cost, _ = optimize_new_layer(gadget, prev_best_angles)
+                # Re-optimise ALL layers jointly at every depth: with only
+                # 2 params per layer the full parameter space stays small
+                # (16 params at p=8) and freezing previous layers would
+                # unnecessarily constrain the search.  prev_layer_angles
+                # seeds every restart at the previous optimum + random new
+                # layer, then Adam is free to adjust all layers together.
+                opt_cost, _ = gadget.optimize_angles(
+                    gadget.do_evolution_circuit,
+                    prev_layer_angles=prev_best_angles,   # None at p=1
+                )
                 qaoa_angles_by_layer[n_layers] = gadget.opt_angles  # shape (p, 2)
 
             else:
