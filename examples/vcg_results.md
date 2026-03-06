@@ -37,16 +37,22 @@ A truth table is built over all `2^(n_x + n_c)` states:
   and set the flag qubit to 0 (satisfied) or 1 (violated).
 - Label every *valid* state (variables + matching flag) with eigenvalue **−1**;
   label every *invalid* state (impossible flag assignment) with **+1**.
-- Stack these into a diagonal matrix and **Pauli-decompose** it:
+- Compute the Pauli decomposition via a **Walsh-Hadamard transform (WHT)**:
 
 ```
 H_constraint = Σ_k  w_k · P_k    (Z-only Pauli terms)
+
+c_S = (1/2^n) · Σ_x  outcomes[x] · (−1)^{popcount(x & S)}
 ```
 
-Because the matrix is diagonal, all terms are products of Z operators and
-therefore **mutually commute**.  The number of non-trivial terms (`num_gamma`)
-drives the cost-layer gate count and determines how many independent angles
-ma-QAOA needs.
+Because the Hamiltonian is diagonal, all Pauli terms are products of Z
+operators and therefore **mutually commute**.  The WHT computes their
+coefficients in O(n · 2^n) time and O(2^n) memory — far more efficient than
+constructing the full `2^n × 2^n` matrix and calling `qml.pauli_decompose`
+(O(4^n) in both time and memory, which runs out of RAM for n ≳ 13).
+
+The number of non-trivial terms (`num_gamma`) drives the cost-layer gate
+count and determines how many independent angles ma-QAOA needs.
 
 > For the 5-variable knapsack tested here: 6 qubits total (5 vars + 1 flag),
 > 64 states, 32 good / 32 bad, **32 Pauli terms**.

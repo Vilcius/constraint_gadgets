@@ -262,10 +262,22 @@ Concretely:
    whether the constraint is satisfied and set the corresponding flag bit.
    All `2^(n_x + n_c)` states are labelled −1 (valid) or +1 (invalid).
 
-2. **Pauli decomposition** — `qml.pauli_decompose` expresses the diagonal
-   matrix as a sum of Z-only Pauli terms (all off-diagonal terms vanish for a
-   diagonal Hamiltonian).  This gives the circuit its `MultiRZ` structure and
-   determines `num_gamma` (the number of independent cost angles for ma-QAOA).
+2. **Pauli decomposition** — because the Hamiltonian is diagonal, all its
+   Pauli terms are products of Z operators (no off-diagonal terms).  There
+   are at most `2^n` such Z-string terms.  Their coefficients are computed
+   via a **Walsh-Hadamard transform (WHT)** of the `outcomes` vector:
+
+   ```
+   c_S = (1/2^n) · Σ_x  outcomes[x] · (−1)^{popcount(x & S)}
+   ```
+
+   WHT runs in O(n · 2^n) time and O(2^n) memory.  This replaces the naive
+   approach of constructing a full `2^n × 2^n` matrix and calling
+   `qml.pauli_decompose`, which costs O(4^n) in both time and memory and
+   fails for constraints beyond n≈13 qubits due to OOM.
+
+   The result — `num_gamma` non-trivial Pauli terms — determines the number
+   of independent cost angles for ma-QAOA.
 
 > **The `decompose` flag.**  Because the VCG Hamiltonian is always diagonal,
 > all its Pauli terms are products of Z operators and therefore mutually
