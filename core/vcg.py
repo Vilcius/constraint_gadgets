@@ -1,5 +1,5 @@
 """
-vcg.py -- Variable Constraint Gadget (VCG) QAOA.
+vcg.py -- Variational Constraint Gadget (VCG) QAOA.
 
 Builds a Hamiltonian whose ground state encodes constraint satisfaction
 (valid states get eigenvalue -1, invalid states +1), then uses QAOA to
@@ -79,7 +79,7 @@ def _check_constraint_op(lhs_val: float, op: ch.ConstraintOp, rhs: float) -> boo
 
 class VCG:
     """
-    Variable Constraint Gadget (VCG) QAOA.
+    Variational Constraint Gadget (VCG) QAOA.
 
     Constructs a Hamiltonian whose ground state encodes constraint satisfaction,
     then uses QAOA to prepare that state efficiently.

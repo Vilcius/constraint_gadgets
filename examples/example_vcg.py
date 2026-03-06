@@ -1,7 +1,7 @@
 """
 example_vcg.py -- Toy demo: VCG training on a single cardinality constraint.
 
-Trains a Variable Constraint Gadget for 'x_0 + x_1 + x_2 == 1' using both
+Trains a Variational Constraint Gadget for 'x_0 + x_1 + x_2 == 1' using both
 QAOA and ma-QAOA angle strategies.  Results are collected via ResultsCollector
 and saved to examples/results/example_vcg_results.pkl.
 

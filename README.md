@@ -2,7 +2,7 @@
 
 Code for studying constraint-handling strategies in the Quantum Approximate Optimisation Algorithm (QAOA) for solving Combinatorial Optimisation Problems (COPs).
 
-The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalising constraint violations in the cost Hamiltonian, a small QAOA circuit is built whose ground state is the uniform superposition over feasible bitstrings. This gadget then acts as a structured state-preparation oracle and mixer inside the problem QAOA, biasing the search toward the feasible subspace from the outset.
+The central idea is a **Variational Constraint Gadget (VCG)**: rather than penalising constraint violations in the cost Hamiltonian, a small QAOA circuit is built whose ground state is the uniform superposition over feasible bitstrings. This gadget then acts as a structured state-preparation oracle and mixer inside the problem QAOA, biasing the search toward the feasible subspace from the outset.
 
 ## File Structure
 
@@ -14,7 +14,7 @@ The central idea is a **Variable Constraint Gadget (VCG)**: rather than penalisi
 ├── 📁 core/
 │   ├── qaoa_base.py          ← Shared QAOA logic: Hamiltonians, circuits, optimisation, resources
 │   ├── constraint_handler.py ← Parsing, classification, partitioning, feasibility checking
-│   ├── vcg.py                ← Variable Constraint Gadget (VCG) QAOA
+│   ├── vcg.py                ← Variational Constraint Gadget (VCG) QAOA
 │   ├── hybrid_qaoa.py        ← Hybrid QAOA: structural (VCG/Dicke) + penalty constraints
 │   ├── penalty_qaoa.py       ← Standard penalty-based QAOA baseline
 │   └── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
@@ -191,7 +191,7 @@ is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
   W-state circuit and an XY mixer – no flag qubit, zero approximation error.
 
 - **Not Dicke-compatible** (B): non-unit coefficients or inequality operator.
-  HybridQAOA trains a Variable Constraint Gadget (VCG) whose ground state is the uniform
+  HybridQAOA trains a Variational Constraint Gadget (VCG) whose ground state is the uniform
   superposition over feasible assignments for B, then embeds it as the initial state and uses a
   Grover mixer with one flag qubit marking (un)satisfying assignments.
 
@@ -242,7 +242,7 @@ Two figures are saved to `examples/figures/`:
 
 ## How the VCG Works
 
-A **Variable Constraint Gadget (VCG)** is a small QAOA circuit whose ground
+A **Variational Constraint Gadget (VCG)** is a small QAOA circuit whose ground
 state is the uniform superposition over all bitstrings that satisfy a given
 constraint.  Once trained, it acts as both the initial state and the Grover
 mixer inside HybridQAOA, keeping the search within the feasible subspace.

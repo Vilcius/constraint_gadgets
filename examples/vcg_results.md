@@ -8,7 +8,7 @@
 
 ## 1. What is a VCG?
 
-A **Variable Constraint Gadget (VCG)** is a small QAOA circuit trained so
+A **Variational Constraint Gadget (VCG)** is a small QAOA circuit trained so
 that its ground state is the uniform superposition over all bitstrings
 satisfying a given constraint.  Once trained it is used inside HybridQAOA as:
 

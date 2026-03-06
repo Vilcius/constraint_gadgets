@@ -13,7 +13,7 @@ Problem structure (7 decision variables, x_0 .. x_6)
   Constraint B  (structural – VCG gadget)
       6*x_3 + 2*x_4 + 2*x_5 <= 3   vars {3, 4, 5}
       Weighted capacity constraint.  Non-unit coefficients and an inequality
-      make it NOT Dicke-compatible.  HybridQAOA trains a Variable Constraint
+      make it NOT Dicke-compatible.  HybridQAOA trains a Variational Constraint
       Gadget (VCG) whose ground state is the uniform superposition over
       feasible assignments, then uses it as the initial state and Grover
       mixer – one flag qubit (wire 7) marks (un)satisfying assignments.
