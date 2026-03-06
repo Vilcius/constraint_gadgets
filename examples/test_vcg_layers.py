@@ -45,21 +45,21 @@ os.makedirs('examples/figures', exist_ok=True)
 # 1. Configuration
 # ══════════════════════════════════════════════════════════════════════════════
 
-knap_rows  = read_typed_csv('data/knapsack_constraints.csv')
+knap_rows = read_typed_csv('data/knapsack_constraints.csv')
 qknap_rows = read_typed_csv('data/quadratic_knapsack_constraints.csv')
 
 CONSTRAINTS = {
-    'knapsack':      next(cs[0] for n, cs in knap_rows  if n == 5),
+    'knapsack': next(cs[0] for n, cs in knap_rows if n == 5),
     'quad_knapsack': next(cs[0] for n, cs in qknap_rows if n == 5),
 }
 
-THRESHOLD    = 0.95    # AR target
-MAX_LAYERS   = 5       # give up after this many layers
-STEPS        = 100     # Adam steps per restart
+THRESHOLD = 0.95    # AR target
+MAX_LAYERS = 5       # give up after this many layers
+STEPS = 100     # Adam steps per restart
 NUM_RESTARTS = 5       # random restarts per layer
-LR           = 0.01    # Adam learning rate
-SHOTS        = 10_000  # measurement shots for distributions
-FLAG_WIRE    = 5       # flag qubit index (one per 5-var constraint)
+LR = 0.01    # Adam learning rate
+SHOTS = 10_000  # measurement shots for distributions
+FLAG_WIRE = 5       # flag qubit index (one per 5-var constraint)
 
 RESULTS_PATH = 'examples/results/vcg_layer_sweep.pkl'
 
@@ -134,8 +134,8 @@ for ctype, constraint in CONSTRAINTS.items():
         constraints=[constraint], flag_wires=[FLAG_WIRE],
         angle_strategy='ma-QAOA', decompose=True, n_layers=1, steps=1, num_restarts=1,
     )
-    n_good  = probe.outcomes.count(-1)
-    n_bad   = probe.outcomes.count(1)
+    n_good = probe.outcomes.count(-1)
+    n_bad = probe.outcomes.count(1)
     n_pauli = probe.num_gamma
 
     print('=' * 70, flush=True)
@@ -156,7 +156,7 @@ for ctype, constraint in CONSTRAINTS.items():
                 constraints=[constraint],
                 flag_wires=[FLAG_WIRE],
                 angle_strategy=angle_strategy,
-                decompose=True,
+                decompose=(angle_strategy == 'ma-QAOA'),
                 n_layers=n_layers,
                 steps=STEPS,
                 num_restarts=NUM_RESTARTS,
@@ -194,7 +194,7 @@ for ctype, constraint in CONSTRAINTS.items():
                 shots=SHOTS,
             )
             row['threshold_reached'] = [ar >= THRESHOLD]
-            row['n_params']          = [n_params]
+            row['n_params'] = [n_params]
             collector.add(row)
 
             if ar >= THRESHOLD:
@@ -214,6 +214,26 @@ for ctype, constraint in CONSTRAINTS.items():
 
 collector.save(RESULTS_PATH)
 df = collector.to_dataframe()
+
+# collect_vcg_data wraps every value in a length-1 list so that a single row
+# dict can be passed directly to pd.DataFrame().  When many rows are stacked
+# via ResultsCollector the lists end up as cell values rather than scalars.
+# Unwrap any column whose first cell is a length-1 list of a non-collection
+# type (leave counts, outcomes, opt_angles, constraints etc. as lists).
+def _unwrap_scalars(df):
+    # collect_vcg_data wraps every value in a [value] list for single-row
+    # DataFrame construction compatibility.  Unwrap all such columns so that
+    # downstream filtering and plotting see plain scalars / dicts / lists.
+    for col in df.columns:
+        if df.empty:
+            break
+        sample = df[col].iloc[0]
+        if isinstance(sample, list) and len(sample) == 1:
+            df[col] = df[col].apply(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x)
+    return df
+
+df = _unwrap_scalars(df)
+
 print(f'Saved {len(df)} rows to {RESULTS_PATH}\n', flush=True)
 
 
@@ -241,7 +261,7 @@ print()
 # 6. Plots
 # ══════════════════════════════════════════════════════════════════════════════
 
-CTYPES     = list(CONSTRAINTS.keys())
+CTYPES = list(CONSTRAINTS.keys())
 STRATEGIES = ['QAOA', 'ma-QAOA']
 
 
@@ -317,17 +337,17 @@ def plot_distributions(df: 'pd.DataFrame', save_path: str) -> None:
                 ax.axis('off')
                 continue
 
-            # Use threshold row if reached, else the deepest layer tried
+            # Use threshold row if reached, else the best-AR layer
             thresh = grp[grp['threshold_reached']]
-            row = thresh.iloc[0] if not thresh.empty else grp.iloc[-1]
+            row = thresh.iloc[0] if not thresh.empty else grp.loc[grp['AR'].idxmax()]
 
-            counts   = row['counts']
+            counts = row['counts']
             outcomes = row['outcomes']
-            total    = sum(counts.values())
-            n_good   = outcomes.count(-1)
-            states   = sorted(counts.keys())
-            probs    = [counts[s] / total for s in states]
-            colors   = [
+            total = sum(counts.values())
+            n_good = outcomes.count(-1)
+            states = sorted(counts.keys())
+            probs = [counts[s] / total for s in states]
+            colors = [
                 pu._ROSE_PINE['foam'] if outcomes[int(s, 2)] == -1
                 else pu._ROSE_PINE['love']
                 for s in states
@@ -360,8 +380,8 @@ def plot_distributions(df: 'pd.DataFrame', save_path: str) -> None:
     print(f'Saved: {save_path}')
 
 
-plot_ar_sweep(df,         'examples/figures/vcg_layer_sweep_ar.png')
-plot_time_sweep(df,       'examples/figures/vcg_layer_sweep_time.png')
-plot_distributions(df,    'examples/figures/vcg_layer_sweep_distributions.png')
+plot_ar_sweep(df, 'examples/figures/vcg_layer_sweep_ar.png')
+plot_time_sweep(df, 'examples/figures/vcg_layer_sweep_time.png')
+plot_distributions(df, 'examples/figures/vcg_layer_sweep_distributions.png')
 
 print('\nDone.')

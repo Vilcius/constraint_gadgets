@@ -285,7 +285,13 @@ class VCG:
             if self.decompose:
                 base.apply_cost_unitary(self.constraint_Ham, gammas, q)
             else:
-                qml.evolve(self.constraint_Ham, coeff=gammas[q][0])
+                # Diagonal H: exp(-i*gamma*H) is a diagonal unitary whose
+                # k-th entry is exp(-i*gamma*outcomes[k]).  DiagonalQubitUnitary
+                # works for both statevector and shot-based simulation.
+                diag = np.exp(
+                    -1j * gammas[q][0] * np.array(self.outcomes, dtype=float)
+                )
+                qml.DiagonalQubitUnitary(diag, wires=self.all_wires)
             base.apply_x_mixer(betas, q, self.all_wires)
 
     def opt_circuit(self) -> None:
