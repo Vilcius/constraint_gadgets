@@ -146,10 +146,10 @@ the fully generalised optimum.
 
 | Constraint | Strategy | Layers p* | AR | Opt. time |
 |---|---|---|---|---|
-| knapsack | QAOA | 2 | 0.9840 | ~24 s total |
-| knapsack | **ma-QAOA** | **1** | **1.0000** | ~492 s |
-| quad_knapsack | QAOA | 2 | 0.9818 | ~25 s total |
-| quad_knapsack | **ma-QAOA** | **1** | **1.0000** | ~533 s |
+| knapsack | QAOA | 3 | 0.9890 | ~51 s total |
+| knapsack | **ma-QAOA** | **1** | **1.0000** | ~506 s |
+| quad_knapsack | QAOA | 2 | 0.9642 | ~27 s total |
+| quad_knapsack | **ma-QAOA** | **1** | **1.0000** | ~500 s |
 
 AR threshold: 0.95.  Both strategies pass it; ma-QAOA hits the exact ground
 state.
@@ -158,18 +158,20 @@ state.
 
 ![AR vs layers](figures/vcg_layer_sweep_ar.png)
 
-QAOA reaches the threshold at p=2 and saturates — adding more layers provides
-no benefit.  ma-QAOA hits AR=1.0 at p=1 and stops.  The QAOA ceiling (~0.985)
-is real: the shared-angle constraint limits expressibility regardless of depth.
+QAOA reaches the threshold by p=2–3 and saturates — adding more layers
+provides diminishing returns.  ma-QAOA hits AR=1.0 at p=1 and stops.  The
+QAOA ceiling is real: the shared-angle constraint limits expressibility
+regardless of depth.
 
 ### Optimisation time vs circuit depth
 
 ![Time vs layers](figures/vcg_layer_sweep_time.png)
 
-QAOA is fast: ~8–9 s at p=1, ~15–18 s at p=2.  ma-QAOA takes ~490–535 s at
-p=1 due to the 19× larger parameter space and higher restart count.  With
-layer-freezing, ma-QAOA time scales roughly linearly with depth (not
-quadratically) since only 38 params are optimised at each new layer.
+QAOA is fast: ~8–10 s at p=1, accumulating ~25–50 s by the threshold layer.
+ma-QAOA takes ~500–510 s at p=1 due to the 19× larger parameter space and
+higher restart count.  With layer-freezing, ma-QAOA time scales roughly
+linearly with depth (not quadratically) since only 38 params are optimised at
+each new layer.
 
 ### Measurement distributions (best layer per run)
 
@@ -200,7 +202,7 @@ toward good states.
    in a 38-dimensional space is still insufficient to reliably find the ground
    state.  With it, ma-QAOA converges reliably at p=1.
 
-5. **Training cost is a one-time expense** — the ~490–535 s ma-QAOA training is
+5. **Training cost is a one-time expense** — the ~500–510 s ma-QAOA training is
    cached in `GadgetDatabase`.  HybridQAOA looks up the stored gadget and
    reuses it at no additional cost.
 

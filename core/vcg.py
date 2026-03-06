@@ -241,9 +241,10 @@ class VCG:
         for S in range(N):
             if S == 0 or abs(coeffs[S]) < 1e-10:
                 continue
-            # bit k of S → Z on wire all_wires[k]
+            # outcomes is MSB-first (all_wires[0] is most significant),
+            # so WHT bit k corresponds to all_wires[n-1-k], not all_wires[k].
             obs = qml.prod(*(
-                qml.PauliZ(self.all_wires[k])
+                qml.PauliZ(self.all_wires[n - 1 - k])
                 for k in range(n) if S & (1 << k)
             ))
             pauli_coeffs.append(float(coeffs[S]))
