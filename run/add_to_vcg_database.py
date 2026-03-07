@@ -3,17 +3,19 @@ add_to_vcg_database.py -- Train a VCG and add it to the gadget database.
 
 Training procedure
 ------------------
-1. QAOA sweep — at each depth p, all p*2 parameters are optimised jointly,
-   warm-started from the previous depth's optimal angles.
+1. Single QAOA run at p=1 (2 parameters, fast).
+   Optimal angles are broadcast to ma-QAOA format to seed the first restart.
 
-2. ma-QAOA sweep — at each depth p, all p*(num_gamma+num_beta) parameters
-   are optimised jointly, warm-started from the previous depth's optimal
-   angles (prev_layer_angles).  The first restart at p=1 is seeded from the
-   QAOA p=1 optimal angles (broadcast to ma-QAOA format); this guarantees
-   ma-QAOA starts from a point at least as good as QAOA.
+2. ma-QAOA layer sweep starting at p=1:
+   - p=1 : first restart seeded from QAOA p=1 angles (broadcast γ → all
+           num_gamma entries, β → all num_beta entries).  Subsequent restarts
+           are random.
+   - p>1 : joint re-optimisation of all p*(num_gamma+num_beta) parameters,
+           warm-started from the previous depth's optimal angles.
+   Stop when AR >= ar_threshold or max_layers is reached.
 
-Both sweeps stop early when AR >= ar_threshold.  The ma-QAOA result at the
-threshold layer (or best layer if threshold is not met) is added to the DB.
+The best ma-QAOA gadget (at the threshold layer, or the best layer if
+threshold is not met) is registered in the GadgetDatabase.
 
 Usage (library)
 ---------------
@@ -59,10 +61,7 @@ import pandas as pd
 from pennylane import numpy as np
 
 from core import vcg as vcg_module
-from core import qaoa_base as base
-from analyze_results.results_helper import (
-    GadgetDatabase, collect_vcg_data,
-)
+from analyze_results.results_helper import collect_vcg_data
 from core.vcg import find_in_db
 
 
@@ -84,11 +83,8 @@ def train_and_add(
     result_out: str = None,
     verbose: bool = True,
 ) -> float:
-    """Train QAOA then ma-QAOA on constraints and add the best gadget to the DB.
-
-    Both strategies use joint optimisation of all layers at every depth,
-    warm-started from the previous depth's optimal angles.  ma-QAOA at p=1
-    is additionally seeded from the QAOA p=1 solution.
+    """Run a single QAOA p=1 to get warm-start angles, then sweep ma-QAOA
+    layers until AR >= ar_threshold, and add the best gadget to the DB.
 
     Parameters
     ----------
@@ -99,11 +95,11 @@ def train_and_add(
     ar_threshold : float
         Stop training when AR >= this value.  Default 0.999.
     max_layers : int
-        Maximum QAOA layers before giving up.
+        Maximum ma-QAOA layers before giving up.
     qaoa_restarts, qaoa_steps : int
-        Optimisation budget for the QAOA sweep.
+        Optimisation budget for the single QAOA p=1 run.
     ma_restarts, ma_steps : int
-        Optimisation budget for the ma-QAOA sweep.
+        Optimisation budget per ma-QAOA layer.
     lr : float
         Adam learning rate.
     shots : int
@@ -122,7 +118,7 @@ def train_and_add(
     if find_in_db(constraints, db_path, n_layers=1, angle_strategy='ma-QAOA'):
         if verbose:
             print(f'  [skip] Already in DB: {constraints[0][:60]}')
-        return 1.0  # assume threshold was previously met
+        return 1.0
 
     # Determine flag wires from the union of all constraint variables
     all_vars = set()
@@ -135,7 +131,7 @@ def train_and_add(
         print(f'\nConstraint(s): {[c[:60] for c in constraints]}')
         print(f'  n_vars={n_vars}  flag_wires={flag_wires}')
 
-    # Probe once to get Hamiltonian structure
+    # Probe once to get Hamiltonian structure (cheap: 1 step, 1 restart)
     probe = vcg_module.VCG(
         constraints=constraints, flag_wires=flag_wires,
         angle_strategy='ma-QAOA', decompose=True,
@@ -148,35 +144,24 @@ def train_and_add(
         print(f'  States: {len(probe.outcomes)} total, {n_good} good, {n_bad} bad')
         print(f'  Pauli terms: {n_pauli}  (wires: {probe.num_beta})')
 
-    # ── QAOA sweep (joint re-opt of all layers) ──────────────────────────────
+    # ── Step 1: single QAOA p=1 run ─────────────────────────────────────────
     if verbose:
-        print(f'  QAOA  (restarts={qaoa_restarts}, steps={qaoa_steps})')
+        print(f'  QAOA p=1  (restarts={qaoa_restarts}, steps={qaoa_steps})')
 
-    qaoa_angles_by_layer = {}
-    prev_best_qaoa = None
-
-    for p in range(1, max_layers + 1):
-        gadget = vcg_module.VCG(
-            constraints=constraints, flag_wires=flag_wires,
-            angle_strategy='QAOA', decompose=False,
-            n_layers=p, steps=qaoa_steps, num_restarts=qaoa_restarts, learning_rate=lr,
-        )
-        opt_cost, _ = gadget.optimize_angles(
-            gadget.do_evolution_circuit,
-            prev_layer_angles=prev_best_qaoa,
-        )
-        qaoa_angles_by_layer[p] = gadget.opt_angles
-        prev_best_qaoa = gadget.opt_angles
-        ar = (float(opt_cost) - 1.0) / -2.0
-        if verbose:
-            mark = '✓' if ar >= ar_threshold else ' '
-            print(f'    {mark} p={p}: AR={ar:.4f}  time={gadget.optimize_time:.1f}s')
-        if ar >= ar_threshold:
-            break
-
-    # ── ma-QAOA sweep (joint re-opt, QAOA-seeded at p=1) ────────────────────
+    qaoa_gadget = vcg_module.VCG(
+        constraints=constraints, flag_wires=flag_wires,
+        angle_strategy='QAOA', decompose=False,
+        n_layers=1, steps=qaoa_steps, num_restarts=qaoa_restarts, learning_rate=lr,
+    )
+    qaoa_cost, _ = qaoa_gadget.optimize_angles(qaoa_gadget.do_evolution_circuit)
+    qaoa_ar = (float(qaoa_cost) - 1.0) / -2.0
+    qaoa_angles = qaoa_gadget.opt_angles  # shape (1, 2)
     if verbose:
-        print(f'  ma-QAOA  (restarts={ma_restarts}, steps={ma_steps})')
+        print(f'    AR={qaoa_ar:.4f}  time={qaoa_gadget.optimize_time:.1f}s')
+
+    # ── Step 2: ma-QAOA layer sweep ──────────────────────────────────────────
+    if verbose:
+        print(f'  ma-QAOA sweep  (restarts={ma_restarts}, steps={ma_steps})')
 
     best_ma_ar = 0.0
     best_ma_gadget = None
@@ -191,13 +176,12 @@ def train_and_add(
 
         if prev_best_ma is None:
             # p=1: seed first restart from QAOA p=1 optimal angles
-            qaoa_seed = qaoa_angles_by_layer.get(1)
             opt_cost, _ = gadget.optimize_angles(
                 gadget.do_evolution_circuit,
-                starting_angles_from_qaoa=qaoa_seed,
+                starting_angles_from_qaoa=qaoa_angles,
             )
         else:
-            # p>1: joint re-opt all layers, warm-start from previous depth
+            # p>1: joint re-opt all layers, warm-started from previous depth
             opt_cost, _ = gadget.optimize_angles(
                 gadget.do_evolution_circuit,
                 prev_layer_angles=prev_best_ma,

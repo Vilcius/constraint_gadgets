@@ -90,27 +90,26 @@ For the 5-variable knapsack: QAOA has 2 params/layer, ma-QAOA has
 
 ### Step 5 — Optimisation
 
-Both QAOA and ma-QAOA use **joint re-optimisation** of all layer parameters
-at every depth, warm-started from the previous depth's optimal angles.  This
-allows earlier layers to adjust when a new layer is added.
+**Step 5a — single QAOA run at p=1 (fast warm-up, ~8 s):**
 
-**Budget scaling** — QAOA (2 params/layer) and ma-QAOA (num_gamma+num_beta
-params/layer, ≈38 for a 5-variable knapsack) receive different budgets to
-give each a fair chance to explore its landscape:
+A standard QAOA circuit with 2 free parameters (one shared γ, one shared β)
+is optimised first.  Its optimal angles are then broadcast to ma-QAOA format
+(γ → all `num_gamma` entries, β → all `num_beta` entries) to seed the first
+restart at ma-QAOA p=1.
 
-| Strategy | Restarts | Steps |
-|---|---|---|
-| QAOA    | 5  | 150 |
-| ma-QAOA | 20 | 200 |
+**Step 5b — ma-QAOA layer sweep:**
 
-**QAOA-seeded warm start for ma-QAOA** — the QAOA sweep runs first (fast).
-At p=1, the QAOA optimal angles are broadcast (one γ → all num_gamma entries,
-one β → all num_beta entries) as the first restart's starting point for
-ma-QAOA.  Subsequent restarts are random.
+Starting from the QAOA warm-start, ma-QAOA is optimised at p=1 with 20
+restarts × 200 steps.  If AR < threshold, a new layer is added with joint
+re-optimisation of all p×k parameters, warm-started from the previous depth:
 
-This guarantees ma-QAOA starts from a point that is *at least as good as
-QAOA*, giving the optimiser a strong prior while still allowing it to find
-the fully generalised optimum.
+| Phase | Method | Restarts | Steps |
+|---|---|---|---|
+| Warm-up | QAOA p=1 | 5 | 150 |
+| Sweep | ma-QAOA p=1,2,... | 20 | 200 |
+
+This guarantees ma-QAOA starts from a point at least as good as QAOA and
+only improves.
 
 ---
 
@@ -118,15 +117,14 @@ the fully generalised optimum.
 
 ### Summary table
 
-| Constraint | Strategy | Layers p* | AR | Opt. time |
+| Constraint | QAOA p=1 AR | ma-QAOA p* | ma-QAOA AR | ma-QAOA time |
 |---|---|---|---|---|
-| knapsack | QAOA | 3 | 0.9890 | ~28 s total |
-| knapsack | **ma-QAOA** | **1** | **1.0000** | ~506 s |
-| quad_knapsack | QAOA | 2 | 0.9642 | ~17 s total |
-| quad_knapsack | **ma-QAOA** | **1** | **1.0000** | ~500 s |
+| knapsack      | 0.900 | **1** | **1.0000** | ~506 s |
+| quad_knapsack | 0.917 | **1** | **1.0000** | ~500 s |
 
-AR threshold: 0.95.  Both strategies pass it; ma-QAOA hits the exact ground
-state.
+AR threshold: 0.95.  ma-QAOA hits the exact ground state at p=1 in both
+cases, confirming that the QAOA warm-start is sufficient to find the global
+optimum.
 
 ### AR vs circuit depth
 

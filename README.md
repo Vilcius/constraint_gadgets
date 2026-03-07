@@ -324,26 +324,26 @@ saturates at AR≈0.985 regardless of depth.
 
 ### Step 4 — Depth sweep strategy
 
-Both QAOA and ma-QAOA use **joint re-optimisation of all layers** at every
-depth, warm-started from the previous depth's optimal angles:
+A single QAOA run at p=1 (2 parameters, ~8 s) provides a warm-start for
+ma-QAOA.  Its optimal angles are broadcast (one γ → all `num_gamma` entries,
+one β → all `num_beta` entries) as the first restart's starting point:
 
 ```python
-opt_cost, _ = gadget.optimize_angles(
-    gadget.do_evolution_circuit,
-    prev_layer_angles=prev_best_angles,  # None at p=1
+# Fast QAOA p=1 warm-up
+opt_cost, qaoa_angles = qaoa_gadget.optimize_angles(
+    qaoa_gadget.do_evolution_circuit,
 )
-```
 
-**QAOA-seeded warm start for ma-QAOA:**
+# ma-QAOA p=1: first restart seeded from QAOA
+opt_cost, _ = ma_gadget.optimize_angles(
+    ma_gadget.do_evolution_circuit,
+    starting_angles_from_qaoa=qaoa_angles,
+)
 
-The QAOA depth sweep runs first (fast: ~25 s total).  At p=1, the QAOA
-optimal angles are broadcast (one γ → all `num_gamma` entries, one β →
-all `num_beta` entries) as the first restart's starting point for ma-QAOA.
-This guarantees ma-QAOA begins from a point at least as good as QAOA.
-
-```python
-starting_angles = base.convert_qaoa_to_ma_angles(
-    qaoa_angles, num_gamma, num_beta, n_layers
+# ma-QAOA p>1: joint re-opt all layers, warm-started from previous depth
+opt_cost, _ = ma_gadget.optimize_angles(
+    ma_gadget.do_evolution_circuit,
+    prev_layer_angles=prev_best_ma,
 )
 ```
 
