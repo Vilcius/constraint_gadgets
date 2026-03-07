@@ -2,23 +2,18 @@
 test_vcg_layers.py -- QAOA vs ma-QAOA VCG layer sweep.
 
 Trains a VCG with increasing QAOA depth until AR >= THRESHOLD or MAX_LAYERS
-is reached.  Two key optimisation improvements over a naive sweep:
+is reached.  Two optimisation strategies are compared:
 
-  1. Layer-freezing warm start – when going from p to p+1 layers the first p
-     layers' angles are frozen; only the new (p+1)-th layer is optimised.
-     This keeps the active parameter count at k (one layer) rather than (p+1)k.
+  1. QAOA   — 2 parameters per layer.  At each depth p, all p*2 parameters
+              are optimised jointly, warm-started from the previous depth's
+              optimal angles.
 
-  2. QAOA-seeded initialisation for ma-QAOA – the QAOA sweep runs first and
-     stores its optimal angles at every depth.  For ma-QAOA:
-       • p=1  : first restart starts from the QAOA p=1 solution (broadcast
-                gamma → all num_gamma entries, beta → all num_beta entries).
-       • p>1  : as above, but the new-layer warm-start broadcasts the QAOA
-                best angles at that depth's new layer.
-     Subsequent restarts are random, providing diversity.  This guarantees
-     ma-QAOA starts from a point at least as good as QAOA and only improves.
-
-  3. Budget scaled by parameter count – ma-QAOA optimises 38 params per layer
-     vs QAOA's 2, so it gets proportionally more restarts and steps.
+  2. ma-QAOA — (num_gamma + num_beta) parameters per layer.  Same joint
+              strategy: at each depth p, all p*k parameters are optimised
+              together.  The first restart at p=1 is seeded from the QAOA
+              p=1 solution (broadcast γ → all num_gamma entries, β → all
+              num_beta entries), guaranteeing ma-QAOA starts from a point at
+              least as good as QAOA.
 
 Constraint types compared (both 5 variables, 1 flag qubit):
   - Linear knapsack    (5 vars): compact Pauli structure due to dominance
@@ -46,7 +41,6 @@ import matplotlib.patches as mpatches
 from pennylane import numpy as np
 
 from core import vcg as vcg_module
-from core import qaoa_base as base
 from analyze_results.results_helper import (
     ResultsCollector, read_typed_csv, collect_vcg_data,
 )
@@ -69,12 +63,12 @@ CONSTRAINTS = {
 
 THRESHOLD  = 0.95   # AR target
 MAX_LAYERS = 8      # give up after this many layers
-LR         = 0.05   # Adam learning rate (larger → faster escape from flat regions)
+LR         = 0.05   # Adam learning rate
 SHOTS      = 10_000 # measurement shots for distributions
 FLAG_WIRE  = 5      # flag qubit index (one per 5-var constraint)
 
-# Per-strategy budgets: ma-QAOA has ~19× more parameters per layer than QAOA,
-# so it gets more restarts and steps to give the optimiser a fair chance.
+# Per-strategy budgets: ma-QAOA has many more parameters per layer than QAOA,
+# so it gets more restarts and steps.
 RESTARTS = {'QAOA': 5,  'ma-QAOA': 20}
 STEPS    = {'QAOA': 150, 'ma-QAOA': 200}
 
@@ -82,67 +76,9 @@ RESULTS_PATH = 'examples/results/vcg_layer_sweep.pkl'
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. Layer-freezing optimiser
+# 2. Sweep
 # ══════════════════════════════════════════════════════════════════════════════
 
-def optimize_new_layer(gadget: vcg_module.VCG,
-                       frozen_angles: np.ndarray,
-                       starting_new_angles: np.ndarray = None) -> tuple:
-    """Freeze all previous layer angles; optimise only the new (last) layer.
-
-    Parameters
-    ----------
-    gadget : VCG
-        Must already be built with n_layers = p+1.
-    frozen_angles : np.ndarray
-        Optimal angles from the p-layer run, shape (p, params_per_layer).
-    starting_new_angles : np.ndarray or None
-        Optional warm-start for the first restart, shape (1, params_per_layer).
-        Subsequent restarts are always random.  Pass the QAOA new-layer angles
-        (broadcast to ma-QAOA format) to seed ma-QAOA from a strong prior.
-
-    Returns
-    -------
-    best_cost : float
-    full_angles : np.ndarray, shape (p+1, params_per_layer)
-    """
-    params_per_layer = (
-        gadget.num_gamma + gadget.num_beta
-        if gadget.angle_strategy == 'ma-QAOA'
-        else 2
-    )
-    frozen = np.array(frozen_angles.flatten(), requires_grad=False)
-
-    def cost_fn(new_angles):
-        full = np.concatenate([frozen, new_angles.flatten()])
-        return gadget.do_evolution_circuit(
-            full.reshape(gadget.n_layers, params_per_layer)
-        )
-
-    best_cost, new_layer_angles, wall_time = base.run_optimization(
-        cost_fn=cost_fn,
-        n_layers=1,
-        num_gamma=gadget.num_gamma,
-        num_beta=gadget.num_beta,
-        angle_strategy=gadget.angle_strategy,
-        steps=gadget.steps,
-        num_restarts=gadget.num_restarts,
-        learning_rate=gadget.learning_rate,
-        starting_angles=starting_new_angles,
-    )
-
-    full_angles = np.concatenate([frozen, new_layer_angles.flatten()])
-    full_angles = full_angles.reshape(gadget.n_layers, params_per_layer)
-    gadget.opt_angles = full_angles
-    gadget.optimize_time = wall_time
-    return best_cost, full_angles
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 3. Sweep
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Start fresh — do not load a previous run with different settings.
 collector = ResultsCollector()
 
 for ctype, constraint in CONSTRAINTS.items():
@@ -163,9 +99,8 @@ for ctype, constraint in CONSTRAINTS.items():
     print(f'Pauli terms     : {n_pauli}   (wires: {probe.num_beta})', flush=True)
     print('=' * 70, flush=True)
 
-    # QAOA angles stored per depth for seeding ma-QAOA warm start.
-    # qaoa_angles_by_layer[p] has shape (p, 2).
-    qaoa_angles_by_layer = {}
+    # QAOA angles stored per depth for seeding ma-QAOA warm start at p=1.
+    qaoa_angles_p1 = None
 
     for angle_strategy in ('QAOA', 'ma-QAOA'):
         print(f'\n  Strategy: {angle_strategy}  '
@@ -193,40 +128,27 @@ for ctype, constraint in CONSTRAINTS.items():
             )
 
             if angle_strategy == 'QAOA':
-                # ── standard QAOA sweep ───────────────────────────────────
-                # Re-optimise ALL layers jointly at every depth: with only
-                # 2 params per layer the full parameter space stays small
-                # (16 params at p=8) and freezing previous layers would
-                # unnecessarily constrain the search.  prev_layer_angles
-                # seeds every restart at the previous optimum + random new
-                # layer, then Adam is free to adjust all layers together.
+                # Joint re-opt of all p*2 parameters, warm-started from
+                # previous depth's optimal angles (None at p=1).
                 opt_cost, _ = gadget.optimize_angles(
                     gadget.do_evolution_circuit,
-                    prev_layer_angles=prev_best_angles,   # None at p=1
+                    prev_layer_angles=prev_best_angles,
                 )
-                qaoa_angles_by_layer[n_layers] = gadget.opt_angles  # shape (p, 2)
+                if n_layers == 1:
+                    qaoa_angles_p1 = gadget.opt_angles
 
             else:
-                # ── ma-QAOA sweep with QAOA-seeded warm start ─────────────
+                # ma-QAOA: joint re-opt of all p*k parameters.
+                # At p=1, seed first restart from QAOA p=1 angles.
                 if prev_best_angles is None:
-                    # p=1: broadcast QAOA p=1 optimal angles to ma-QAOA shape
-                    qaoa_seed = qaoa_angles_by_layer.get(1)  # shape (1, 2)
                     opt_cost, _ = gadget.optimize_angles(
                         gadget.do_evolution_circuit,
-                        starting_angles_from_qaoa=qaoa_seed,
+                        starting_angles_from_qaoa=qaoa_angles_p1,
                     )
                 else:
-                    # p>1: freeze previous layers; warm-start new layer from
-                    # the corresponding QAOA depth's last-layer angles.
-                    starting_new = None
-                    if n_layers in qaoa_angles_by_layer:
-                        # Take the new layer slice from QAOA and broadcast.
-                        last_qaoa = qaoa_angles_by_layer[n_layers][-1:, :]  # (1,2)
-                        starting_new = base.convert_qaoa_to_ma_angles(
-                            last_qaoa, gadget.num_gamma, gadget.num_beta, 1
-                        )  # (1, num_gamma + num_beta)
-                    opt_cost, _ = optimize_new_layer(
-                        gadget, prev_best_angles, starting_new_angles=starting_new
+                    opt_cost, _ = gadget.optimize_angles(
+                        gadget.do_evolution_circuit,
+                        prev_layer_angles=prev_best_angles,
                     )
 
             prev_best_angles = gadget.opt_angles
@@ -261,7 +183,7 @@ for ctype, constraint in CONSTRAINTS.items():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 4. Save
+# 3. Save
 # ══════════════════════════════════════════════════════════════════════════════
 
 collector.save(RESULTS_PATH)
@@ -284,7 +206,7 @@ print(f'Saved {len(df)} rows to {RESULTS_PATH}\n', flush=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 5. Summary table
+# 4. Summary table
 # ══════════════════════════════════════════════════════════════════════════════
 
 print('Summary (all runs)')
@@ -303,7 +225,7 @@ print()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 6. Plots
+# 5. Plots
 # ══════════════════════════════════════════════════════════════════════════════
 
 CTYPES     = list(CONSTRAINTS.keys())
@@ -334,8 +256,7 @@ def plot_ar_sweep(df, save_path: str) -> None:
         ax.legend(fontsize=9)
 
     axes[0].set_ylabel('Approximation Ratio (AR)')
-    fig.suptitle('VCG: AR vs QAOA depth  '
-                 '(layer-freezing + QAOA-seeded ma-QAOA warm start)')
+    fig.suptitle('VCG: AR vs QAOA depth  (QAOA-seeded ma-QAOA warm start)')
     pu.save_fig(fig, save_path)
     print(f'Saved: {save_path}')
 
@@ -361,8 +282,7 @@ def plot_time_sweep(df, save_path: str) -> None:
         ax.set_xticks(range(1, MAX_LAYERS + 1))
         ax.legend(fontsize=9)
 
-    fig.suptitle('VCG: optimisation time vs depth  '
-                 '(layer-freezing + QAOA-seeded ma-QAOA warm start)')
+    fig.suptitle('VCG: optimisation time vs depth')
     pu.save_fig(fig, save_path)
     print(f'Saved: {save_path}')
 

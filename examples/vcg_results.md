@@ -90,49 +90,23 @@ For the 5-variable knapsack: QAOA has 2 params/layer, ma-QAOA has
 
 ### Step 5 — Optimisation
 
-Two pitfalls discovered (and fixed) during this work:
+Both QAOA and ma-QAOA use **joint re-optimisation** of all layer parameters
+at every depth, warm-started from the previous depth's optimal angles.  This
+allows earlier layers to adjust when a new layer is added.
 
-#### Pitfall A — Layer-freezing for QAOA
+**Budget scaling** — QAOA (2 params/layer) and ma-QAOA (num_gamma+num_beta
+params/layer, ≈38 for a 5-variable knapsack) receive different budgets to
+give each a fair chance to explore its landscape:
 
-An early implementation froze the first p layers' angles when adding a new
-layer, optimising only the (p+1)-th layer.  This makes the parameter count
-constant at k regardless of depth — useful for ma-QAOA where k=38 — but
-for QAOA it is **unnecessarily restrictive**.
-
-The optimal angles for a p-layer QAOA circuit are generally *not* the same as
-the optimal (p-1)-layer angles with a new layer appended; the earlier layers
-need to adjust when a new one is added.  With freezing, QAOA appeared to
-plateau hard from p=2 onward:
-
-| Constraint | QAOA AR (frozen) | QAOA AR (joint) |
+| Strategy | Restarts | Steps |
 |---|---|---|
-| knapsack | 0.9048 at p=8 | **0.9840 at p=2** |
-| quad_knapsack | 0.9210 at p=8 | **0.9852 at p=2** |
+| QAOA    | 5  | 150 |
+| ma-QAOA | 20 | 200 |
 
-**Fix:** For QAOA, re-optimise *all* p·2 parameters jointly at every depth,
-using the previous depth's optimal angles as a warm-start initialisation.
-At p=8 this is still only 16 parameters — trivial to optimise.
-
-Layer-freezing is **retained for ma-QAOA** where it is beneficial: with 38
-params per new layer, freezing keeps the active parameter count at 38
-regardless of depth rather than growing to 38p.
-
-#### Pitfall B — Equal optimization budget across unequal parameter spaces
-
-Running QAOA (2 params) and ma-QAOA (38 params) with the same `NUM_RESTARTS`
-and `STEPS` budget is not a fair comparison.  With 5 restarts × 100 steps,
-random initialisation in [−2π, 2π]^38 barely explores the ma-QAOA landscape.
-
-**Fix:** Scale the budget by parameter count.
-Currently: QAOA uses 5 restarts × 150 steps; ma-QAOA uses 20 restarts × 200
-steps.
-
-#### QAOA-seeded warm start for ma-QAOA
-
-Run the QAOA sweep first.  For each depth p, broadcast the QAOA optimal
-angles to ma-QAOA format (repeat γ across all 32 terms, β across all 6
-qubits) and use this as the first-restart starting point for ma-QAOA.
-Subsequent restarts remain random, providing diversity.
+**QAOA-seeded warm start for ma-QAOA** — the QAOA sweep runs first (fast).
+At p=1, the QAOA optimal angles are broadcast (one γ → all num_gamma entries,
+one β → all num_beta entries) as the first restart's starting point for
+ma-QAOA.  Subsequent restarts are random.
 
 This guarantees ma-QAOA starts from a point that is *at least as good as
 QAOA*, giving the optimiser a strong prior while still allowing it to find
@@ -146,9 +120,9 @@ the fully generalised optimum.
 
 | Constraint | Strategy | Layers p* | AR | Opt. time |
 |---|---|---|---|---|
-| knapsack | QAOA | 3 | 0.9890 | ~51 s total |
+| knapsack | QAOA | 3 | 0.9890 | ~28 s total |
 | knapsack | **ma-QAOA** | **1** | **1.0000** | ~506 s |
-| quad_knapsack | QAOA | 2 | 0.9642 | ~27 s total |
+| quad_knapsack | QAOA | 2 | 0.9642 | ~17 s total |
 | quad_knapsack | **ma-QAOA** | **1** | **1.0000** | ~500 s |
 
 AR threshold: 0.95.  Both strategies pass it; ma-QAOA hits the exact ground
@@ -168,10 +142,9 @@ regardless of depth.
 ![Time vs layers](figures/vcg_layer_sweep_time.png)
 
 QAOA is fast: ~8–10 s at p=1, accumulating ~25–50 s by the threshold layer.
-ma-QAOA takes ~500–510 s at p=1 due to the 19× larger parameter space and
-higher restart count.  With layer-freezing, ma-QAOA time scales roughly
-linearly with depth (not quadratically) since only 38 params are optimised at
-each new layer.
+ma-QAOA takes ~500 s at p=1 due to the larger parameter space and higher
+restart count.  With joint optimisation, ma-QAOA time grows with depth since
+all layers are optimised together.
 
 ### Measurement distributions (best layer per run)
 
@@ -194,12 +167,8 @@ toward good states.
    Hamiltonians.  The ceiling is ~0.985, not 1.0, because the single γ cannot
    independently weight all 32 Pauli terms.
 
-3. **Layer-freezing is harmful for QAOA but beneficial for ma-QAOA** — the
-   lesson generalises: freezing is useful only when the parameter count per
-   layer is large relative to the optimization budget.
-
-4. **Warm-starting ma-QAOA from QAOA is critical** — without it, 20 restarts
-   in a 38-dimensional space is still insufficient to reliably find the ground
+3. **Warm-starting ma-QAOA from QAOA is critical** — without it, 20 restarts
+   in a 38-dimensional space is insufficient to reliably find the ground
    state.  With it, ma-QAOA converges reliably at p=1.
 
 5. **Training cost is a one-time expense** — the ~500–510 s ma-QAOA training is
@@ -210,23 +179,35 @@ toward good states.
 
 ## 5. Recommended Approach
 
-For production VCG creation:
+Use `run/add_to_vcg_database.py` for production VCG creation.  It runs both
+sweeps automatically and stores the best ma-QAOA result:
+
+```bash
+python run/add_to_vcg_database.py \
+    --constraints "6*x_0 + 2*x_1 + 2*x_2 <= 3" \
+    --db gadgets/gadget_db.pkl
+```
+
+Internally, the sweep runs QAOA (warm-starts ma-QAOA at p=1), then ma-QAOA
+with joint optimisation of all layers:
 
 ```python
-# 1. Run QAOA sweep first (fast, warm-starts ma-QAOA)
-gadget_qaoa = VCG(..., angle_strategy='QAOA', decompose=False,
-                  num_restarts=5, steps=150, learning_rate=0.05)
-opt_cost, qaoa_angles = gadget_qaoa.optimize_angles(
+# QAOA sweep – joint re-opt of all layers, warm-started from previous depth
+opt_cost, qaoa_p1_angles = gadget_qaoa.optimize_angles(
     gadget_qaoa.do_evolution_circuit,
-    prev_layer_angles=prev_qaoa_angles,   # joint re-opt, None at p=1
+    prev_layer_angles=prev_best,   # None at p=1
 )
 
-# 2. Run ma-QAOA seeded from QAOA solution
-gadget_ma = VCG(..., angle_strategy='ma-QAOA', decompose=True,
-                num_restarts=20, steps=200, learning_rate=0.05)
+# ma-QAOA p=1 – seeded from QAOA p=1 solution
 opt_cost, _ = gadget_ma.optimize_angles(
     gadget_ma.do_evolution_circuit,
-    starting_angles_from_qaoa=qaoa_angles,  # broadcasts γ, β
+    starting_angles_from_qaoa=qaoa_p1_angles,
+)
+
+# ma-QAOA p>1 – joint re-opt, warm-started from previous depth
+opt_cost, _ = gadget_ma.optimize_angles(
+    gadget_ma.do_evolution_circuit,
+    prev_layer_angles=prev_best_ma,
 )
 ```
 
@@ -262,12 +243,7 @@ opt_cost, _ = gadget_ma.optimize_angles(
   making the landscape easier to optimise.  Worth benchmarking for larger n
   where the full decomposition becomes expensive.
 
-- **Generalising layer-freezing to partial freezing** — rather than freezing
-  all previous layers, one could apply a small learning-rate "fine-tune" to
-  earlier layers while optimising the new layer at full rate.  This could
-  recover the efficiency of freezing while avoiding the expressibility loss.
-
-- **Warm-start depth transfer** — if ma-QAOA p=1 fails for a hard constraint,
-  the p=2 layer-freezing warm-start currently uses QAOA p=2's second layer as
-  the new-layer seed.  Experimenting with random or zero initialisation for
-  the new layer might perform differently.
+- **Warm-start depth transfer** — for p>1, the warm-start from the previous
+  depth is the primary mechanism for seeding new layers.  Experimenting with
+  QAOA-seeded initialisations at each new depth may improve convergence for
+  hard constraints.

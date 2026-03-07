@@ -324,50 +324,22 @@ saturates at AR≈0.985 regardless of depth.
 
 ### Step 4 — Depth sweep strategy
 
-How layers are added depends on the angle strategy:
-
-**QAOA — joint re-optimisation (all layers free):**
-
-At each depth `p`, all `2p` parameters are optimised jointly using the
-previous depth's optimal angles as a warm start.  Because QAOA has only
-2 params/layer, even p=8 means only 16 free parameters — trivially fast
-to optimise jointly.  Freezing earlier layers is unnecessary and harmful
-(it prevents the circuit from adjusting to the new layer).
+Both QAOA and ma-QAOA use **joint re-optimisation of all layers** at every
+depth, warm-started from the previous depth's optimal angles:
 
 ```python
-# warm-start from previous depth, re-optimise everything
 opt_cost, _ = gadget.optimize_angles(
     gadget.do_evolution_circuit,
     prev_layer_angles=prev_best_angles,  # None at p=1
 )
 ```
 
-**ma-QAOA — layer-freezing (only new layer is free):**
-
-With `k = num_gamma + num_beta` params/layer (≈38 for a 5-variable
-knapsack), joint optimisation at depth p requires 38p parameters.
-Instead, freeze the first `p` layers at their optimum and optimise only
-the new `(p+1)`-th layer's 38 angles:
-
-```python
-frozen = np.array(frozen_angles.flatten(), requires_grad=False)
-
-def cost_fn(new_angles):
-    full = np.concatenate([frozen, new_angles.flatten()])
-    return gadget.do_evolution_circuit(full.reshape(p+1, k))
-
-base.run_optimization(cost_fn, n_layers=1, ...)
-```
-
-This keeps the active parameter count at 38 regardless of depth.
-
 **QAOA-seeded warm start for ma-QAOA:**
 
-Run the QAOA depth sweep first (fast: ~25 s total).  For each depth `p`,
-broadcast the QAOA optimal angles (one γ → all `num_gamma` entries, one β
-→ all `num_beta` entries) as the first restart's starting point for
-ma-QAOA.  This guarantees ma-QAOA begins from a point at least as good as
-QAOA, giving the optimiser a strong prior.
+The QAOA depth sweep runs first (fast: ~25 s total).  At p=1, the QAOA
+optimal angles are broadcast (one γ → all `num_gamma` entries, one β →
+all `num_beta` entries) as the first restart's starting point for ma-QAOA.
+This guarantees ma-QAOA begins from a point at least as good as QAOA.
 
 ```python
 starting_angles = base.convert_qaoa_to_ma_angles(
@@ -387,49 +359,46 @@ A gadget is considered well-trained when `AR ≥ 0.95`.
 
 ## Running Experiments
 
-### Single constraint family (command line)
+### Build the VCG gadget database
 
 ```bash
-# Train VCG gadgets for cardinality constraints up to n=5
-python run/run_cardinality.py --corp constraint --max_n 5
+# Train all knapsack / quadratic-knapsack VCGs sequentially
+python run/create_vcg_database.py --db gadgets/gadget_db.pkl
 
-# Run HybridQAOA on cardinality constraints, 2 QAOA layers
-python run/run_cardinality.py --corp hybrid --max_n 5 --n_layers 2
-
-# Other constraint families follow the same interface
-python run/run_knapsack.py   --corp constraint --max_n 5
-python run/run_flow.py       --corp hybrid     --max_n 5 --n_layers 1
-python run/run_assignment.py --corp constraint --max_n 4
-python run/run_subtour.py    --corp hybrid     --max_n 4 --n_layers 1
+# Or add a single constraint
+python run/add_to_vcg_database.py \
+    --constraints "6*x_0 + 2*x_1 + 2*x_2 <= 3" \
+    --db gadgets/gadget_db.pkl
 ```
 
-### Analyse results
+### Generate and run HybridQAOA vs PenaltyQAOA experiments
 
 ```bash
-python analyze_results/main_analysis.py \
-    --vcg   results/cardinality_constraint_results.pkl \
-    --hybrid results/hybrid_cardinality_results.pkl \
-    --output-dir analysis_output/
+# Enumerate experiment parameter combinations
+python run/generate_experiment_params.py \
+    --output run/params/experiment_params.jsonl --max-tasks 500
+
+# Run all experiments sequentially
+python run/run_hybrid_vs_penalty.py \
+    --params run/params/experiment_params.jsonl \
+    --db gadgets/gadget_db.pkl
 ```
 
-Output directories:
-- `analysis_output/figures/ar/`
-- `analysis_output/figures/feasibility/`
-- `analysis_output/figures/resources/`
-- `analysis_output/summaries/`
-- `analysis_output/statistical_tests/`
-
-### Submitting HPC jobs
+### Submitting SLURM array jobs
 
 ```bash
-# Regenerate param files after changing the parameter space
+# Step 1 – generate task lists
 python slurm/generate_params.py
 
-# Submit (adapt the .sh template to your cluster scheduler)
-# Each line of vcg_params.txt / hybrid_params.txt is one array task:
-#   constraint_type  corp  n_layers
-#   cardinality      constraint  1
-#   knapsack         hybrid      2
+# Step 2 – submit array jobs (adapt .sh template to your cluster)
+#   VCG training: --array=0-<N_vcg-1>
+#     python run/create_vcg_database.py --task-id $SLURM_ARRAY_TASK_ID
+#   Experiments:  --array=0-<N_exp-1>
+#     python run/run_hybrid_vs_penalty.py --task-id $SLURM_ARRAY_TASK_ID
+
+# Step 3 – merge per-task results
+python run/create_vcg_database.py --merge --db gadgets/gadget_db.pkl
+python run/run_hybrid_vs_penalty.py --merge --output results/hybrid_vs_penalty.pkl
 ```
 
 ## Core API
