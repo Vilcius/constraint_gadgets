@@ -30,8 +30,10 @@ vcg_jobid=$(sbatch --array=0-$((N_VCG - 1)) \
 echo "VCG training submitted: job $vcg_jobid ($N_VCG tasks)"
 
 # ── Step 3: Merge VCG results (after all training tasks finish) ───────────────
+# afterany: merge runs even if individual tasks failed; missing pickles are
+# skipped. Check the merge output for gaps and resubmit failed task IDs.
 vcg_merge_jobid=$(sbatch \
-    --dependency=afterok:${vcg_jobid} \
+    --dependency=afterany:${vcg_jobid} \
     "$DIR/vcg_merge.sh" "$PROJECT_ROOT" \
     | awk '{print $4}')
 echo "VCG merge submitted: job $vcg_merge_jobid (after $vcg_jobid)"
@@ -53,8 +55,9 @@ exp_jobid=$(sbatch \
 echo "Experiment array submitted: job $exp_jobid ($N_EXP tasks, after $vcg_merge_jobid)"
 
 # ── Step 6: Merge experiment results (after all experiment tasks finish) ───────
+# afterany: same rationale as VCG merge above.
 exp_merge_jobid=$(sbatch \
-    --dependency=afterok:${exp_jobid} \
+    --dependency=afterany:${exp_jobid} \
     "$DIR/experiment_merge.sh" "$PROJECT_ROOT" \
     | awk '{print $4}')
 echo "Experiment merge submitted: job $exp_merge_jobid (after $exp_jobid)"
