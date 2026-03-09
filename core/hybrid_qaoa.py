@@ -148,6 +148,7 @@ class HybridQAOA:
         # 1. Build structural components (Dicke, Flow, or VCG gadget)
         # ============================================================
         self.dicke_preps: List[dsp.DickeStatePrep] = []
+        self.leq_preps: List[dsp.CardinalityLeqStatePrep] = []
         self.flow_preps: List[dsp.FlowStatePrep] = []
         self.gadget_preps: List[vcg.VCG] = []
         self.flag_wires: List[int] = []
@@ -155,10 +156,13 @@ class HybridQAOA:
         # Partition structural indices by type
         dicke_idxs = [i for i in structural_indices
                       if ch.is_dicke_compatible(all_constraints[i])]
+        leq_idxs = [i for i in structural_indices
+                    if ch.is_cardinality_leq_compatible(all_constraints[i])]
         flow_idxs = [i for i in structural_indices
                      if ch.is_flow_compatible(all_constraints[i])]
         gadget_idxs = [i for i in structural_indices
                        if not ch.is_dicke_compatible(all_constraints[i])
+                       and not ch.is_cardinality_leq_compatible(all_constraints[i])
                        and not ch.is_flow_compatible(all_constraints[i])]
 
         # Dicke state preps (no flags, exact)
@@ -166,6 +170,12 @@ class HybridQAOA:
             pc = all_constraints[idx]
             prep = dsp.from_parsed_constraint(pc, mixer_type=dicke_mixer_type)
             self.dicke_preps.append(prep)
+
+        # Cardinality inequality state preps (no flags, exact, Grover mixer required)
+        for idx in leq_idxs:
+            pc = all_constraints[idx]
+            prep = dsp.from_cardinality_leq_constraint(pc)
+            self.leq_preps.append(prep)
 
         # Flow state preps (no flags, Bell-pair + Ring-XY mixer)
         for idx in flow_idxs:
@@ -204,7 +214,7 @@ class HybridQAOA:
             self.flag_wires.append(flag_wire)
 
         # Unified state_prep list (all objects with opt_circuit())
-        self.state_prep = self.dicke_preps + self.flow_preps + self.gadget_preps
+        self.state_prep = self.dicke_preps + self.leq_preps + self.flow_preps + self.gadget_preps
 
         # --- flag penalty weights ---
         if self.flag_wires:

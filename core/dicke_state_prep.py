@@ -12,10 +12,14 @@ This module provides:
   - An interface (``opt_circuit()``) matching VCG, so that
     DickeStatePrep objects can be dropped directly into HybridQAOA as
     structural state preparation components.
+  - ``CardinalityLeqStatePrep`` for ``sum x_i <= k`` inequality constraints,
+    which prepares the uniform superposition over all weight-0-to-k states.
+    Uses the Grover mixer (XY does not preserve the feasible subspace for
+    inequalities).
 
 The key advantage over the general constraint gadget (VCG) is that
 no flag qubits or truth-table Hamiltonian are needed -- the circuit *exactly*
-prepares the feasible subspace, and the XY mixer *exactly* preserves it.
+prepares the feasible subspace, and the structural mixer *exactly* preserves it.
 
 References
 ----------
@@ -30,6 +34,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from itertools import combinations
+from math import comb
 from typing import List, Optional
 
 import pennylane as qml
@@ -177,6 +183,83 @@ def prepare_dicke_state(wires: List[int], k: int) -> None:
     if k < 0 or k > n:
         raise ValueError(f"Hamming weight k={k} out of range for n={n} qubits.")
     _dicke_recursion(wires, k)
+
+
+# ======================================================================
+# Cardinality inequality state preparation  (sum x_i <= k)
+# ======================================================================
+
+def _m_leq(n: int, k: int) -> int:
+    """Number of n-bit strings with Hamming weight <= k."""
+    if k < 0:
+        return 0
+    if k >= n:
+        return 2 ** n
+    return sum(comb(n, w) for w in range(k + 1))
+
+
+def prepare_cardinality_leq_state(wires: List[int], k: int) -> None:
+    """
+    Prepare the uniform superposition over all n-bit strings with Hamming weight <= k.
+
+        |S_n^{<=k}> = (1/sqrt(M)) * sum_{w=0}^{k} sum_{|x|=w} |x>
+
+    where M = sum_{w=0}^{k} C(n, w).
+
+    The circuit is derived from the recursive structure of symmetric states:
+
+        |S_n^{<=k}> = sqrt(M(n-1,k)   / M(n,k)) |0> |S_{n-1}^{<=k}>
+                    + sqrt(M(n-1,k-1) / M(n,k)) |1> |S_{n-1}^{<=k-1}>
+
+    At each qubit position i, a controlled RY is applied for every possible
+    "ones count so far" j in 0..min(i, k).  The gate angle depends only on
+    the remaining budget b = k - j and the remaining qubit count, so qubits
+    in the same budget class share the same angle.
+
+    Gate count: O(n^(k+1) / k!) -- polynomial for fixed k, practical for k <= n/2.
+
+    Parameters
+    ----------
+    wires : list[int]
+        Qubit wire indices (n = len(wires)).
+    k : int
+        Maximum allowed Hamming weight (0 <= k <= n).
+    """
+    n = len(wires)
+    if k == 0:
+        return  # |0...0> is the only feasible state, already prepared
+    if k >= n:
+        for w in wires:
+            qml.Hadamard(wires=w)  # All 2^n states feasible -> uniform superposition
+        return
+
+    # Qubit 0: unconditional RY
+    M_nk = _m_leq(n, k)
+    M_n1_k1 = _m_leq(n - 1, k - 1)
+    theta0 = 2.0 * float(np.arcsin(np.sqrt(M_n1_k1 / M_nk)))
+    if abs(theta0) > 1e-12:
+        qml.RY(theta0, wires=wires[0])
+
+    # Qubits 1..n-1: controlled RY, conditioned on exact ones-count so far
+    for i in range(1, n):
+        n_rem = n - i
+        for ones_so_far in range(min(i, k) + 1):
+            b = k - ones_so_far          # remaining budget
+            if b < 0:
+                continue
+            M_rem = _m_leq(n_rem, b)
+            M_rem1_b1 = _m_leq(n_rem - 1, b - 1)
+            if M_rem == 0 or M_rem1_b1 == 0:
+                continue
+            theta = 2.0 * float(np.arcsin(np.sqrt(M_rem1_b1 / M_rem)))
+            if abs(theta) < 1e-12:
+                continue
+            # Apply Ry conditioned on exactly ones_so_far of wires[0..i-1] being |1>
+            ctrl_wires = list(wires[:i])
+            for pattern in combinations(range(i), ones_so_far):
+                ctrl_vals = [1 if j in pattern else 0 for j in range(i)]
+                qml.ctrl(qml.RY, control=ctrl_wires,
+                         control_values=ctrl_vals)(theta, wires=wires[i])
 
 
 # ======================================================================
@@ -377,6 +460,123 @@ def from_parsed_constraint(
         var_wires=var_wires,
         hamming_weight=k,
         mixer_type=mixer_type,
+        constraint_str=pc.raw,
+    )
+
+
+# ======================================================================
+# Cardinality inequality class  (sum x_i <= k)
+# ======================================================================
+
+@dataclass
+class CardinalityLeqStatePrep:
+    """
+    State preparation for ``sum x_i <= k`` cardinality inequality constraints.
+
+    Prepares the exact uniform superposition over all n-bit strings with
+    Hamming weight <= k (no flag qubits, no training required):
+
+        |S_n^{<=k}> = (1/sqrt(M)) * sum_{w=0}^{k} sum_{|x|=w} |x>
+
+    Unlike DickeStatePrep (which targets a single Hamming weight and uses
+    the XY mixer), this class targets a *range* of Hamming weights.  The XY
+    mixer does NOT preserve the feasible subspace (it fixes weight exactly),
+    so HybridQAOA must use the Grover mixer when this gadget is present.
+
+    Parameters
+    ----------
+    var_wires : list[int]
+        Qubit wire indices for the decision variables.
+    max_hamming_weight : int
+        The k in sum x_i <= k.
+    constraint_str : str
+        Original constraint string (for bookkeeping).
+
+    Attributes
+    ----------
+    flag_wires : list[int]
+        Always empty -- no ancilla qubits needed.
+    """
+    var_wires: List[int]
+    max_hamming_weight: int
+    constraint_str: str = ""
+
+    n_qubits: int = field(init=False)
+    flag_wires: List[int] = field(init=False, default_factory=list)
+    all_wires: List[int] = field(init=False)
+
+    def __post_init__(self):
+        self.n_qubits = len(self.var_wires)
+        self.flag_wires = []
+        self.all_wires = list(self.var_wires)
+        if self.max_hamming_weight < 0 or self.max_hamming_weight > self.n_qubits:
+            raise ValueError(
+                f"max_hamming_weight {self.max_hamming_weight} out of range "
+                f"for {self.n_qubits} qubits."
+            )
+
+    def opt_circuit(self) -> None:
+        """
+        Apply the cardinality-inequality state preparation circuit.
+
+        Matches the ``opt_circuit()`` interface of VCG and DickeStatePrep so
+        this object can be passed to ``apply_grover_mixer`` transparently.
+        """
+        prepare_cardinality_leq_state(self.var_wires, self.max_hamming_weight)
+
+    @property
+    def needs_flag_penalty(self) -> bool:
+        return False
+
+    def get_info(self) -> dict:
+        return {
+            "constraint": self.constraint_str,
+            "type": "CardinalityLeqStatePrep",
+            "var_wires": self.var_wires,
+            "max_hamming_weight": self.max_hamming_weight,
+            "n_qubits": self.n_qubits,
+            "needs_flag": False,
+            "flag_wires": [],
+        }
+
+
+def from_cardinality_leq_constraint(
+    pc,  # constraint_handler.ParsedConstraint
+) -> "CardinalityLeqStatePrep":
+    """
+    Create a CardinalityLeqStatePrep from a ParsedConstraint.
+
+    The constraint must be cardinality-leq-compatible: all +1 linear
+    coefficients, LEQ operator, no quadratic terms, no constant.
+
+    Parameters
+    ----------
+    pc : ParsedConstraint
+        A parsed constraint with ctype == ConstraintType.CARDINALITY_LEQ.
+
+    Returns
+    -------
+    CardinalityLeqStatePrep
+
+    Raises
+    ------
+    ValueError
+        If the constraint is not cardinality-leq-compatible.
+    """
+    from . import constraint_handler as ch
+
+    if not ch.is_cardinality_leq_compatible(pc):
+        raise ValueError(
+            f"Constraint '{pc.raw}' is not cardinality-leq-compatible "
+            f"(type={pc.ctype.name}). "
+            "Requires: all +1 linear coefficients, LEQ operator, no quadratic, no constant."
+        )
+
+    var_wires = sorted(pc.variables)
+    k = int(pc.rhs)
+    return CardinalityLeqStatePrep(
+        var_wires=var_wires,
+        max_hamming_weight=k,
         constraint_str=pc.raw,
     )
 
