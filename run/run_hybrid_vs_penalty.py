@@ -40,6 +40,8 @@ warnings.filterwarnings('ignore')
 import json
 import argparse
 import glob
+import traceback
+from datetime import datetime
 
 import pandas as pd
 from pennylane import numpy as np
@@ -315,7 +317,22 @@ if __name__ == '__main__':
         result_path = os.path.join(args.pending_dir, f'task_{args.task_id}.pkl')
 
         print(f'Task {args.task_id}/{len(tasks)-1}')
-        result = run_task(task, qubos, args.db)
+        failure_out = os.path.join(args.pending_dir, f'task_{args.task_id}.failed.json')
+        try:
+            result = run_task(task, qubos, args.db)
+        except Exception as e:
+            tb = traceback.format_exc()
+            print(f'ERROR: {e}\n{tb}', flush=True)
+            failure = {
+                'timestamp': datetime.now().isoformat(),
+                'task_id': args.task_id,
+                'task': task,
+                'error': str(e),
+                'traceback': tb,
+            }
+            with open(failure_out, 'w') as f:
+                f.write(json.dumps(failure) + '\n')
+            sys.exit(1)
 
         # Flatten all rows into one DataFrame
         all_rows = []

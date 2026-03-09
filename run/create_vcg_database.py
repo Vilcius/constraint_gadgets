@@ -47,6 +47,8 @@ warnings.filterwarnings('ignore')
 import json
 import argparse
 import glob
+import traceback
+from datetime import datetime
 
 import pandas as pd
 
@@ -202,12 +204,27 @@ if __name__ == '__main__':
         print(f'Task {args.task_id}/{len(tasks)-1}: '
               f'{task["family"]} n={task["n_vars"]}  '
               f'{task["constraints"][0][:60]}')
-        train_and_add(
-            constraints=task['constraints'],
-            db_path=args.db,
-            result_out=result_out,
-            **_train_kwargs(args),
-        )
+        failure_out = os.path.join(args.pending_dir, f'task_{args.task_id}.failed.json')
+        try:
+            train_and_add(
+                constraints=task['constraints'],
+                db_path=args.db,
+                result_out=result_out,
+                **_train_kwargs(args),
+            )
+        except Exception as e:
+            tb = traceback.format_exc()
+            print(f'ERROR: {e}\n{tb}', flush=True)
+            failure = {
+                'timestamp': datetime.now().isoformat(),
+                'task_id': args.task_id,
+                'task': task,
+                'error': str(e),
+                'traceback': tb,
+            }
+            with open(failure_out, 'w') as f:
+                f.write(json.dumps(failure) + '\n')
+            sys.exit(1)
         sys.exit(0)
 
     # ── Sequential mode (default) ────────────────────────────────────────────

@@ -39,10 +39,15 @@ vcg_merge_jobid=$(sbatch \
 echo "VCG merge submitted: job $vcg_merge_jobid (after $vcg_jobid)"
 
 # ── Step 4: Generate experiment task list ─────────────────────────────────────
+# Regenerates experiment_params.jsonl on the server (uses data/ paths local to
+# this machine). The file may already exist from a local run but regenerating
+# ensures it reflects the server's data/ directory. This does NOT depend on
+# VCG results — it only reads constraint CSVs and qubos.csv.
 echo "Generating experiment params..."
 python3.11 "$PROJECT_ROOT/run/generate_experiment_params.py" \
     --output "$EXP_PARAMS" \
-    --max-tasks 500
+    --max-tasks 500 \
+    --data-dir "$PROJECT_ROOT/data/"
 N_EXP=$(wc -l < "$EXP_PARAMS")
 echo "Experiment tasks: $N_EXP"
 
