@@ -62,6 +62,14 @@ exp_merge_id=$(sbatch \
     | awk '{print $4}')
 echo "Step 6: Experiment merge submitted — job $exp_merge_id (after $exp_array_id)"
 
+# ── Step 7: Split results and run analysis ────────────────────────────────────
+analysis_id=$(sbatch \
+    --dependency=afterok:${exp_merge_id} \
+    "$DIR/run_analysis.sh" "$PROJECT_ROOT" \
+    | awk '{print $4}')
+echo "Step 7: Analysis submitted — job $analysis_id (after $exp_merge_id)"
+
 echo ""
 echo "All jobs queued. Check status with: squeue -u \$USER"
-echo "Final results: $PROJECT_ROOT/results/hybrid_vs_penalty.pkl"
+echo "Final results:   $PROJECT_ROOT/results/hybrid_vs_penalty.pkl"
+echo "Analysis output: $PROJECT_ROOT/analysis_output/"
