@@ -310,8 +310,8 @@ if __name__ == '__main__':
     # ── Single task (SLURM) ──────────────────────────────────────────────────
     if args.task_id is not None:
         if args.task_id >= len(tasks):
-            print(f'task-id {args.task_id} out of range (have {len(tasks)} tasks).')
-            sys.exit(1)
+            print(f'task-id {args.task_id} out of range (have {len(tasks)} tasks). Nothing to do.')
+            sys.exit(0)
         task = tasks[args.task_id]
         os.makedirs(args.pending_dir, exist_ok=True)
         result_path = os.path.join(args.pending_dir, f'task_{args.task_id}.pkl')
