@@ -20,7 +20,12 @@
 module load anaconda3/2021.05
 source $ANACONDA_SH
 
-PROJECT_ROOT="$1"
+if [[ -n "$1" ]]; then
+    PROJECT_ROOT="$1"
+else
+    DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(cd "$DIR/.." && pwd)"
+fi
 RESULTS_DIR="$PROJECT_ROOT/results"
 OUTPUT_DIR="$PROJECT_ROOT/analysis_output"
 
