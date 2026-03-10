@@ -309,10 +309,12 @@ def is_dicke_compatible(pc: ParsedConstraint) -> bool:
 
 
 def is_cardinality_leq_compatible(pc: ParsedConstraint) -> bool:
-    """Check if a parsed constraint can be enforced with CardinalityLeqStatePrep.
+    """Check if a parsed constraint can be enforced via a superposition of Dicke states.
 
     Compatible constraints have the form sum x_i <= b (all +1 linear coefficients,
-    LEQ inequality, no quadratic terms, no constant).
+    LEQ inequality, no quadratic terms, no constant).  The resulting state preparation
+    (CardinalityLeqStatePrep) builds a uniform superposition of Dicke states
+    |D_n^0>, |D_n^1>, ..., |D_n^b>.
     """
     return pc.ctype == ConstraintType.CARDINALITY_LEQ
 

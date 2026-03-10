@@ -13,9 +13,9 @@ This module provides:
     DickeStatePrep objects can be dropped directly into HybridQAOA as
     structural state preparation components.
   - ``CardinalityLeqStatePrep`` for ``sum x_i <= k`` inequality constraints,
-    which prepares the uniform superposition over all weight-0-to-k states.
-    Uses the Grover mixer (XY does not preserve the feasible subspace for
-    inequalities).
+    which prepares a uniform superposition of Dicke states |D_n^0> through
+    |D_n^k> (i.e. all weight-0-to-k bitstrings).  Uses the Grover mixer
+    (XY does not preserve the feasible subspace for inequalities).
 
 The key advantage over the general constraint gadget (VCG) is that
 no flag qubits or truth-table Hamiltonian are needed -- the circuit *exactly*
@@ -200,11 +200,13 @@ def _m_leq(n: int, k: int) -> int:
 
 def prepare_cardinality_leq_state(wires: List[int], k: int) -> None:
     """
-    Prepare the uniform superposition over all n-bit strings with Hamming weight <= k.
+    Prepare a uniform superposition of Dicke states |D_n^0>, |D_n^1>, ..., |D_n^k>
+    — equivalently, the uniform superposition over all n-bit strings with Hamming
+    weight <= k:
 
         |S_n^{<=k}> = (1/sqrt(M)) * sum_{w=0}^{k} sum_{|x|=w} |x>
 
-    where M = sum_{w=0}^{k} C(n, w).
+    where M = sum_{w=0}^{k} C(n, w) and each inner sum is the Dicke state |D_n^w>.
 
     The circuit is derived from the recursive structure of symmetric states:
 
@@ -473,15 +475,19 @@ class CardinalityLeqStatePrep:
     """
     State preparation for ``sum x_i <= k`` cardinality inequality constraints.
 
-    Prepares the exact uniform superposition over all n-bit strings with
+    Prepares a uniform superposition of Dicke states |D_n^0>, |D_n^1>, ...,
+    |D_n^k> — i.e. a uniform superposition over all n-bit strings with
     Hamming weight <= k (no flag qubits, no training required):
 
         |S_n^{<=k}> = (1/sqrt(M)) * sum_{w=0}^{k} sum_{|x|=w} |x>
 
-    Unlike DickeStatePrep (which targets a single Hamming weight and uses
-    the XY mixer), this class targets a *range* of Hamming weights.  The XY
-    mixer does NOT preserve the feasible subspace (it fixes weight exactly),
-    so HybridQAOA must use the Grover mixer when this gadget is present.
+    where each inner sum is the Dicke state |D_n^w>.
+
+    Unlike DickeStatePrep (which prepares a single Dicke state |D_n^k> and
+    uses the XY mixer), this class prepares a superposition across all Dicke
+    states from weight 0 to k.  The XY mixer does NOT preserve the feasible
+    subspace (it fixes weight exactly), so HybridQAOA must use the Grover
+    mixer when this gadget is present.
 
     Parameters
     ----------
