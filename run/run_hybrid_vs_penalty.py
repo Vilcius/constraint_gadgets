@@ -195,7 +195,7 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
         counts = pen_solver.do_counts_circuit(shots=SHOTS)
 
         row = {
-            'constraint_type': [task.get('structural_families', [''])[0]],
+            'constraint_type': ['+'.join(task.get('families', ['']))],
             'qubo_string':     [qubo_string],
             'constraints':     [all_constraints],
             'n_x':             [pen_solver.n_x],

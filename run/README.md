@@ -77,8 +77,10 @@ python run/create_vcg_database.py --merge \
 
 ## generate_experiment_params.py
 
-Enumerates experiment combinations (1–2 structural + 1–2 penalty constraints)
-and writes one JSON object per line to a JSONL file.
+Enumerates experiment combinations (2–3 constraints drawn from any supported
+family) and writes one JSON object per line to a JSONL file.
+Structural vs penalty partitioning is decided at run time by
+`partition_constraints(strategy="auto")` in `run_hybrid_vs_penalty.py`.
 
 ```bash
 python run/generate_experiment_params.py \
@@ -86,8 +88,7 @@ python run/generate_experiment_params.py \
     --max-tasks 500 --seed 42
 ```
 
-Each line specifies `structural_constraints`, `penalty_constraints`,
-`structural_indices`, `penalty_indices`, `n_x`, and `qubo_idx`.
+Each line specifies `constraints`, `families`, `n_x`, and `qubo_idx`.
 
 ## run_hybrid_vs_penalty.py
 
