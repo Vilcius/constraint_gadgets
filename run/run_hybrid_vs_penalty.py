@@ -152,8 +152,9 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
             previous_angles=prev_h_angles,
             constraint_type=task.get('structural_families', [''])[0],
         )
-        row['task'] = [task]
-        row['layer'] = [p]
+        row['task']       = [task]
+        row['layer']      = [p]
+        row['optimal_x']  = [optimal_x]
         hybrid_rows.append(row)
         prev_h_angles = np.array(row['opt_angles'][0])
 
@@ -221,6 +222,7 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
             'AR':              [(float(opt_cost) - C_max) / (C_min - C_max)],
             'task':            [task],
             'layer':           [p],
+            'optimal_x':       [optimal_x],
         }
         penalty_rows.append(row)
         prev_p_angles = np.array(opt_angles)

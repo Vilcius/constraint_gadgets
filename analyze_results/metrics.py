@@ -91,10 +91,18 @@ def p_feasible_hybrid(row) -> float:
     """Fraction of counts (first n_x bits) satisfying all constraints.
 
     Uses eval-based feasibility check consistent with data.make_data.get_optimal_x.
+    Accepts both raw single-row dicts (values list-wrapped) and scalar-valued rows.
     """
     counts = row['counts']
-    n_x = int(row['n_x'])
+    if isinstance(counts, list):
+        counts = counts[0]
+    n_x = row['n_x']
+    if isinstance(n_x, list):
+        n_x = n_x[0]
+    n_x = int(n_x)
     constraints = row['constraints']
+    if isinstance(constraints, list) and constraints and isinstance(constraints[0], list):
+        constraints = constraints[0]
     total = sum(counts.values())
     if total == 0:
         return float('nan')
@@ -108,37 +116,34 @@ def p_feasible_hybrid(row) -> float:
 
 
 def p_optimal_hybrid(row) -> float:
-    """Fraction of counts achieving min_val (constrained optimum).
+    """Fraction of counts (first n_x bits) that are an optimal feasible solution.
 
-    Returns NaN if min_val is None or missing.
+    Uses the ``optimal_x`` list of bitstrings stored by the run script (produced
+    by ``data.make_data.get_optimal_x`` via brute-force enumeration).
+    Returns NaN if ``optimal_x`` is absent or None (e.g. no feasible solution
+    exists, or legacy results recorded before the field was added).
     """
-    min_val = row.get('min_val')
-    if min_val is None or (isinstance(min_val, float) and np.isnan(min_val)):
+    optimal_x = row.get('optimal_x')
+    if isinstance(optimal_x, list) and optimal_x and isinstance(optimal_x[0], list):
+        optimal_x = optimal_x[0]
+    if not optimal_x:
         return float('nan')
+
     counts = row['counts']
-    n_x = int(row['n_x'])
-    constraints = row['constraints']
+    if isinstance(counts, list):
+        counts = counts[0]
+    n_x = row['n_x']
+    if isinstance(n_x, list):
+        n_x = n_x[0]
+    n_x = int(n_x)
+
     total = sum(counts.values())
     if total == 0:
         return float('nan')
-    optimal = 0
-    for bitstring, cnt in counts.items():
-        x_bits = bitstring[:n_x]
-        x = [int(b) for b in x_bits]
-        var_dict = {f'x_{i}': x[i] for i in range(n_x)}
-        # feasibility check
-        if not all(eval(c, {"__builtins__": {}}, var_dict) for c in constraints):
-            continue
-        # use qubo from row if available, else skip objective check
-        qubo = row.get('qubo')
-        if qubo is not None:
-            obj = float(np.dot(x, np.dot(qubo, x)))
-            if abs(obj - float(min_val)) < 1e-6:
-                optimal += cnt
-        else:
-            # fallback: no qubo stored; skip
-            pass
-    return optimal / total if total > 0 else float('nan')
+
+    optimal_set = set(optimal_x)
+    optimal = sum(cnt for bs, cnt in counts.items() if bs[:n_x] in optimal_set)
+    return optimal / total
 
 
 # ---------------------------------------------------------------------------
