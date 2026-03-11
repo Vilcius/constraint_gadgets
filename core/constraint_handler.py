@@ -511,7 +511,8 @@ def determine_slack_variables(
 
         if pc.op in (ConstraintOp.LEQ, ConstraintOp.LT):
             eff_rhs = pc.rhs if pc.op == ConstraintOp.LEQ else pc.rhs - 1
-            n_slack = max(0, int(np.ceil(eff_rhs - min_lhs)))
+            slack_range = max(0, int(np.ceil(eff_rhs - min_lhs)))
+            n_slack = slack_range.bit_length()
             slack_infos.append(SlackInfo(
                 constraint_idx=i,
                 n_slack=n_slack,
@@ -523,7 +524,8 @@ def determine_slack_variables(
 
         elif pc.op in (ConstraintOp.GEQ, ConstraintOp.GT):
             eff_rhs = pc.rhs if pc.op == ConstraintOp.GEQ else pc.rhs + 1
-            n_slack = max(0, int(np.ceil(max_lhs - eff_rhs)))
+            slack_range = max(0, int(np.ceil(max_lhs - eff_rhs)))
+            n_slack = slack_range.bit_length()
             slack_infos.append(SlackInfo(
                 constraint_idx=i,
                 n_slack=n_slack,

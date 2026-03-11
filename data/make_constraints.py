@@ -70,7 +70,7 @@ def make_cardinality_constraints(max_n: int = 5, save_dir: str = './data/') -> N
 def make_knapsack_constraints(max_n: int = 5, n_instances: int = 10, save_dir: str = './data/') -> None:
     """Generate random knapsack constraints and all pairwise combinations.
 
-    Coefficients drawn from [1, 10].  RHS set to a random integer in
+    Coefficients drawn from [1, 5].  RHS set to a random integer in
     [sum(a)/3, 2*sum(a)/3].  Infeasible instances are discarded.
 
     Writes:
@@ -84,7 +84,7 @@ def make_knapsack_constraints(max_n: int = 5, n_instances: int = 10, save_dir: s
         attempts = 0
         while count < n_instances and attempts < 10 * n_instances:
             attempts += 1
-            a = np.random.randint(1, 11, size=n)
+            a = np.random.randint(1, 6, size=n)
             s = int(np.sum(a))
             lo = max(1, int(s / 3))
             hi = int(2 * s / 3) + 1
@@ -265,7 +265,7 @@ def make_quadratic_knapsack_constraints(
     """Generate random quadratic knapsack constraints and save.
 
     For each n in [3, max_n], sample n_instances upper-triangular Q matrices
-    with Q_ij in [1, 5].  RHS is set to a random integer in
+    with Q_ij in [1, 3].  RHS is set to a random integer in
     [sum(Q)/3, 2*sum(Q)/3].  Infeasible instances are discarded.
 
     Writes:
@@ -282,7 +282,7 @@ def make_quadratic_knapsack_constraints(
             Q = np.zeros((n, n), dtype=int)
             for i in range(n):
                 for j in range(i, n):
-                    Q[i, j] = np.random.randint(1, 6)
+                    Q[i, j] = np.random.randint(1, 4)
             total = int(np.sum(Q))
             lo = max(1, total // 3)
             hi = (2 * total) // 3 + 1

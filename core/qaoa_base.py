@@ -456,6 +456,54 @@ def count_gamma_terms(hamiltonian: qml.Hamiltonian) -> int:
     )
 
 
+def ising_hamiltonian_extremes(
+    hamiltonian: qml.Hamiltonian,
+    wire_order: List[int],
+) -> Tuple[float, float]:
+    """Return (C_min, C_max) for a diagonal (Z-only) Ising Hamiltonian.
+
+    Builds the 2^n diagonal vector instead of the full 2^n × 2^n matrix used
+    by qml.eigvals, reducing memory from O(4^n) to O(2^n).  Valid for any
+    Hamiltonian composed only of PauliZ and Identity terms (QUBO + penalty).
+
+    Parameters
+    ----------
+    hamiltonian : qml.Hamiltonian
+    wire_order : list[int]
+        Qubit ordering: bit i of a state integer represents wire_order[i].
+
+    Returns
+    -------
+    C_min, C_max : float
+    """
+    n = len(wire_order)
+    wire_map = {w: i for i, w in enumerate(wire_order)}
+    diagonal = np.zeros(2 ** n, dtype=float)
+    states = np.arange(2 ** n, dtype=np.int64)
+
+    coeffs, ops = hamiltonian.terms()
+    for coeff, op in zip(coeffs, ops):
+        pauli_str = qml.pauli.pauli_word_to_string(op, wire_map=wire_map)
+        # Build bitmask: bit i set when qubit i (wire_order[i]) carries a Z
+        mask = 0
+        for i, ch in enumerate(pauli_str):
+            if ch == 'Z':
+                mask |= 1 << i
+        if mask == 0:  # pure Identity
+            diagonal += float(coeff)
+        else:
+            # eigenvalue = coeff * (-1)^popcount(state & mask)
+            parity = np.zeros(2 ** n, dtype=np.int64)
+            m = mask
+            while m:
+                lsb = m & (-m)
+                parity ^= (states >> (lsb.bit_length() - 1)) & 1
+                m ^= lsb
+            diagonal += float(coeff) * (1.0 - 2.0 * parity)
+
+    return float(diagonal.min()), float(diagonal.max())
+
+
 # ======================================================================
 # Validation
 # ======================================================================
@@ -577,14 +625,14 @@ def build_penalty_hamiltonian(
         for var_pair, coeff in pc.quadratic.items():
             terms.append((coeff, list(var_pair)))
 
-        # Slack variables
+        # Slack variables (binary encoding: bit k has weight 2^k)
         if slack_info.n_slack > 0:
             sign = 1.0 if slack_info.operator == "leq" else -1.0
-            for sw in range(
+            for k, sw in enumerate(range(
                 slack_info.slack_start_wire,
                 slack_info.slack_start_wire + slack_info.n_slack,
-            ):
-                terms.append((sign, [sw]))
+            )):
+                terms.append((sign * (2 ** k), [sw]))
 
         constant_term = pc.constant - rhs
 

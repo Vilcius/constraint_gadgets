@@ -49,6 +49,7 @@ from pennylane import numpy as np
 from core import constraint_handler as ch
 from core import hybrid_qaoa as hq
 from core import penalty_qaoa as pq
+from core.qaoa_base import ising_hamiltonian_extremes
 from data.make_data import read_qubos_from_file, get_optimal_x
 from analyze_results.results_helper import (
     ResultsCollector,
@@ -185,9 +186,7 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
         )
 
         # Optimise with warm-start from previous layer
-        import pennylane as qml
-        C_max = float(max(qml.eigvals(pen_solver.full_Ham)))
-        C_min = float(min(qml.eigvals(pen_solver.full_Ham)))
+        C_min, C_max = ising_hamiltonian_extremes(pen_solver.full_Ham, pen_solver.all_wires)
         opt_cost, opt_angles = pen_solver.optimize_angles(
             pen_solver.do_evolution_circuit,
             prev_layer_angles=prev_p_angles,
