@@ -18,7 +18,9 @@ Core library for constraint-aware QAOA.
 ```
 constraint_handler   <── parses / classifies all constraints
        │
-       ├── dicke_state_prep  ← exact circuit for sum x_i == k
+       ├── dicke_state_prep  ← DickeStatePrep: exact circuit for sum x_i == k
+       │                        CardinalityLeqStatePrep: superposition of Dicke
+       │                        states for sum x_i <= k
        │
        └── vcg               ← QAOA-trained gadget for general constraints
               │
@@ -36,11 +38,14 @@ and Grover mixer.
 
 | `ConstraintType` | Example | Structural handler |
 |---|---|---|
-| `DICKE` | `x_0 + x_1 + x_2 == 2` | `DickeStatePrep` + XY mixer |
-| `CARDINALITY_LEQ` | `x_0 + x_1 + x_2 <= 2` | Uniform superposition of Dicke states `|D_n^0⟩…|D_n^k⟩` (`CardinalityLeqStatePrep`) + Grover mixer |
-| `FLOW` | `x_0 + x_1 - x_2 - x_3 == 0` | `DickeStatePrep` (signed) |
+| `DICKE` | `x_0 + x_1 + x_2 == 2` | `DickeStatePrep` (exact `\|D_n^k⟩`) + XY mixer |
+| `CARDINALITY_LEQ` | `x_0 + x_1 + x_2 <= 2` | `CardinalityLeqStatePrep` (uniform superposition of `\|D_n^0⟩…\|D_n^k⟩`) + Grover mixer |
+| `FLOW` | `x_0 + x_1 - x_2 - x_3 == 0` | `DickeStatePrep` (signed) + XY mixer |
 | `WEIGHTED_SUM` | `3*x_0 + 5*x_1 <= 7` | `VCG` |
 | `QUADRATIC` | `x_0*x_1 + 2*x_2 <= 1` | `VCG` |
+
+Note: GEQ cardinality constraints (`sum x_i >= k`) are currently handled by `VCG`.
+Structural support via a superposition of Dicke states is planned.
 
 ## Angle strategies
 

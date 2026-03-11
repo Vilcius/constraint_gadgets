@@ -7,7 +7,7 @@ Modular analysis pipeline for constraint_gadget experiments.
 | File | Purpose |
 |---|---|
 | `data_loader.py` | Load VCG / HybridQAOA result pickles; filter DataFrames |
-| `metrics.py` | P(feasible), P(optimal), AR augmentation, summary stats |
+| `metrics.py` | P(feasible) (brute-force constraint check on first `n_x` bits), P(optimal) (uses `optimal_x` bitstring list stored by run script), AR augmentation, summary stats |
 | `plot_utils.py` | Shared light-theme styling (paper-friendly), colour maps, `save_fig` |
 | `plot_ar.py` | AR vs n_x, by constraint type, by angle strategy |
 | `plot_feasibility.py` | P(feasible) and P(optimal) plots; AR vs P(feasible) scatter |

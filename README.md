@@ -21,12 +21,13 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 │
 │
 ├── 📁 run/
-│   ├── run_cardinality.py    ← VCG + HybridQAOA for cardinality constraints (∑xᵢ op b)
-│   ├── run_knapsack.py       ← VCG + HybridQAOA for knapsack constraints (∑cᵢxᵢ ≤ W)
-│   ├── run_quadratic.py      ← VCG + HybridQAOA for quadratic constraints
-│   ├── run_flow.py           ← VCG + HybridQAOA for flow conservation constraints
-│   ├── run_assignment.py     ← VCG + HybridQAOA for assignment constraints
-│   └── run_subtour.py        ← VCG + HybridQAOA for subtour elimination constraints
+│   ├── add_to_vcg_database.py        ← Train a single VCG and register it in the gadget DB
+│   ├── create_vcg_database.py        ← Populate the full gadget DB (knapsack + quadratic-knapsack)
+│   ├── generate_experiment_params.py ← Enumerate HybridQAOA vs PenaltyQAOA tasks → JSONL
+│   ├── run_hybrid_vs_penalty.py      ← Run the experiment sweep; stores optimal_x for P(opt)
+│   └── params/
+│       ├── experiment_params.jsonl   ← 500 generated experiment tasks
+│       └── vcg_params.jsonl          ← VCG training task list
 │
 ├── 📁 analyze_results/       ← Analysis and plotting package
 │   ├── __init__.py
@@ -50,9 +51,11 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 │   └── figures/              ← Generated plots (AR, timing, distributions)
 │
 ├── 📁 slurm/  (HPC)
-│   ├── generate_params.py    ← Regenerate all param files declaratively
-│   ├── vcg_params.txt        ← VCG sweep: constraint families × n_layers
-│   └── hybrid_params.txt     ← HybridQAOA sweep: constraint families × n_layers
+│   ├── submit_all.sh         ← Full pipeline: generate params + submit all jobs in dependency order
+│   ├── vcg_array.sh          ← SLURM array: train one VCG per task
+│   ├── vcg_merge.sh          ← Single-node: merge VCG pickles → gadgets/gadget_db.pkl
+│   ├── experiment_array.sh   ← SLURM array: run one experiment task per job
+│   └── experiment_merge.sh   ← Single-node: merge results → results/hybrid_vs_penalty.pkl
 │
 ├── 📁 data/                  ← Constraint CSVs, QUBO instances, and data utilities
 │   ├── make_data.py              ← QUBO generation and optimal-x brute force search
@@ -81,8 +84,8 @@ gadget = VCG(
     flag_wires=[3],
     angle_strategy="ma-QAOA",
     n_layers=1,
-    steps=50,
-    num_restarts=50,
+    steps=200,
+    num_restarts=20,
 )
 opt_cost, opt_angles = gadget.optimize_angles(gadget.do_evolution_circuit)
 counts = gadget.do_counts_circuit(shots=10_000)
@@ -461,14 +464,17 @@ df = collector.to_dataframe()
 | `n_layers` | int | `1` | QAOA circuit depth |
 | `penalty_str` | list[float] | `None` | Flag-qubit penalty weights |
 | `steps` | int | `50` | Optimisation steps per restart |
-| `num_restarts` | int | `10` | Random restarts |
+| `num_restarts` | int | `5` | Random restarts per layer |
+| `cqaoa_steps` | int | `30` | Steps for inline VCG training when gadget not in DB |
+| `cqaoa_num_restarts` | int | `5` | Restarts for inline VCG training |
 | `pre_made` | bool | `False` | Load pre-trained VCG angles from `gadget_path` |
 
 ## Constraint Families
 
 | Family | Example constraint | CSV file |
 |---|---|---|
-| Cardinality | `x_0 + x_1 + x_2 == 1` | `cardinality_constraints.csv` |
+| Cardinality (equality) | `x_0 + x_1 + x_2 == 1` | `cardinality_constraints.csv` |
+| Cardinality (LEQ) | `x_0 + x_1 + x_2 <= 2` | `cardinality_constraints.csv` |
 | Knapsack | `3*x_0 + 2*x_1 + x_2 <= 4` | `knapsack_constraints.csv` |
 | Quadratic knapsack | `x_0*x_1 + 2*x_2 <= 2` | `quadratic_knapsack_constraints.csv` |
 | Flow conservation | `x_0 + x_1 - x_2 - x_3 == 0` | `flow_constraints.csv` |
@@ -510,7 +516,8 @@ df = collector.to_dataframe()
 | `hamiltonian_time` | Wall time for Hamiltonian construction (s) |
 | `optimize_time` | Wall time for angle optimisation (s) |
 | `counts_time` | Wall time for sampling (s) |
-| `min_val` | Optimal feasible QUBO value (hybrid only) |
+| `min_val` | Optimal feasible QUBO value (brute force) |
+| `optimal_x` | List of optimal feasible bitstrings (brute force; used to compute P(opt)) |
 | `mixer` | Mixer used (hybrid only) |
 
 ## Dependencies

@@ -10,7 +10,7 @@ All scripts are runnable directly or importable as a library.
 | `add_to_vcg_database.py` | Train a single VCG (QAOA warm-start → ma-QAOA sweep) and add it to the gadget DB |
 | `create_vcg_database.py` | Populate the full gadget DB for all knapsack and quadratic-knapsack constraints |
 | `generate_experiment_params.py` | Enumerate HybridQAOA vs PenaltyQAOA experiment tasks and write a JSONL parameter file |
-| `run_hybrid_vs_penalty.py` | Run the experiment sweep: HybridQAOA and PenaltyQAOA layer sweeps for each task |
+| `run_hybrid_vs_penalty.py` | Run the experiment sweep: HybridQAOA and PenaltyQAOA layer sweeps for each task; stores `optimal_x` (brute-force optimal bitstrings) in every result row for P(opt) computation |
 
 ## Workflow
 

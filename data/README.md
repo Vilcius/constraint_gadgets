@@ -37,10 +37,12 @@ rows = read_typed_csv('data/knapsack_constraints.csv')
 
 | Family | Type | Structural handler |
 |---|---|---|
-| `cardinality` | Dicke (`sum x_i == k`) or inequality | `DickeStatePrep` (equality) / `VCG` (inequality) |
-| `knapsack` | Weighted-sum inequality | `VCG` |
-| `quadratic_knapsack` | Quadratic inequality | `VCG` |
-| `flow` | Signed sum equality | `DickeStatePrep` |
+| `cardinality` (equality) | `sum x_i == k` | `DickeStatePrep` (exact `\|D_n^k⟩`) + XY mixer |
+| `cardinality` (LEQ) | `sum x_i <= k` | `CardinalityLeqStatePrep` (superposition of Dicke states) + Grover mixer |
+| `cardinality` (GEQ) | `sum x_i >= k` | `VCG` (structural Dicke-superposition support planned) |
+| `knapsack` | `sum a_i x_i <= b` | `VCG` |
+| `quadratic_knapsack` | `sum Q_ij x_i x_j <= b` | `VCG` |
+| `flow` | Signed sum equality | `DickeStatePrep` (signed) + XY mixer |
 | `assignment` | Multiple equalities | `DickeStatePrep` |
 | `subtour` | TSP constraints | `VCG` |
 | `independent_set` | Quadratic equality | `VCG` |
