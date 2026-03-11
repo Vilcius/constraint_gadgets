@@ -101,13 +101,9 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
     dict with keys 'hybrid_rows' and 'penalty_rows', each a list of
     single-row result dicts (one per QAOA layer).
     """
-    structural_constraints = task['structural_constraints']
-    penalty_constraints    = task['penalty_constraints']
-    all_constraints        = structural_constraints + penalty_constraints
-    structural_indices     = task['structural_indices']
-    penalty_indices        = task['penalty_indices']
-    n_x                    = task['n_x']
-    qubo_idx               = task['qubo_idx']
+    all_constraints = task['constraints']
+    n_x             = task['n_x']
+    qubo_idx        = task['qubo_idx']
 
     Q_dict      = qubos[n_x][qubo_idx]
     Q           = Q_dict['Q']
@@ -117,7 +113,11 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
     min_val, optimal_x, total_min = get_optimal_x(Q, all_constraints)
     penalty_weight = float(5 + 2 * abs(total_min))
 
+    # Auto-partition into structural vs penalty
     parsed = ch.parse_constraints(all_constraints)
+    structural_indices, penalty_indices = ch.partition_constraints(parsed, strategy='auto')
+    structural_constraints = [all_constraints[i] for i in structural_indices]
+    penalty_constraints    = [all_constraints[i] for i in penalty_indices]
 
     if verbose:
         print(f'  QUBO({n_x}x{n_x})  opt={min_val:.3f}  δ={penalty_weight:.2f}')
@@ -151,7 +151,7 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
             all_constraints, hybrid, qubo_string,
             min_val=min_val,
             previous_angles=prev_h_angles,
-            constraint_type=task.get('structural_families', [''])[0],
+            constraint_type='+'.join(task.get('families', [''])),
         )
         row['task']       = [task]
         row['layer']      = [p]

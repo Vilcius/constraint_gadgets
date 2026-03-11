@@ -4,37 +4,36 @@ parameter combinations and write them as JSON-per-line for SLURM array jobs.
 
 Problem structure
 -----------------
-Each experiment consists of:
-  - 1–2 structural constraints (disjoint variable sets, support >= 3)
-      - Dicke (cardinality equality, e.g. x_0+x_1+x_2==1)
-      - VCG   (knapsack or quadratic-knapsack inequality)
-  - 1–2 penalty constraints (support >= 3, overlapping at least 2 structural
-      variables + 1 new "free" variable per constraint)
-  - One QUBO of the matching total variable count.
+Each experiment consists of 2–3 constraints drawn from any supported family,
+assigned to disjoint variable ranges so that n_x = total variables <= 10.
+Structural vs penalty partitioning is decided at run time by
+``partition_constraints(strategy="auto")`` in the run script — not here.
+
+Constraint families included
+-----------------------------
+  - cardinality        : sum x_i op b
+  - knapsack           : sum a_i x_i <= b
+  - quadratic_knapsack : sum Q_ij x_i x_j <= b
+  - flow               : sum_in x_i - sum_out x_j == 0
+  - assignment         : sum_j x_{i*n+j} == 1  (per-row equality)
+  - independent_set    : x_i * x_j == 0  (per-edge equality)
 
 Variable assignment
 -------------------
-Structural constraints are placed sequentially:
+Constraints are normalised to x_0..x_{k-1} when loaded, then remapped to
+sequential non-overlapping ranges when building each task:
   constraint 0  → x_0 .. x_{n0-1}
   constraint 1  → x_{n0} .. x_{n0+n1-1}
-
-Each penalty constraint uses 2 randomly-chosen structural variables and
-1 fresh variable.  Penalty constraints are always unit-coefficient
-cardinality inequalities (x_a + x_b + x_c <= 1) remapped to these positions.
-
-QUBO size = (total structural vars) + (number of penalty constraints).
+  ...
+n_x = sum of all constraint variable counts.
 
 Output format (one JSON object per line)
 -----------------------------------------
 {
-  "structural_constraints": ["6*x_3 + 2*x_4 + 2*x_5 <= 3"],
-  "penalty_constraints":    ["x_1 + x_3 + x_6 <= 1"],
-  "structural_families":    ["knapsack"],
-  "penalty_family":         "cardinality",
-  "structural_indices":     [0],        // indices into all_constraints
-  "penalty_indices":        [1],        // indices into all_constraints
-  "n_x":                    7,
-  "qubo_idx":               0,          // index into qubos[n_x]
+  "constraints" : ["x_0 + x_1 + x_2 == 1", "3*x_3 + 2*x_4 <= 4"],
+  "families"    : ["cardinality", "knapsack"],
+  "n_x"         : 5,
+  "qubo_idx"    : 2,
 }
 
 Usage
@@ -53,7 +52,6 @@ warnings.filterwarnings('ignore')
 
 import json
 import argparse
-import itertools
 import random
 import re
 
@@ -65,72 +63,48 @@ from data.make_data import read_qubos_from_file
 # Constraint pool loading
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _load_structural_pool(data_dir: str) -> list:
-    """Return list of (n_vars, constraint_str, family) for all structural
-    constraints with support >= 3.
+def _normalize_constraint(c: str):
+    """Remap a constraint's variables to x_0, x_1, ... and return (n_vars, normalized_str)."""
+    var_ids = sorted(set(int(m) for m in re.findall(r'x_(\d+)', c)))
+    if not var_ids:
+        return 0, c
+    remap = {old: new for new, old in enumerate(var_ids)}
+    normalized = re.sub(r'x_(\d+)', lambda m: f'x_{remap[int(m.group(1))]}', c)
+    return len(var_ids), normalized
 
-    Includes:
-      - Dicke  : cardinality equalities (x_0+...==1)
-      - VCG    : knapsack, quadratic_knapsack inequalities
+
+def _load_all_constraints(data_dir: str) -> list:
+    """Return list of (n_vars, constraint_str, family) for all constraints.
+
+    Each constraint is normalised to x_0..x_{n-1}.  Multi-constraint CSV rows
+    (assignment, independent_set) contribute one entry per individual constraint.
+    Only constraints with n_vars >= 2 are included.
     """
     pool = []
     sources = [
         ('cardinality',        'cardinality_constraints.csv'),
         ('knapsack',           'knapsack_constraints.csv'),
         ('quadratic_knapsack', 'quadratic_knapsack_constraints.csv'),
+        ('flow',               'flow_constraints.csv'),
+        ('assignment',         'assignment_constraints.csv'),
+        ('independent_set',    'independent_set_constraints.csv'),
     ]
+    seen = set()
     for family, fname in sources:
         csv_path = os.path.join(data_dir, fname)
         if not os.path.exists(csv_path):
             continue
-        for n_vars, cs in read_typed_csv(csv_path):
-            if n_vars < 3:
-                continue
+        for _n_vars_row, cs in read_typed_csv(csv_path):
             for c in cs:
-                pool.append((n_vars, c, family))
+                n_actual, c_norm = _normalize_constraint(c)
+                if n_actual < 2:
+                    continue
+                key = (c_norm, family)
+                if key in seen:
+                    continue
+                seen.add(key)
+                pool.append((n_actual, c_norm, family))
     return pool
-
-
-def _load_penalty_pool(data_dir: str) -> list:
-    """Return list of (n_vars, constraint_str, family) for cardinality
-    INEQUALITY constraints with support >= 3.  These are used as penalty
-    constraints since they have unit coefficients and are easy to remap.
-    """
-    pool = []
-    csv_path = os.path.join(data_dir, 'cardinality_constraints.csv')
-    if not os.path.exists(csv_path):
-        return pool
-    for n_vars, cs in read_typed_csv(csv_path):
-        if n_vars < 3:
-            continue
-        for c in cs:
-            if '<=' in c or '>=' in c:
-                pool.append((n_vars, c, 'cardinality'))
-    return pool
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Constraint remapping helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _penalty_constraint_with_overlap(penalty_str: str, n_vars: int,
-                                      structural_vars: list,
-                                      free_var: int,
-                                      rng: random.Random) -> str:
-    """Remap a zero-indexed penalty constraint (n_vars vars) so that
-    (n_vars-1) of its variables land on existing structural positions and
-    1 lands on free_var.
-
-    For n_vars=3 (the typical cardinality inequality), picks 2 structural
-    vars and maps the third to free_var.
-    """
-    n_overlap = n_vars - 1  # structural vars to use
-    chosen = rng.sample(structural_vars, min(n_overlap, len(structural_vars)))
-    # Pad to n_vars-1 by repeating last if structural_vars is short
-    while len(chosen) < n_overlap:
-        chosen.append(chosen[-1])
-    target = chosen + [free_var]
-    return remap_constraint_to_vars(penalty_str, target)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -138,133 +112,63 @@ def _penalty_constraint_with_overlap(penalty_str: str, n_vars: int,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate_tasks(data_dir: str = 'data/', max_tasks: int = 500,
-                   seed: int = 42) -> list:
-    """Enumerate experiment tasks.
+                   seed: int = 42, n_constraints_range: tuple = (2, 3),
+                   max_n_x: int = 10) -> list:
+    """Sample experiment tasks from all constraint families.
+
+    Each task has 2–3 constraints assigned to disjoint variable ranges.
+    Structural vs penalty partitioning is left to the run script.
 
     Returns list of task dicts (see module docstring for format).
     """
     rng = random.Random(seed)
 
-    structural_pool = _load_structural_pool(data_dir)
-    penalty_pool    = _load_penalty_pool(data_dir)
-    qubos           = read_qubos_from_file('qubos.csv', results_dir=data_dir)
+    pool  = _load_all_constraints(data_dir)
+    qubos = read_qubos_from_file('qubos.csv', results_dir=data_dir)
 
-    if not penalty_pool:
-        raise RuntimeError('No penalty constraints found in cardinality_constraints.csv')
+    if not pool:
+        raise RuntimeError('No constraints found — check data_dir.')
 
+    seen_keys = set()
     tasks = []
+    max_attempts = max_tasks * 50
 
-    # ── 1-structural + 1-penalty ─────────────────────────────────────────────
-    for n_s, c_s, fam_s in structural_pool:
-        # Assign structural vars 0..n_s-1
-        c_s_mapped = remap_constraint_to_vars(c_s, list(range(n_s)))
-        struct_vars = list(range(n_s))
-        free_var = n_s  # one new variable for the penalty constraint
-        n_x = n_s + 1
+    for _ in range(max_attempts):
+        if len(tasks) >= max_tasks:
+            break
 
+        n_c = rng.randint(*n_constraints_range)
+        sampled = rng.sample(pool, min(n_c, len(pool)))
+
+        # Assign sequential, disjoint variable ranges
+        offset = 0
+        constraint_strs = []
+        families = []
+        for n_vars, c_norm, fam in sampled:
+            target = list(range(offset, offset + n_vars))
+            c_mapped = remap_constraint_to_vars(c_norm, target)
+            constraint_strs.append(c_mapped)
+            families.append(fam)
+            offset += n_vars
+
+        n_x = offset
+        if n_x > max_n_x or n_x < 2:
+            continue
         if n_x not in qubos or not qubos[n_x]:
             continue
 
-        # Pick a random penalty constraint (n=3 cardinality inequality)
-        pen_pool_3 = [(n, c, f) for n, c, f in penalty_pool if n == 3]
-        if not pen_pool_3:
+        key = tuple(sorted(constraint_strs))
+        if key in seen_keys:
             continue
-        n_p, c_p, fam_p = rng.choice(pen_pool_3)
-        c_p_mapped = _penalty_constraint_with_overlap(
-            c_p, n_p, struct_vars, free_var, rng
-        )
-
-        all_constraints = [c_s_mapped, c_p_mapped]
-        qubo_idx = rng.randint(0, len(qubos[n_x]) - 1)
-        tasks.append({
-            'structural_constraints': [c_s_mapped],
-            'penalty_constraints':    [c_p_mapped],
-            'structural_families':    [fam_s],
-            'penalty_family':         fam_p,
-            'structural_indices':     [0],
-            'penalty_indices':        [1],
-            'n_x':                    n_x,
-            'qubo_idx':               qubo_idx,
-        })
-
-    # ── 1-structural + 2-penalty ─────────────────────────────────────────────
-    for n_s, c_s, fam_s in structural_pool:
-        c_s_mapped = remap_constraint_to_vars(c_s, list(range(n_s)))
-        struct_vars = list(range(n_s))
-        n_x = n_s + 2  # two new variables
-
-        if n_x not in qubos or not qubos[n_x] or n_x > 10:
-            continue
-
-        pen_pool_3 = [(n, c, f) for n, c, f in penalty_pool if n == 3]
-        if len(pen_pool_3) < 2:
-            continue
-        chosen_pen = rng.sample(pen_pool_3, 2)
-
-        pen_mapped = []
-        for pi, (n_p, c_p, fam_p) in enumerate(chosen_pen):
-            free_var = n_s + pi
-            pen_mapped.append(
-                _penalty_constraint_with_overlap(c_p, n_p, struct_vars, free_var, rng)
-            )
-
-        all_constraints = [c_s_mapped] + pen_mapped
-        qubo_idx = rng.randint(0, len(qubos[n_x]) - 1)
-        tasks.append({
-            'structural_constraints': [c_s_mapped],
-            'penalty_constraints':    pen_mapped,
-            'structural_families':    [fam_s],
-            'penalty_family':         chosen_pen[0][2],
-            'structural_indices':     [0],
-            'penalty_indices':        [1, 2],
-            'n_x':                    n_x,
-            'qubo_idx':               qubo_idx,
-        })
-
-    # ── 2-structural + 1-penalty ─────────────────────────────────────────────
-    # Enumerate all pairs of structural constraints from DIFFERENT families
-    # (or same family is fine too), where total vars <= 8 (leaves room for QUBO).
-    pool_pairs = list(itertools.combinations(range(len(structural_pool)), 2))
-    rng.shuffle(pool_pairs)
-
-    for i, j in pool_pairs:
-        n_s1, c_s1, fam_s1 = structural_pool[i]
-        n_s2, c_s2, fam_s2 = structural_pool[j]
-        total_s = n_s1 + n_s2
-        n_x = total_s + 1  # one new variable for penalty
-
-        if n_x > 10 or n_x not in qubos or not qubos[n_x]:
-            continue
-
-        # Assign vars: constraint1 → 0..n_s1-1, constraint2 → n_s1..total_s-1
-        c_s1_mapped = remap_constraint_to_vars(c_s1, list(range(n_s1)))
-        c_s2_mapped = remap_constraint_to_vars(c_s2, list(range(n_s1, total_s)))
-        struct_vars = list(range(total_s))  # all structural vars
-        free_var = total_s
-
-        pen_pool_3 = [(n, c, f) for n, c, f in penalty_pool if n == 3]
-        if not pen_pool_3:
-            continue
-        n_p, c_p, fam_p = rng.choice(pen_pool_3)
-        c_p_mapped = _penalty_constraint_with_overlap(
-            c_p, n_p, struct_vars, free_var, rng
-        )
+        seen_keys.add(key)
 
         qubo_idx = rng.randint(0, len(qubos[n_x]) - 1)
         tasks.append({
-            'structural_constraints': [c_s1_mapped, c_s2_mapped],
-            'penalty_constraints':    [c_p_mapped],
-            'structural_families':    [fam_s1, fam_s2],
-            'penalty_family':         fam_p,
-            'structural_indices':     [0, 1],
-            'penalty_indices':        [2],
-            'n_x':                    n_x,
-            'qubo_idx':               qubo_idx,
+            'constraints': constraint_strs,
+            'families':    families,
+            'n_x':         n_x,
+            'qubo_idx':    qubo_idx,
         })
-
-    # ── Random sample if over budget ─────────────────────────────────────────
-    if len(tasks) > max_tasks:
-        tasks = rng.sample(tasks, max_tasks)
 
     return tasks
 
@@ -281,8 +185,10 @@ def _parse_args():
     p.add_argument('--output', default='run/params/experiment_params.jsonl',
                    help='Output JSON-lines file.')
     p.add_argument('--max-tasks', type=int, default=500,
-                   help='Maximum number of tasks (random sample if exceeded).')
+                   help='Maximum number of tasks.')
     p.add_argument('--seed', type=int, default=42)
+    p.add_argument('--max-n-x', type=int, default=10,
+                   help='Maximum total variable count per task.')
     return p.parse_args()
 
 
@@ -292,6 +198,7 @@ if __name__ == '__main__':
         data_dir=args.data_dir,
         max_tasks=args.max_tasks,
         seed=args.seed,
+        max_n_x=args.max_n_x,
     )
 
     out_dir = os.path.dirname(args.output)
@@ -303,12 +210,8 @@ if __name__ == '__main__':
 
     print(f'Generated {len(tasks)} tasks → {args.output}')
 
-    # Summary breakdown
-    n1 = sum(1 for t in tasks if len(t['structural_constraints']) == 1
-             and len(t['penalty_constraints']) == 1)
-    n2 = sum(1 for t in tasks if len(t['structural_constraints']) == 1
-             and len(t['penalty_constraints']) == 2)
-    n3 = sum(1 for t in tasks if len(t['structural_constraints']) == 2)
-    print(f'  1-struct + 1-penalty : {n1}')
-    print(f'  1-struct + 2-penalty : {n2}')
-    print(f'  2-struct + 1-penalty : {n3}')
+    from collections import Counter
+    fam_counts = Counter(f for t in tasks for f in t['families'])
+    nx_counts  = Counter(t['n_x'] for t in tasks)
+    print('Family breakdown:', dict(sorted(fam_counts.items())))
+    print('n_x distribution:', dict(sorted(nx_counts.items())))
