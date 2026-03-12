@@ -62,23 +62,24 @@ def plot_p_feasible_hybrid(df: pd.DataFrame, save_path: str = None) -> plt.Figur
 
 
 def plot_p_optimal_hybrid(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
-    """P(optimal) vs n_x for HybridQAOA."""
+    """P(optimal) vs n_x for HybridQAOA, aggregated over all constraint types."""
     pu.setup_style()
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    for family, grp in df.groupby('constraint_type'):
-        color = pu.CONSTRAINT_COLORS.get(family, pu._ROSE_PINE['subtle'])
+    # Aggregate across all constraint-type combinations — too many to plot individually
+    for method, grp in df.groupby('method'):
+        color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
         means = grp.groupby('n_x')['p_optimal'].mean()
         stds  = grp.groupby('n_x')['p_optimal'].std().fillna(0)
-        ax.plot(means.index, means.values, marker='^', label=family, color=color)
+        ax.plot(means.index, means.values, marker='^', label=method, color=color)
         ax.fill_between(means.index,
                         means.values - stds.values,
                         means.values + stds.values,
                         alpha=0.2, color=color)
 
-    ax.set_xlabel('n_x')
+    ax.set_xlabel('$n_x$')
     ax.set_ylabel('P(optimal)')
-    ax.set_title('HybridQAOA: P(optimal) vs n_x')
+    ax.set_title('P(optimal) vs $n_x$')
     ax.legend()
 
     if save_path:
