@@ -1,0 +1,13 @@
+Task 226/499
+  QUBO(7x7)  opt=-8.000  δ=35.00
+  Structural : ['x_0 + x_1 + x_2 <= 1', 'x_3 + x_4 + x_5 <= 2']
+  Penalty    : ['x_1 + x_4 + x_6 >= 2']
+  HybridQAOA p=1: AR=0.6097  P(feas)=0.1590
+  HybridQAOA p=2: AR=0.6272  P(feas)=0.2553
+  HybridQAOA p=3: AR=0.6385  P(feas)=0.3552
+  HybridQAOA p=4: AR=0.6520  P(feas)=0.4505
+  HybridQAOA p=5: AR=0.6597  P(feas)=0.5189
+  PenaltyQAOA p=1: AR=0.9283  P(feas)=0.5298
+  PenaltyQAOA p=2: AR=0.9677  P(feas)=0.9058
+    ✓ P(feasible) threshold reached at p=2
+Saved 7 rows to /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/results/pending/task_226.pkl

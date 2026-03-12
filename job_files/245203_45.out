@@ -1,0 +1,12 @@
+Task 45/59: quadratic_knapsack n=4  4*x_0*x_0 + 1*x_0*x_1 + 4*x_0*x_2 + 3*x_0*x_3 + 4*x_1*x_1 + 
+
+Constraint(s): ['4*x_0*x_0 + 1*x_0*x_1 + 4*x_0*x_2 + 3*x_0*x_3 + 4*x_1*x_1 + ']
+  n_vars=4  flag_wires=[4]
+  States: 32 total, 16 good, 16 bad
+  Pauli terms: 8  (wires: 5)
+  QAOA p=1  (restarts=5, steps=150)
+    AR=0.8650  time=7.4s
+  ma-QAOA sweep  (restarts=20, steps=200)
+    ✓ p=1: AR=1.0000  time=91.6s
+  Result saved to /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/gadgets/pending/task_45.pkl
+  Added to DB: /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/gadgets/gadget_db.pkl  (AR=1.0000, p=1, strategy=ma-QAOA)

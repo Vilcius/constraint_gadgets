@@ -1,0 +1,17 @@
+Task 439/499
+  QUBO(10x10)  opt=1.000  δ=25.00
+  Structural : ['x_0 + x_1 + x_2 + x_3 == 4', '6*x_4 + 7*x_5 + 8*x_6 + 9*x_7 + 5*x_8 <= 14']
+  Penalty    : ['x_5 + x_8 + x_9 <= 1']
+ERROR: int() argument must be a string, a bytes-like object or a real number, not 'list'
+Traceback (most recent call last):
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/run/run_hybrid_vs_penalty.py", line 322, in <module>
+    result = run_task(task, qubos, args.db)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/run/run_hybrid_vs_penalty.py", line 160, in run_task
+    p_feas = p_feasible_hybrid(row)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/analyze_results/metrics.py", line 96, in p_feasible_hybrid
+    n_x = int(row['n_x'])
+          ^^^^^^^^^^^^^^^
+TypeError: int() argument must be a string, a bytes-like object or a real number, not 'list'
+

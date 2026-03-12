@@ -72,7 +72,11 @@ def plot_time_breakdown(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
             pu.save_fig(fig, save_path)
         return fig
 
-    means = df.groupby('n_x')[present].mean()
+    df_plot = df.copy()
+    for col in present:
+        df_plot[col] = df_plot[col].apply(
+            lambda v: v[0] if isinstance(v, list) else v).astype(float)
+    means = df_plot.groupby('n_x')[present].mean()
     ns = means.index.tolist()
     x = np.arange(len(ns))
     width = 0.6

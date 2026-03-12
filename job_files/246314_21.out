@@ -1,0 +1,43 @@
+Task 21/499
+  QUBO(7x7)  opt=-28.000  δ=61.00
+  Structural : ['x_0 + x_1 + x_2 <= 2', '4*x_3*x_3 + 4*x_3*x_4 + 2*x_3*x_5 + 5*x_4*x_4 + 1*x_4*x_5 + 2*x_5*x_5 <= 9']
+  Penalty    : ['x_0 + x_4 + x_6 >= 0']
+  HybridQAOA p=1: AR=0.8031  P(feas)=0.7700
+    ✓ P(feasible) threshold reached at p=1
+ERROR: Unable to allocate 64.0 TiB for an array with shape (2097152, 2097152) and data type complex128
+Traceback (most recent call last):
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/run/run_hybrid_vs_penalty.py", line 322, in <module>
+    result = run_task(task, qubos, args.db)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/run/run_hybrid_vs_penalty.py", line 188, in run_task
+    C_max = float(max(qml.eigvals(pen_solver.full_Ham)))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/ops/functions/eigvals.py", line 136, in eigvals
+    return op.eigvals()
+           ^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/ops/op_math/linear_combination.py", line 520, in eigvals
+    tmp_composite.eigendecomposition["eigval"],
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/ops/op_math/composite.py", line 246, in eigendecomposition
+    mat = self.matrix()
+          ^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/ops/op_math/sum.py", line 330, in matrix
+    return self.pauli_rep.to_mat(wire_order=wire_order or self.wires)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/pauli/pauli_arithmetic.py", line 850, in to_mat
+    return self._to_dense_mat(wire_order)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/pauli/pauli_arithmetic.py", line 911, in _to_dense_mat
+    mat = self._sum_same_structure_pws_dense([pauli_words[i] for i in indices], wire_order)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/pauli/pauli_arithmetic.py", line 968, in _sum_same_structure_pws_dense
+    base_matrix = base_matrix.toarray()
+                  ^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/scipy/sparse/_compressed.py", line 1170, in toarray
+    out = self._process_toarray_args(order, out)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/scipy/sparse/_base.py", line 1366, in _process_toarray_args
+    return np.zeros(self.shape, dtype=self.dtype, order=order)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+numpy.core._exceptions._ArrayMemoryError: Unable to allocate 64.0 TiB for an array with shape (2097152, 2097152) and data type complex128
+

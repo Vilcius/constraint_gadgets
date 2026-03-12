@@ -1,0 +1,31 @@
+Task 210/499
+  QUBO(9x9)  opt=-8.000  δ=65.00
+  Structural : ['x_0 + x_1 + x_2 >= 0', 'x_3 + x_4 + x_5 + x_6 + x_7 == 0']
+  Penalty    : ['x_2 + x_0 + x_8 >= 0']
+  HybridQAOA p=1: AR=0.8262  P(feas)=1.0000
+    ✓ P(feasible) threshold reached at p=1
+ERROR: Unable to allocate 16.0 GiB for an array with shape (32768, 32768) and data type complex128
+Traceback (most recent call last):
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/run/run_hybrid_vs_penalty.py", line 322, in <module>
+    result = run_task(task, qubos, args.db)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/run/run_hybrid_vs_penalty.py", line 188, in run_task
+    C_max = float(max(qml.eigvals(pen_solver.full_Ham)))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/ops/functions/eigvals.py", line 136, in eigvals
+    return op.eigvals()
+           ^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/ops/op_math/linear_combination.py", line 520, in eigvals
+    tmp_composite.eigendecomposition["eigval"],
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/pennylane/ops/op_math/composite.py", line 247, in eigendecomposition
+    w, U = eigen_func(mat)
+           ^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/autoray/autoray.py", line 81, in do
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/lustre/sip/proj/SIP-UTK0040/awilkie1/conda_stuff/oss/lib/python3.11/site-packages/numpy/linalg/linalg.py", line 1487, in eigh
+    w, vt = gufunc(a, signature=signature, extobj=extobj)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+numpy.core._exceptions._ArrayMemoryError: Unable to allocate 16.0 GiB for an array with shape (32768, 32768) and data type complex128
+

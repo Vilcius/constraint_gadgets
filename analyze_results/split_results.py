@@ -30,6 +30,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import re
 import numpy as np
 import pandas as pd
 
@@ -134,6 +135,24 @@ def _extract_resources(df: pd.DataFrame) -> pd.DataFrame:
 # VCG processing
 # ---------------------------------------------------------------------------
 
+def _infer_vcg_constraint_type(row) -> str:
+    """Infer constraint family from constraint strings when constraint_type is blank."""
+    ct = row.get('constraint_type', '')
+    if isinstance(ct, list):
+        ct = ct[0] if ct else ''
+    if ct and ct != '':
+        return ct
+    constraints = row.get('constraints', [])
+    if isinstance(constraints, list) and constraints:
+        c = constraints[0] if isinstance(constraints[0], list) else constraints[0]
+        if isinstance(c, list):
+            c = c[0] if c else ''
+        if re.search(r'x_\d+\*x_\d+', str(c)):
+            return 'quadratic_knapsack'
+        return 'knapsack'
+    return 'unknown'
+
+
 def process_vcg(vcg_dir: str, output_dir: str) -> None:
     print(f"\n{'='*60}")
     print("  VCG results")
@@ -146,6 +165,9 @@ def process_vcg(vcg_dir: str, output_dir: str) -> None:
 
     df = _unpack_list_cols(df)
     print(f"  {len(df):,} rows loaded")
+
+    # Infer constraint_type when missing (legacy data from before family was stored)
+    df['constraint_type'] = df.apply(_infer_vcg_constraint_type, axis=1)
 
     # Compute derived metrics
     df['p_feasible'] = df.apply(p_feasible_vcg, axis=1)

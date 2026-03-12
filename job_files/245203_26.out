@@ -1,0 +1,12 @@
+Task 26/59: knapsack n=5  2*x_0 + 2*x_1 + 9*x_2 + 10*x_3 + 4*x_4 <= 18
+
+Constraint(s): ['2*x_0 + 2*x_1 + 9*x_2 + 10*x_3 + 4*x_4 <= 18']
+  n_vars=5  flag_wires=[5]
+  States: 64 total, 32 good, 32 bad
+  Pauli terms: 4  (wires: 6)
+  QAOA p=1  (restarts=5, steps=150)
+    AR=0.6107  time=24.6s
+  ma-QAOA sweep  (restarts=20, steps=200)
+    ✓ p=1: AR=1.0000  time=45.3s
+  Result saved to /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/gadgets/pending/task_26.pkl
+  Added to DB: /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/gadgets/gadget_db.pkl  (AR=1.0000, p=1, strategy=ma-QAOA)

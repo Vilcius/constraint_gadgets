@@ -1,0 +1,12 @@
+Task 7/59: knapsack n=3  10*x_0 + 1*x_1 + 9*x_2 <= 7
+
+Constraint(s): ['10*x_0 + 1*x_1 + 9*x_2 <= 7']
+  n_vars=3  flag_wires=[3]
+  States: 16 total, 8 good, 8 bad
+  Pauli terms: 4  (wires: 4)
+  QAOA p=1  (restarts=5, steps=150)
+    AR=0.9348  time=3.3s
+  ma-QAOA sweep  (restarts=20, steps=200)
+    ✓ p=1: AR=1.0000  time=31.2s
+  Result saved to /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/gadgets/pending/task_7.pkl
+  Added to DB: /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/gadgets/gadget_db.pkl  (AR=1.0000, p=1, strategy=ma-QAOA)

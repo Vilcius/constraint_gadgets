@@ -61,6 +61,64 @@ def plot_ar_by_constraint_type(vcg_df: pd.DataFrame,
     return fig
 
 
+def plot_ar_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
+    """Scatter: HybridQAOA AR vs PenaltyQAOA AR, one point per (task, layer)."""
+    pu.setup_style()
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    hybrid  = df[df['method'] == 'HybridQAOA'].set_index(['constraint_type', 'n_x', 'layer'])
+    penalty = df[df['method'] == 'PenaltyQAOA'].set_index(['constraint_type', 'n_x', 'layer'])
+    common  = hybrid.index.intersection(penalty.index)
+
+    if common.empty:
+        ax.text(0.5, 0.5, 'No matched (task, layer) pairs', transform=ax.transAxes,
+                ha='center', va='center')
+        if save_path:
+            pu.save_fig(fig, save_path)
+        return fig
+
+    h_ar = hybrid.loc[common, 'AR'].values
+    p_ar = penalty.loc[common, 'AR'].values
+
+    ax.scatter(p_ar, h_ar, alpha=0.5, s=30, color=pu._ROSE_PINE['pine'])
+    lims = [min(h_ar.min(), p_ar.min()) - 0.02, max(h_ar.max(), p_ar.max()) + 0.02]
+    ax.plot(lims, lims, '--', color=pu._ROSE_PINE['subtle'], linewidth=1)
+    ax.set_xlim(lims)
+    ax.set_ylim(lims)
+    ax.set_xlabel('PenaltyQAOA AR')
+    ax.set_ylabel('HybridQAOA AR')
+    ax.set_title('HybridQAOA vs PenaltyQAOA: AR')
+
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
+def plot_ar_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
+    """Line plot: mean AR vs QAOA layer, one line per method."""
+    pu.setup_style()
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for method, grp in df.groupby('method'):
+        color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
+        means = grp.groupby('layer')['AR'].mean()
+        stds  = grp.groupby('layer')['AR'].std().fillna(0)
+        ax.plot(means.index, means.values, marker='o', label=method, color=color)
+        ax.fill_between(means.index,
+                        means.values - stds.values,
+                        means.values + stds.values,
+                        alpha=0.2, color=color)
+
+    ax.set_xlabel('QAOA layers (p)')
+    ax.set_ylabel('Mean AR')
+    ax.set_title('AR vs QAOA layers')
+    ax.legend()
+
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
 def plot_ar_by_angle_strategy(df: pd.DataFrame,
                                save_path: str = None) -> plt.Figure:
     """Side-by-side box plots of AR for QAOA vs ma-QAOA."""

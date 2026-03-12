@@ -86,6 +86,31 @@ def plot_p_optimal_hybrid(df: pd.DataFrame, save_path: str = None) -> plt.Figure
     return fig
 
 
+def plot_p_feasible_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
+    """Line plot: mean P(feasible) vs n_x, one line per method."""
+    pu.setup_style()
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for method, grp in df.groupby('method'):
+        color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
+        means = grp.groupby('n_x')['p_feasible'].mean()
+        stds  = grp.groupby('n_x')['p_feasible'].std().fillna(0)
+        ax.plot(means.index, means.values, marker='o', label=method, color=color)
+        ax.fill_between(means.index,
+                        means.values - stds.values,
+                        means.values + stds.values,
+                        alpha=0.2, color=color)
+
+    ax.set_xlabel('n_x')
+    ax.set_ylabel('P(feasible)')
+    ax.set_title('P(feasible) vs n_x: HybridQAOA vs PenaltyQAOA')
+    ax.legend()
+
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
 def plot_ar_vs_p_feasible(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     """Scatter: AR vs P(feasible)."""
     pu.setup_style()

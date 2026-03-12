@@ -1,0 +1,10 @@
+Task 111/499
+  QUBO(7x7)  opt=-7.000  δ=19.00
+  Structural : ['x_0 + x_1 + x_2 == 2', 'x_3 + x_4 + x_5 >= 0']
+  Penalty    : ['x_1 + x_2 + x_6 >= 1']
+  HybridQAOA p=1: AR=0.8010  P(feas)=1.0000
+    ✓ P(feasible) threshold reached at p=1
+  PenaltyQAOA p=1: AR=0.9468  P(feas)=0.7066
+  PenaltyQAOA p=2: AR=0.9743  P(feas)=0.9472
+    ✓ P(feasible) threshold reached at p=2
+Saved 3 rows to /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/results/pending/task_111.pkl

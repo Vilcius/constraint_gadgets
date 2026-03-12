@@ -1,0 +1,2 @@
+/var/spool/slurm/spool/job246652/slurm_script: line 13: source: filename argument required
+source: usage: source filename [arguments]

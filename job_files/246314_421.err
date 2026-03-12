@@ -1,0 +1,3 @@
+/var/spool/slurm/spool/job246748/slurm_script: line 13: source: filename argument required
+source: usage: source filename [arguments]
+/var/spool/slurm/spool/job246748/slurm_script: line 33: 3788215 Killed                  python3.11 "$PROJECT_ROOT/run/run_hybrid_vs_penalty.py" --task-id "$SLURM_ARRAY_TASK_ID" --params "$PARAMS_FILE" --db "$PROJECT_ROOT/gadgets/gadget_db.pkl" --pending-dir "$PROJECT_ROOT/results/pending/"

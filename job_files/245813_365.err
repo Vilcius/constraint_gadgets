@@ -1,0 +1,3 @@
+/var/spool/slurm/spool/job246179/slurm_script: line 13: source: filename argument required
+source: usage: source filename [arguments]
+slurmstepd: error: *** JOB 246179 ON clr0627 CANCELLED AT 2026-03-10T11:29:49 DUE TO TIME LIMIT ***

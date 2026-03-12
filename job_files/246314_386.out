@@ -1,0 +1,9 @@
+Task 386/499
+  QUBO(8x8)  opt=-27.000  δ=67.00
+  Structural : ['x_0 + x_1 + x_2 >= 1', 'x_3 + x_4 + x_5 + x_6 == 2']
+  Penalty    : ['x_6 + x_4 + x_7 <= 3']
+  HybridQAOA p=1: AR=0.8335  P(feas)=0.8510
+    ✓ P(feasible) threshold reached at p=1
+  PenaltyQAOA p=1: AR=0.9735  P(feas)=0.8699
+    ✓ P(feasible) threshold reached at p=1
+Saved 2 rows to /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/results/pending/task_386.pkl

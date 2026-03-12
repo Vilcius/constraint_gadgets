@@ -1,0 +1,12 @@
+Task 2/59: knapsack n=3  5*x_0 + 4*x_1 + 1*x_2 <= 6
+
+Constraint(s): ['5*x_0 + 4*x_1 + 1*x_2 <= 6']
+  n_vars=3  flag_wires=[3]
+  States: 16 total, 8 good, 8 bad
+  Pauli terms: 4  (wires: 4)
+  QAOA p=1  (restarts=5, steps=150)
+    AR=0.9348  time=4.5s
+  ma-QAOA sweep  (restarts=20, steps=200)
+    ✓ p=1: AR=1.0000  time=30.8s
+  Result saved to /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/gadgets/pending/task_2.pkl
+  Added to DB: /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/gadgets/gadget_db.pkl  (AR=1.0000, p=1, strategy=ma-QAOA)

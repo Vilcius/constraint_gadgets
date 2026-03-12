@@ -210,6 +210,7 @@ if __name__ == '__main__':
                 constraints=task['constraints'],
                 db_path=args.db,
                 result_out=result_out,
+                constraint_type=task.get('family', ''),
                 **_train_kwargs(args),
             )
         except Exception as e:
@@ -237,6 +238,7 @@ if __name__ == '__main__':
         train_and_add(
             constraints=task['constraints'],
             db_path=args.db,
+            constraint_type=task.get('family', ''),
             **_train_kwargs(args),
         )
 
