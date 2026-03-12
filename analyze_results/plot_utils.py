@@ -85,6 +85,8 @@ def setup_style() -> None:
         'font.size':         11,
         'axes.spines.top':   False,
         'axes.spines.right': False,
+        'axes.formatter.use_mathtext':   False,
+        'axes.formatter.limits':         (-9999, 9999),
     })
 
 
