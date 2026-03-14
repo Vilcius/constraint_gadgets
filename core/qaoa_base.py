@@ -395,6 +395,20 @@ def run_optimization(
     best_cost = float("inf")
     best_angles = None
 
+    # When warm-starting from a shallower circuit, build the "zero-padded"
+    # inherited angles: [prev_angles | zeros_for_new_layer].  At p+1 layers
+    # with the new layer's angles set to zero, the circuit reduces exactly to
+    # the p-layer circuit, so this starting point is guaranteed to be at least
+    # as good as the previous layer's optimum.  One restart always uses it;
+    # the remaining restarts use random new angles appended to prev_angles.
+    if prev_layer_angles is not None and starting_angles is None:
+        total = num_gamma + num_beta if angle_strategy == "ma-QAOA" else 2
+        new_size = n_layers * total - prev_layer_angles.size
+        zero_pad = np.zeros(new_size, requires_grad=True)
+        starting_angles = np.concatenate(
+            [prev_layer_angles.flatten(), zero_pad]
+        ).reshape(n_layers, total)
+
     start = time.time()
     for restart_idx in range(num_restarts):
         if starting_angles is not None and restart_idx == 0:
