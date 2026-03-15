@@ -174,6 +174,98 @@ def add_hybrid_metrics(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# ---------------------------------------------------------------------------
+# Feasibility-conditioned AR metrics
+# ---------------------------------------------------------------------------
+
+def evaluate_qubo(bitstring: str, qubo: np.ndarray, n_x: int) -> float:
+    """Evaluate x^T Q x for the first n_x bits of a bitstring."""
+    x = np.array([int(bitstring[i]) for i in range(n_x)], dtype=float)
+    return float(x @ qubo @ x)
+
+
+def compute_feasible_range(qubo: np.ndarray, constraints: list,
+                           n_x: int) -> tuple:
+    """Brute-force the feasible QUBO range.
+
+    Returns
+    -------
+    f_star : float
+        Minimum (optimal) QUBO value over feasible assignments.
+    f_max_F : float
+        Maximum (worst feasible) QUBO value over feasible assignments.
+    Returns (nan, nan) if no feasible assignment exists.
+    """
+    import itertools
+    f_star, f_max_F = float('inf'), float('-inf')
+    found = False
+    for bits in itertools.product([0, 1], repeat=n_x):
+        bs = ''.join(map(str, bits))
+        if feasibility_check(bs, constraints, n_x):
+            val = evaluate_qubo(bs, qubo, n_x)
+            f_star = min(f_star, val)
+            f_max_F = max(f_max_F, val)
+            found = True
+    if not found:
+        return float('nan'), float('nan')
+    return f_star, f_max_F
+
+
+def ar_feasibility_conditioned(counts: dict, qubo: np.ndarray,
+                                constraints: list, n_x: int,
+                                f_star: float,
+                                f_max_F: float = None) -> dict:
+    """Coauthor's feasibility-conditioned AR metric.
+
+    AR_feas = (f_max_F - E[f(x) : x in F]) / (f_max_F - f*)
+
+    where F is the feasible set, f* is the true optimum, f_max_F is the
+    worst feasible QUBO value, and the expectation is over feasible shots
+    only (weighted by their measurement probability).
+
+    Parameters
+    ----------
+    counts : dict mapping bitstring -> shot count
+    qubo : np.ndarray (n_x x n_x) QUBO matrix
+    constraints : list of constraint strings
+    n_x : number of decision variables
+    f_star : float, optimal QUBO value (from brute force)
+    f_max_F : float or None. If None, estimated from feasible shots.
+              Pass the brute-force value for a stable estimate.
+
+    Returns
+    -------
+    dict with keys:
+        AR_feas   : feasibility-conditioned AR (nan if no feasible shots)
+        E_feas    : conditional expectation E[f(x) : x in F]
+        f_max_F   : worst feasible value used in denominator
+        p_feasible: fraction of shots that are feasible
+    """
+    agg = aggregate_counts(counts, n_x)
+
+    feasible_items = [
+        (evaluate_qubo(bs, qubo, n_x), prob)
+        for bs, prob in agg.items()
+        if feasibility_check(bs, constraints, n_x)
+    ]
+    p_feas = sum(prob for _, prob in feasible_items)
+
+    if not feasible_items:
+        return dict(AR_feas=float('nan'), E_feas=float('nan'),
+                    f_max_F=float('nan'), p_feasible=0.0)
+
+    if f_max_F is None:
+        f_max_F = max(fv for fv, _ in feasible_items)
+
+    E_feas = sum(fv * prob for fv, prob in feasible_items) / p_feas
+
+    denom = f_max_F - f_star
+    AR_feas = (f_max_F - E_feas) / denom if abs(denom) > 1e-10 else float('nan')
+
+    return dict(AR_feas=AR_feas, E_feas=E_feas,
+                f_max_F=f_max_F, p_feasible=p_feas)
+
+
 def summary_stats(df: pd.DataFrame, groupby: list, metrics: list) -> pd.DataFrame:
     """Compute per-group summary statistics.
 
