@@ -396,26 +396,25 @@ def find_disjoint_groups(constraints: List[ParsedConstraint]) -> List[List[int]]
 def partition_constraints(
     constraints: List[ParsedConstraint],
     strategy: str = "auto",
-    max_structural_vars: int = 12,
 ) -> Tuple[List[int], List[int]]:
     """
     Partition constraints into structural (gadget-enforced) and penalized groups.
 
     Strategy options:
-    - "auto":     Dicke-compatible and small disjoint groups go structural;
-                  everything else is penalized.
+    - "auto":     Exact preps (Dicke, CardinalityLeq, Flow) are always
+                  structural.  Each remaining constraint gets one VCG gadget
+                  if and only if its variable set is disjoint from every
+                  variable already claimed by a structural constraint;
+                  otherwise it is penalized.
     - "all_structural": All constraints are structural (original QAOA+ approach).
     - "all_penalty":    All constraints are penalized (standard penalty QAOA).
-    - "dicke_only":     Only Dicke-compatible constraints are structural.
+    - "dicke_only":     Only Dicke/Flow-compatible constraints are structural.
 
     Parameters
     ----------
     constraints : list[ParsedConstraint]
     strategy : str
         Partitioning strategy.
-    max_structural_vars : int
-        For "auto": maximum number of variables in a structural constraint group
-        before it gets pushed to penalty (truth-table scales as 2^n).
 
     Returns
     -------
@@ -437,35 +436,48 @@ def partition_constraints(
         return structural, penalty
 
     # --- "auto" strategy ---
-    # Step 1: find disjoint groups
-    groups = find_disjoint_groups(constraints)
+    # Each structural preparation (Dicke, LEQ, Flow, or VCG gadget) handles
+    # exactly one constraint and operates on a fixed set of qubits.  All
+    # structural constraints must therefore have mutually disjoint variable
+    # sets — otherwise their circuits would operate on overlapping wires and
+    # the Grover mixer composition would be ill-defined.
+    #
+    # Rule (applied in index order, first-come-first-served):
+    #   For each constraint, make it structural if its variable set is
+    #   disjoint from every variable already claimed by a prior structural
+    #   constraint; otherwise penalize it.
+    #   Preference order within the same variable set: Dicke/LEQ/Flow
+    #   (exact, no training) before VCG-eligible.
 
     structural_indices: List[int] = []
     penalty_indices: List[int] = []
+    occupied_vars: Set[int] = set()
 
-    for group_idxs in groups:
-        # Variables in this group
-        group_vars = set()
-        for idx in group_idxs:
-            group_vars |= constraints[idx].variables
+    def _is_exact(c: ParsedConstraint) -> bool:
+        return (is_dicke_compatible(c)
+                or is_cardinality_leq_compatible(c)
+                or is_flow_compatible(c))
 
-        # Dicke and Flow constraints are always cheap to enforce structurally
-        cheap_idxs = [i for i in group_idxs
-                      if is_dicke_compatible(constraints[i]) or is_flow_compatible(constraints[i])]
-        other_idxs = [i for i in group_idxs
-                      if not is_dicke_compatible(constraints[i]) and not is_flow_compatible(constraints[i])]
-
-        structural_indices.extend(cheap_idxs)
-
-        # Non-Dicke/Flow: use structural (gadget) if the group is small enough
-        other_vars = set()
-        for idx in other_idxs:
-            other_vars |= constraints[idx].variables
-
-        if len(other_vars) <= max_structural_vars and other_idxs:
-            structural_indices.extend(other_idxs)
+    # Pass 1: exact preparations — prefer these over VCG when there is a
+    # choice, so process them first.
+    for i in range(n):
+        if not _is_exact(constraints[i]):
+            continue
+        if constraints[i].variables.isdisjoint(occupied_vars):
+            structural_indices.append(i)
+            occupied_vars |= constraints[i].variables
         else:
-            penalty_indices.extend(other_idxs)
+            penalty_indices.append(i)
+
+    # Pass 2: VCG-eligible constraints — structural iff variable-disjoint
+    for i in range(n):
+        if _is_exact(constraints[i]):
+            continue  # already handled
+        if constraints[i].variables.isdisjoint(occupied_vars):
+            structural_indices.append(i)
+            occupied_vars |= constraints[i].variables
+        else:
+            penalty_indices.append(i)
 
     return sorted(structural_indices), sorted(penalty_indices)
 
