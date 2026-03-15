@@ -171,17 +171,16 @@ Gadgets (all disjoint): `x_0*x_1==0` (VCGNoFlag, AR=1.0, p=1),
 
 | Variant              | p | AR     | P(feas)   | P(opt)    |
 |----------------------|---|--------|-----------|-----------|
-| Hybrid+VCG(flag)     | 1 | 0.7082 | 0.3850    | 0.0230    |
-| Hybrid+VCG(flag)     | 2 | 0.7353 | 0.5250    | 0.0210    |
-| Hybrid+VCG(flag)     | 3 | 0.6736 | 0.4880    | 0.0940    |
-| Hybrid+VCG(flag)     | 4 | 0.7413 | 0.5570    | 0.0560    |
-| Hybrid+VCG(flag)     | 5 | 0.7796 | 0.5970    | 0.0070    |
+| Hybrid+VCG(flag)     | 1 | 0.6466 | 0.3170    | 0.0120    |
+| Hybrid+VCG(flag)     | 2 | 0.7520 | 0.4310    | 0.0760    |
+| Hybrid+VCG(flag)     | 3 | 0.7823 | 0.4510    | 0.0070    |
+| Hybrid+VCG(flag)     | 4 | 0.7116 | 0.3410    | 0.0120    |
+| Hybrid+VCG(flag)     | 5 | 0.7745 | 0.6110    | 0.0410    |
 | PenaltyQAOA (best p) | 3 | 0.969  | 0.495     | 0.043     |
-| Hybrid+VCGNoFlag     | 1 | 0.3602 | **1.000** | **0.109** |
+| Hybrid+VCGNoFlag     | 1 | 0.4008 | **1.000** | **0.555** |
 
-**Hybrid+VCGNoFlag beats PenaltyQAOA**: P(feas) 1.000 vs 0.495, P(opt) 0.109 vs 0.043.
-The feasible set is small (12/128) so the outer QAOA at p=1 can already concentrate
-some probability on the optimum.
+**Hybrid+VCGNoFlag beats PenaltyQAOA**: P(feas) 1.000 vs 0.495, P(opt) 0.555 vs 0.043.
+The feasible set is small (12/128) so the outer QAOA at p=1 concentrates well on the optimum.
 
 ### Case 2 — `knapsack + knapsack + cardinality`, n=7
 
@@ -192,16 +191,16 @@ out of 128.
 
 | Variant              | p | AR     | P(feas)   | P(opt)    |
 |----------------------|---|--------|-----------|-----------|
-| Hybrid+VCG(flag)     | 1 | 0.5358 | 0.0930    | 0.0040    |
-| Hybrid+VCG(flag)     | 2 | 0.5662 | 0.0780    | 0.0030    |
-| Hybrid+VCG(flag)     | 3 | 0.7187 | 0.1400    | 0.0590    |
-| Hybrid+VCG(flag)     | 4 | 0.6242 | 0.1170    | 0.0210    |
-| Hybrid+VCG(flag)     | 5 | 0.5829 | 0.1400    | 0.0270    |
+| Hybrid+VCG(flag)     | 1 | 0.6639 | 0.1540    | 0.0470    |
+| Hybrid+VCG(flag)     | 2 | 0.5847 | 0.0410    | 0.0080    |
+| Hybrid+VCG(flag)     | 3 | 0.6570 | 0.0720    | 0.0070    |
+| Hybrid+VCG(flag)     | 4 | 0.6021 | 0.0730    | 0.0070    |
+| Hybrid+VCG(flag)     | 5 | 0.6808 | 0.1910    | 0.0130    |
 | PenaltyQAOA (best p) | 2 | 0.977  | 0.781     | 0.009     |
-| Hybrid+VCGNoFlag     | 1 | 0.8106 | **1.000** | **0.665** |
+| Hybrid+VCGNoFlag     | 1 | 0.7480 | **1.000** | **0.356** |
 
-**Hybrid+VCGNoFlag beats PenaltyQAOA**: P(feas) 1.000 vs 0.781, P(opt) 0.665 vs 0.009.
-P(opt)=0.665 is high because the X-gate prep pins x_4=x_5=x_6=1, leaving only 2
+**Hybrid+VCGNoFlag beats PenaltyQAOA**: P(feas) 1.000 vs 0.781, P(opt) 0.356 vs 0.009.
+P(opt) is boosted by the X-gate prep pinning x_4=x_5=x_6=1, leaving only 2
 feasible assignments for the outer QAOA to distinguish — p=1 suffices.
 
 ### Case 3 — `cardinality + knapsack`, n=6
@@ -212,18 +211,18 @@ depth=0), `5*x_2+2*x_3+5*x_4+5*x_5<=9` (VCGNoFlag, AR=1.0, p=1).
 
 | Variant              | p | AR     | P(feas)   | P(opt)    |
 |----------------------|---|--------|-----------|-----------|
-| Hybrid+VCG(flag)     | 1 | 0.5487 | 0.2610    | 0.0930    |
-| Hybrid+VCG(flag)     | 2 | 0.5756 | 0.3280    | 0.0610    |
-| Hybrid+VCG(flag)     | 3 | 0.6194 | 0.2830    | 0.1310    |
-| Hybrid+VCG(flag)     | 4 | 0.6200 | 0.1530    | 0.0450    |
-| Hybrid+VCG(flag)     | 5 | 0.7436 | 0.5270    | 0.0020    |
+| Hybrid+VCG(flag)     | 1 | 0.5984 | 0.3550    | 0.0390    |
+| Hybrid+VCG(flag)     | 2 | 0.5207 | 0.2070    | 0.0090    |
+| Hybrid+VCG(flag)     | 3 | 0.6361 | 0.3990    | 0.1090    |
+| Hybrid+VCG(flag)     | 4 | 0.6912 | 0.2430    | 0.1060    |
+| Hybrid+VCG(flag)     | 5 | 0.7690 | 0.5490    | 0.2060    |
 | PenaltyQAOA (best p) | 3 | 0.992  | **0.886** | **0.871** |
-| Hybrid+VCGNoFlag     | 1 | 0.5134 | **1.000** | 0.000     |
+| Hybrid+VCGNoFlag     | 1 | 0.5135 | **1.000** | 0.001     |
 
 **Hybrid+VCGNoFlag partially beats PenaltyQAOA**: P(feas) 1.000 vs 0.886, but
-P(opt) 0.000 vs 0.871.  With x_0=x_1=1 fixed, 8 feasible states remain — the
-outer QAOA at p=1 cannot distinguish among them; probability spreads nearly
-uniformly and P(opt)≈0.  Needs more layers / budget (TODO #4).
+P(opt) 0.001 vs 0.871.  With x_0=x_1=1 fixed, 8 feasible states remain — the
+outer QAOA at p=1 spreads probability nearly uniformly among them.
+Needs more layers / budget (TODO #4).
 
 ### Case 4 — `cardinality + cardinality`, n=5  (reference)
 
@@ -232,9 +231,9 @@ AR=1.0, p=1).  9 feasible assignments out of 32.
 
 | Variant              | p | AR     | P(feas)   | P(opt)    |
 |----------------------|---|--------|-----------|-----------|
-| Hybrid+VCG(flag)     | 1 | 0.8411 | 0.9820    | 0.0000    |
+| Hybrid+VCG(flag)     | 1 | 0.7326 | 0.9920    | 0.0000    |
 | PenaltyQAOA (best p) | 2 | 0.989  | **0.943** | **0.929** |
-| Hybrid+VCGNoFlag     | 1 | 0.7336 | **1.000** | 0.0000    |
+| Hybrid+VCGNoFlag     | 1 | 0.7323 | **1.000** | 0.0000    |
 
 **Hybrid+VCGNoFlag partially beats PenaltyQAOA**: P(feas) 1.000 vs 0.943, but
 P(opt) 0.000 vs 0.929.  9/32 feasible states; same issue as Case 3.
@@ -243,15 +242,16 @@ P(opt) 0.000 vs 0.929.  9/32 feasible states; same issue as Case 3.
 
 | Case | PenaltyQAOA P(feas) | Hybrid+VCGNoFlag P(feas) | PenaltyQAOA P(opt) | Hybrid+VCGNoFlag P(opt) | Verdict |
 |------|---------------------|--------------------------|--------------------|-------------------------|---------|
-| 1    | 0.495               | **1.000**                | 0.043              | **0.109**               | Hybrid wins both |
-| 2    | 0.781               | **1.000**                | 0.009              | **0.665**               | Hybrid wins both |
-| 3    | **0.886**           | **1.000**                | **0.871**          | 0.000                   | Hybrid wins P(feas), Penalty wins P(opt) |
+| 1    | 0.495               | **1.000**                | 0.043              | **0.555**               | Hybrid wins both |
+| 2    | 0.781               | **1.000**                | 0.009              | **0.356**               | Hybrid wins both |
+| 3    | 0.886               | **1.000**                | **0.871**          | 0.001                   | Hybrid wins P(feas), Penalty wins P(opt) |
 | 4    | 0.943               | **1.000**                | **0.929**          | 0.000                   | Hybrid wins P(feas), Penalty wins P(opt) |
 
 Hybrid+VCGNoFlag achieves P(feas)=1.0 everywhere at p=1 because every VCGNoFlag
 gadget reaches AR=1.0 and the Grover mixer preserves the feasible subspace.
 Cases 1–2 also win on P(opt) because exact single-state X-gate preparations
-collapse parts of the search space, leaving very few feasible candidates.
+collapse parts of the search space, leaving very few feasible candidates for
+the outer QAOA to resolve.
 Cases 3–4 fail on P(opt) because 8–9 feasible states remain with similar QUBO
 values — addressed by TODO #3 and #4.
 
