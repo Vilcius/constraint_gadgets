@@ -113,6 +113,19 @@ class VCGNoFlag:
         self._wire_to_idx = {w: i for i, w in enumerate(self.var_wires)}
 
         self.outcomes = self._make_outcomes()
+        n_feasible = self.outcomes.count(-1.0)
+        if n_feasible == 0:
+            raise ValueError(
+                f"VCGNoFlag: constraint(s) {self.constraints} have no feasible "
+                f"binary assignments. Use VCG (flag-based) instead, or check "
+                f"your constraint."
+            )
+        # Single feasible state: record it for X-gate preparation, skip QAOA.
+        self._single_feasible_bitstring = None
+        if n_feasible == 1:
+            idx = self.outcomes.index(-1.0)
+            self._single_feasible_bitstring = format(idx, f'0{self.n_x}b')
+
         self.constraint_Ham = self._build_hamiltonian()
 
         # Set after train()
@@ -140,6 +153,18 @@ class VCGNoFlag:
         -------
         float : best AR achieved.
         """
+        # ── Special case: single feasible state → X-gate preparation ──
+        if self._single_feasible_bitstring is not None:
+            if verbose:
+                print(f'  Single feasible state |{self._single_feasible_bitstring}> '
+                      f'— using X-gate preparation (no QAOA needed).')
+            self.opt_angles = None   # not used; opt_circuit handles this case
+            self.n_layers = 0
+            self.ar = 1.0
+            self.num_gamma = 0
+            self.num_beta = 0
+            return 1.0
+
         # ── Step 1: QAOA p=1 ─────────────────────────────────────────
         if verbose:
             print(f'  QAOA p=1  (restarts={self.qaoa_restarts}, steps={self.qaoa_steps})')
@@ -216,6 +241,11 @@ class VCGNoFlag:
 
     def opt_circuit(self) -> None:
         """Apply the trained circuit (HybridQAOA / Grover mixer interface)."""
+        if self._single_feasible_bitstring is not None:
+            for wire, bit in zip(self.var_wires, self._single_feasible_bitstring):
+                if bit == '1':
+                    qml.PauliX(wires=wire)
+            return
         if self.opt_angles is None:
             raise RuntimeError("Call train() before using opt_circuit().")
         self._circuit(self.opt_angles, 'ma-QAOA', self.n_layers)
@@ -226,7 +256,7 @@ class VCGNoFlag:
 
     def do_counts_circuit(self, shots: int = None) -> dict:
         """Sample measurement outcomes from the trained circuit."""
-        if self.opt_angles is None:
+        if self.opt_angles is None and self._single_feasible_bitstring is None:
             raise RuntimeError("Call train() before sampling.")
         shots = shots or self.samples
         @qml.qnode(qml.device("default.qubit", wires=self.var_wires, shots=shots))
