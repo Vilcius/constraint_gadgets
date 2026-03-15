@@ -20,6 +20,14 @@ These results come directly from the server experiment array (jobs 245203 /
 245206).  They represent the worst-performing configurations: constraint-type
 and `n_x` combinations where HybridQAOA falls furthest behind PenaltyQAOA.
 
+**Important**: the HybridQAOA results here reflect a broken state of the code.
+The VCG (flag) gadgets used at server run time achieved AR≈0.73 for knapsack
+constraints, meaning roughly 27% of the initial state amplitude was in
+infeasible territory.  Because the Grover mixer reflects about this corrupted
+initial state, it cannot confine the output to the feasible subspace, which
+is why P(feas)=0.000 across all layers in Cases 1 and 3.  These numbers are
+the starting point that subsequent changes are measured against.
+
 ### Case 1 — `independent_set + knapsack + cardinality`, n=7
 
 Constraints: `x_0*x_1 == 0`, `2*x_2 + 1*x_3 + 4*x_4 <= 2`, `x_5 + x_6 == 2`
