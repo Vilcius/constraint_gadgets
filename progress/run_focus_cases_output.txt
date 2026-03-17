@@ -1,0 +1,265 @@
+Bad value in file PosixPath('/home/vilcius/.config/matplotlib/stylelib/rose-pine-moon.mplstyle'), line 549 ('figure.titlesize:   very large     # size of the figure title (``Figure.suptitle()``)'): Key figure.titlesize: very large is not a valid font size. Valid font sizes are xx-small, x-small, small, medium, large, x-large, xx-large, smaller, larger.
+=================================================================
+Case: independent_set+knapsack+cardinality  n=7  opt=-7.000  δ_flag=61.0  λ_pen=1.0
+  Constraints: ['x_0*x_1 == 0', '2*x_2 + 1*x_3 + 4*x_4 <= 2', 'x_5 + x_6 == 2']
+  str_idx=[0, 1, 2]  pen_idx=[]
+=================================================================
+  >> VCG (flag):
+    [flag]   p=1: P(feas)=0.760  P(opt)=0.003
+    [flag]   p=2: P(feas)=0.337  P(opt)=0.041
+    [flag]   p=3: P(feas)=0.794  P(opt)=0.014
+    [flag]   p=4: P(feas)=0.727  P(opt)=0.178
+    [flag]   p=5: P(feas)=0.586  P(opt)=0.001
+    [flag]   p=6: P(feas)=0.956  P(opt)=0.007
+    [flag]   p=7: P(feas)=0.239  P(opt)=0.023
+    [flag]   p=8: P(feas)=0.096  P(opt)=0.002
+  >> VCGNoFlag:
+    [noflag] Training VCGNoFlag: x_0*x_1 == 0
+             AR=1.0000  layers=1  single=False
+    [noflag] Training VCGNoFlag: 2*x_2 + 1*x_3 + 4*x_4 <= 2
+             AR=1.0000  layers=1  single=False
+    [noflag] p=1: P(feas)=1.000  P(opt)=0.608
+
+=================================================================
+Case: knapsack+knapsack+cardinality  n=7  opt=-23.000  δ_flag=59.0  λ_pen=1.0
+  Constraints: ['3*x_0 + 2*x_1 <= 2', '2*x_2 + 1*x_3 <= 2', 'x_4 + x_5 + x_6 >= 3']
+  str_idx=[0, 1, 2]  pen_idx=[]
+=================================================================
+  >> VCG (flag):
+    [flag]   p=1: P(feas)=0.090  P(opt)=0.003
+    [flag]   p=2: P(feas)=0.075  P(opt)=0.009
+    [flag]   p=3: P(feas)=0.138  P(opt)=0.013
+    [flag]   p=4: P(feas)=0.145  P(opt)=0.017
+    [flag]   p=5: P(feas)=0.004  P(opt)=0.000
+    [flag]   p=6: P(feas)=0.284  P(opt)=0.062
+    [flag]   p=7: P(feas)=0.209  P(opt)=0.015
+    [flag]   p=8: P(feas)=0.248  P(opt)=0.048
+  >> VCGNoFlag:
+    [noflag] Training VCGNoFlag: 3*x_0 + 2*x_1 <= 2
+             AR=1.0000  layers=1  single=False
+    [noflag] Training VCGNoFlag: 2*x_2 + 1*x_3 <= 2
+             AR=1.0000  layers=1  single=False
+    [noflag] Training VCGNoFlag: x_4 + x_5 + x_6 >= 3
+             AR=1.0000  layers=0  single=True
+    [noflag] p=1: P(feas)=1.000  P(opt)=0.097
+    [noflag] p=2: P(feas)=1.000  P(opt)=0.322
+    [noflag] p=3: P(feas)=1.000  P(opt)=0.633
+
+=================================================================
+Case: cardinality+knapsack  n=6  opt=-18.000  δ_flag=65.0  λ_pen=1.0
+  Constraints: ['x_0 + x_1 >= 2', '5*x_2 + 2*x_3 + 5*x_4 + 5*x_5 <= 9']
+  str_idx=[0, 1]  pen_idx=[]
+=================================================================
+  >> VCG (flag):
+    [flag]   p=1: P(feas)=0.363  P(opt)=0.084
+    [flag]   p=2: P(feas)=0.583  P(opt)=0.144
+    [flag]   p=3: P(feas)=0.417  P(opt)=0.106
+    [flag]   p=4: P(feas)=0.783  P(opt)=0.072
+    [flag]   p=5: P(feas)=0.581  P(opt)=0.022
+    [flag]   p=6: P(feas)=0.710  P(opt)=0.148
+    [flag]   p=7: P(feas)=0.773  P(opt)=0.162
+    [flag]   p=8: P(feas)=0.712  P(opt)=0.317
+  >> VCGNoFlag:
+    [noflag] Training VCGNoFlag: x_0 + x_1 >= 2
+             AR=1.0000  layers=0  single=True
+    [noflag] Training VCGNoFlag: 5*x_2 + 2*x_3 + 5*x_4 + 5*x_5 <= 9
+             AR=1.0000  layers=1  single=False
+    [noflag] p=1: P(feas)=1.000  P(opt)=0.003
+    [noflag] p=2: P(feas)=1.000  P(opt)=0.008
+    [noflag] p=3: P(feas)=1.000  P(opt)=0.016
+    [noflag] p=4: P(feas)=1.000  P(opt)=0.032
+    [noflag] p=5: P(feas)=1.000  P(opt)=0.052
+    [noflag] p=6: P(feas)=1.000  P(opt)=0.083
+    [noflag] p=7: P(feas)=1.000  P(opt)=0.113
+    [noflag] p=8: P(feas)=1.000  P(opt)=0.148
+
+=================================================================
+Case: cardinality+cardinality  n=5  opt=-8.000  δ_flag=27.0  λ_pen=1.0
+  Constraints: ['x_0 + x_1 + x_2 == 1', 'x_3 + x_4 >= 1']
+  str_idx=[0, 1]  pen_idx=[]
+=================================================================
+  >> VCG (flag):
+    [flag]   p=1: P(feas)=0.969  P(opt)=0.000
+    [flag]   p=2: P(feas)=0.993  P(opt)=0.000
+    [flag]   p=3: P(feas)=1.000  P(opt)=0.000
+    [flag]   p=4: P(feas)=0.998  P(opt)=0.000
+    [flag]   p=5: P(feas)=0.688  P(opt)=0.000
+    [flag]   p=6: P(feas)=0.989  P(opt)=0.000
+    [flag]   p=7: P(feas)=0.994  P(opt)=0.000
+    [flag]   p=8: P(feas)=0.998  P(opt)=0.000
+  >> VCGNoFlag:
+    [noflag] Training VCGNoFlag: x_3 + x_4 >= 1
+             AR=1.0000  layers=1  single=False
+    [noflag] p=1: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=2: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=3: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=4: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=5: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=6: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=7: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=8: P(feas)=1.000  P(opt)=0.000
+
+=================================================================
+Case: cardinality+cardinality(pen)+cardinality_geq  n=7  opt=-14.000  δ_flag=39.0  λ_pen=4.0
+  Constraints: ['x_0 + x_1 + x_2 == 1', 'x_0 + x_3 + x_4 == 1', 'x_5 + x_6 >= 1']
+  str_idx=[0, 2]  pen_idx=[1]
+=================================================================
+  >> VCG (flag):
+    [flag]   p=1: P(feas)=0.222  P(opt)=0.000
+    [flag]   p=2: P(feas)=0.160  P(opt)=0.000
+    [flag]   p=3: P(feas)=0.391  P(opt)=0.000
+    [flag]   p=4: P(feas)=0.454  P(opt)=0.000
+    [flag]   p=5: P(feas)=0.059  P(opt)=0.000
+    [flag]   p=6: P(feas)=0.792  P(opt)=0.000
+    [flag]   p=7: P(feas)=0.115  P(opt)=0.000
+    [flag]   p=8: P(feas)=0.066  P(opt)=0.000
+  >> VCGNoFlag:
+    [noflag] Training VCGNoFlag: x_5 + x_6 >= 1
+             AR=1.0000  layers=1  single=False
+    [noflag] p=1: P(feas)=0.170  P(opt)=0.000
+    [noflag] p=2: P(feas)=0.480  P(opt)=0.000
+    [noflag] p=3: P(feas)=0.832  P(opt)=0.000
+    [noflag] p=4: P(feas)=0.999  P(opt)=0.000
+    [noflag] p=5: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=6: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=7: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=8: P(feas)=1.000  P(opt)=0.000
+
+=================================================================
+Case: knapsack(pen)+cardinality_leq+cardinality  n=7  opt=-21.000  δ_flag=61.0  λ_pen=8.0
+  Constraints: ['3*x_0 + 2*x_1 <= 2', 'x_1 + x_2 + x_3 <= 2', 'x_4 + x_5 + x_6 == 2']
+  str_idx=[1, 2]  pen_idx=[0]
+=================================================================
+  >> VCG (flag):
+    [flag]   p=1: P(feas)=1.000  P(opt)=0.000
+    [flag]   p=2: P(feas)=1.000  P(opt)=0.000
+    [flag]   p=3: P(feas)=1.000  P(opt)=0.000
+    [flag]   p=4: P(feas)=1.000  P(opt)=0.000
+    [flag]   p=5: P(feas)=1.000  P(opt)=0.000
+    [flag]   p=6: P(feas)=1.000  P(opt)=0.000
+    [flag]   p=7: P(feas)=1.000  P(opt)=0.000
+    [flag]   p=8: P(feas)=1.000  P(opt)=0.000
+  >> VCGNoFlag:
+    [noflag] p=1: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=2: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=3: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=4: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=5: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=6: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=7: P(feas)=1.000  P(opt)=0.000
+    [noflag] p=8: P(feas)=1.000  P(opt)=0.000
+
+
+=================================================================
+SUMMARY
+=================================================================
+
+independent_set+knapsack+cardinality:
+  Variant        p       AR    P(feas)    P(opt)
+  ---------------------------------------------
+  VCG(flag)      1   0.7654     0.7600    0.0030
+  VCG(flag)      2   0.8199     0.3370    0.0410
+  VCG(flag)      3   0.8045     0.7940    0.0140
+  VCG(flag)      4   0.8396     0.7270    0.1780
+  VCG(flag)      5   0.8336     0.5860    0.0010
+  VCG(flag)      6   0.8454     0.9560    0.0070
+  VCG(flag)      7   0.8900     0.2390    0.0230
+  VCG(flag)      8   0.8884     0.0960    0.0020
+  VCGNoFlag      1   0.4102     1.0000    0.6084
+
+knapsack+knapsack+cardinality:
+  Variant        p       AR    P(feas)    P(opt)
+  ---------------------------------------------
+  VCG(flag)      1   0.6711     0.0900    0.0030
+  VCG(flag)      2   0.6500     0.0750    0.0090
+  VCG(flag)      3   0.6888     0.1380    0.0130
+  VCG(flag)      4   0.6827     0.1450    0.0170
+  VCG(flag)      5   0.6932     0.0040    0.0000
+  VCG(flag)      6   0.8028     0.2840    0.0620
+  VCG(flag)      7   0.7948     0.2090    0.0150
+  VCG(flag)      8   0.7888     0.2480    0.0480
+  VCGNoFlag      1   0.7021     1.0000    0.0972
+  VCGNoFlag      2   0.7500     1.0000    0.3222
+  VCGNoFlag      3   0.8168     1.0000    0.6333
+
+cardinality+knapsack:
+  Variant        p       AR    P(feas)    P(opt)
+  ---------------------------------------------
+  VCG(flag)      1   0.6840     0.3630    0.0840
+  VCG(flag)      2   0.7794     0.5830    0.1440
+  VCG(flag)      3   0.6958     0.4170    0.1060
+  VCG(flag)      4   0.8291     0.7830    0.0720
+  VCG(flag)      5   0.8346     0.5810    0.0220
+  VCG(flag)      6   0.8838     0.7100    0.1480
+  VCG(flag)      7   0.8409     0.7730    0.1620
+  VCG(flag)      8   0.8448     0.7120    0.3170
+  VCGNoFlag      1   0.5145     1.0000    0.0032
+  VCGNoFlag      2   0.5158     0.9999    0.0084
+  VCGNoFlag      3   0.5188     1.0000    0.0159
+  VCGNoFlag      4   0.5235     1.0000    0.0321
+  VCGNoFlag      5   0.5301     0.9999    0.0519
+  VCGNoFlag      6   0.5405     1.0000    0.0834
+  VCGNoFlag      7   0.5500     1.0000    0.1129
+  VCGNoFlag      8   0.5631     1.0000    0.1484
+
+cardinality+cardinality:
+  Variant        p       AR    P(feas)    P(opt)
+  ---------------------------------------------
+  VCG(flag)      1   0.7933     0.9690    0.0000
+  VCG(flag)      2   0.8763     0.9930    0.0000
+  VCG(flag)      3   0.8868     1.0000    0.0000
+  VCG(flag)      4   0.8873     0.9980    0.0000
+  VCG(flag)      5   0.7898     0.6880    0.0000
+  VCG(flag)      6   0.8865     0.9890    0.0000
+  VCG(flag)      7   0.8896     0.9940    0.0000
+  VCG(flag)      8   0.8905     0.9980    0.0000
+  VCGNoFlag      1   0.7368     1.0000    0.0000
+  VCGNoFlag      2   0.7368     1.0000    0.0000
+  VCGNoFlag      3   0.7368     1.0000    0.0000
+  VCGNoFlag      4   0.7368     1.0000    0.0000
+  VCGNoFlag      5   0.7368     1.0000    0.0000
+  VCGNoFlag      6   0.7368     1.0000    0.0000
+  VCGNoFlag      7   0.7368     1.0000    0.0000
+  VCGNoFlag      8   0.7368     1.0000    0.0000
+
+cardinality+cardinality(pen)+cardinality_geq:
+  Variant        p       AR    P(feas)    P(opt)
+  ---------------------------------------------
+  VCG(flag)      1   0.8215     0.2220    0.0000
+  VCG(flag)      2   0.8408     0.1600    0.0000
+  VCG(flag)      3   0.8370     0.3910    0.0000
+  VCG(flag)      4   0.8462     0.4540    0.0000
+  VCG(flag)      5   0.8433     0.0590    0.0000
+  VCG(flag)      6   0.8512     0.7920    0.0000
+  VCG(flag)      7   0.8443     0.1150    0.0000
+  VCG(flag)      8   0.8449     0.0660    0.0000
+  VCGNoFlag      1   0.6600     0.1703    0.0000
+  VCGNoFlag      2   0.6706     0.4798    0.0000
+  VCGNoFlag      3   0.6818     0.8316    0.0000
+  VCGNoFlag      4   0.6875     0.9994    0.0000
+  VCGNoFlag      5   0.6875     1.0000    0.0000
+  VCGNoFlag      6   0.6875     1.0000    0.0000
+  VCGNoFlag      7   0.6875     1.0000    0.0000
+  VCGNoFlag      8   0.6875     1.0000    0.0000
+
+knapsack(pen)+cardinality_leq+cardinality:
+  Variant        p       AR    P(feas)    P(opt)
+  ---------------------------------------------
+  VCG(flag)      1   0.9128     1.0000    0.0000
+  VCG(flag)      2   0.9148     1.0000    0.0000
+  VCG(flag)      3   0.9158     1.0000    0.0000
+  VCG(flag)      4   0.9158     1.0000    0.0000
+  VCG(flag)      5   0.9158     1.0000    0.0000
+  VCG(flag)      6   0.9158     1.0000    0.0000
+  VCG(flag)      7   0.9158     1.0000    0.0000
+  VCG(flag)      8   0.9158     1.0000    0.0000
+  VCGNoFlag      1   0.9128     1.0000    0.0000
+  VCGNoFlag      2   0.9156     1.0000    0.0000
+  VCGNoFlag      3   0.9158     1.0000    0.0000
+  VCGNoFlag      4   0.9158     1.0000    0.0000
+  VCGNoFlag      5   0.9158     1.0000    0.0000
+  VCGNoFlag      6   0.9158     1.0000    0.0000
+  VCGNoFlag      7   0.9158     1.0000    0.0000
+  VCGNoFlag      8   0.9158     1.0000    0.0000
+
+Saved to progress/focus_results.pkl

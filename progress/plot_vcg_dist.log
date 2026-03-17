@@ -1,0 +1,76 @@
+Bad value in file PosixPath('/home/vilcius/.config/matplotlib/stylelib/rose-pine-moon.mplstyle'), line 549 ('figure.titlesize:   very large     # size of the figure title (``Figure.suptitle()``)'): Key figure.titlesize: very large is not a valid font size. Valid font sizes are xx-small, x-small, small, medium, large, x-large, xx-large, smaller, larger.
+[Case 1]  Training VCGNoFlag: x_0*x_1 == 0
+  QAOA p=1  (restarts=10, steps=200)
+    AR=1.0000
+  ma-QAOA sweep  (restarts=20, steps=150)
+    ✓ p=1: AR=1.0000  ent=0.6592
+    ✓ p=2: AR=1.0000  ent=0.0451
+    ✓ p=3: AR=1.0000  ent=0.5880
+    ✓ p=4: AR=1.0000  ent=0.8215
+    ✓ p=5: AR=1.0000  ent=0.9245
+  → AR=1.0000  H_norm=0.9245  layers=5  n_feasible=3
+
+[Case 1]  Training VCGNoFlag: 2*x_2 + 1*x_3 + 4*x_4 <= 2
+  QAOA p=1  (restarts=10, steps=200)
+    AR=0.7907
+  ma-QAOA sweep  (restarts=20, steps=150)
+    ✓ p=1: AR=1.0000  ent=0.9963
+  → AR=1.0000  H_norm=0.9963  layers=1  n_feasible=3
+
+[Case 2]  Training VCGNoFlag: 3*x_0 + 2*x_1 <= 2
+  QAOA p=1  (restarts=10, steps=200)
+    AR=1.0000
+  ma-QAOA sweep  (restarts=20, steps=150)
+    ✓ p=1: AR=1.0000  ent=1.0000
+  → AR=1.0000  H_norm=1.0000  layers=1  n_feasible=2
+
+[Case 2]  Training VCGNoFlag: 2*x_2 + 1*x_3 <= 2
+  QAOA p=1  (restarts=10, steps=200)
+    AR=1.0000
+  ma-QAOA sweep  (restarts=20, steps=150)
+    ✓ p=1: AR=1.0000  ent=0.7518
+    ✓ p=2: AR=1.0000  ent=0.7208
+    ✓ p=3: AR=1.0000  ent=0.8453
+    ✓ p=4: AR=1.0000  ent=0.8484
+    ✓ p=5: AR=1.0000  ent=0.7769
+    ✓ p=6: AR=1.0000  ent=0.9223
+  → AR=1.0000  H_norm=0.9223  layers=6  n_feasible=3
+
+[Case 2]  Training VCGNoFlag: x_4 + x_5 + x_6 >= 3
+  Single feasible state |111> — using X-gate preparation (no QAOA needed).
+  → AR=1.0000  H_norm=1.0000  layers=0  n_feasible=1
+
+[Case 3]  Training VCGNoFlag: x_0 + x_1 >= 2
+  Single feasible state |11> — using X-gate preparation (no QAOA needed).
+  → AR=1.0000  H_norm=1.0000  layers=0  n_feasible=1
+
+[Case 3]  Training VCGNoFlag: 5*x_2 + 2*x_3 + 5*x_4 + 5*x_5 <= 9
+  QAOA p=1  (restarts=10, steps=200)
+    AR=0.8536
+  ma-QAOA sweep  (restarts=20, steps=150)
+    ✓ p=1: AR=1.0000  ent=0.3420
+    ✓ p=2: AR=1.0000  ent=0.3857
+    ✓ p=3: AR=1.0000  ent=0.6915
+    ✓ p=4: AR=1.0000  ent=0.7493
+    ✓ p=5: AR=1.0000  ent=0.6042
+    ✓ p=6: AR=1.0000  ent=0.4865
+    ✓ p=7: AR=1.0000  ent=0.8121
+    ✓ p=8: AR=1.0000  ent=0.9386
+  → AR=1.0000  H_norm=0.9386  layers=8  n_feasible=8
+
+[Case 4]  Training VCGNoFlag: x_3 + x_4 >= 1
+  QAOA p=1  (restarts=10, steps=200)
+    AR=1.0000
+  ma-QAOA sweep  (restarts=20, steps=150)
+    ✓ p=1: AR=1.0000  ent=0.9108
+  → AR=1.0000  H_norm=0.9108  layers=1  n_feasible=3
+
+[Case 5]  Training VCGNoFlag: x_5 + x_6 >= 1
+  QAOA p=1  (restarts=10, steps=200)
+    AR=1.0000
+  ma-QAOA sweep  (restarts=20, steps=150)
+    ✓ p=1: AR=1.0000  ent=0.9325
+  → AR=1.0000  H_norm=0.9325  layers=1  n_feasible=3
+
+
+Saved → progress/figures/vcg_distributions.png

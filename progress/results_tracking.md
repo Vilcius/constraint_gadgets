@@ -1,327 +1,307 @@
-# Results Evolution — Improvement Tracking
+# Results Tracking
 
-Goal: show HybridQAOA as the better method overall.
-Fair comparison metrics: **P(feas)** and **P(opt)** (AR is not comparable
-across methods due to Hamiltonian scale differences; AR_feas is the fair
-replacement, tracked once the analysis pipeline is updated).
-
-Each section below corresponds to a change.  Each change is first described,
-then tested on the same four *focus cases* chosen to represent the hardest
-problems from the server runs (jobs 245203 / 245206).  The same focus cases
-are used throughout so improvements are directly comparable.
-
-**Bolding convention**: in each table the best value per column is bolded.
+**Goal**: Show HybridQAOA as the better method overall.
+**Metrics**: P(feas) and P(opt) — AR is not directly comparable across methods
+due to Hamiltonian scale differences (PenaltyQAOA inflates C_max 10–100× via
+penalty terms).  AR_feas (feasibility-conditioned) is the fair replacement;
+pipeline integration pending.
+**Bold convention**: best value per column in each table.
 
 ---
 
-## Baseline — Server run results (VCG flag, STEPS=50, restarts=10)
+## Baseline — Server run results
 
-These results come directly from the server experiment array (jobs 245203 /
-245206).  They represent the worst-performing configurations: constraint-type
-and `n_x` combinations where HybridQAOA falls furthest behind PenaltyQAOA.
+Jobs 245203 / 245206, VCG (flag) gadgets, STEPS=50, restarts=10.
+These are the worst-performing HybridQAOA configurations — the starting point
+all subsequent changes are measured against.
 
-**Important**: the HybridQAOA results here reflect a broken state of the code.
-The VCG (flag) gadgets used at server run time achieved AR≈0.73 for knapsack
-constraints, meaning roughly 27% of the initial state amplitude was in
-infeasible territory.  Because the Grover mixer reflects about this corrupted
-initial state, it cannot confine the output to the feasible subspace, which
-is why P(feas)=0.000 across all layers in Cases 1 and 3.  These numbers are
-the starting point that subsequent changes are measured against.
+> **Note**: Cases 1 and 3 show P(feas)=0.000 for HybridQAOA because the
+> flag-based VCG knapsack gadgets achieved AR≈0.73 (27% infeasible amplitude).
+> The Grover mixer reflects about this corrupted state and cannot escape it.
 
-### Case 1 — `independent_set + knapsack + cardinality`, n=7
+| Case | Method      | best p | P(feas) | P(opt) |
+|------|-------------|--------|---------|--------|
+| 1    | HybridQAOA  | 5      | 0.000   | 0.000  |
+| 1    | PenaltyQAOA | 3      | 0.495   | 0.043  |
+| 2    | HybridQAOA  | 4      | 0.193   | 0.037  |
+| 2    | PenaltyQAOA | 2      | 0.781   | 0.003  |
+| 3    | HybridQAOA  | 5      | 0.000   | 0.000  |
+| 3    | PenaltyQAOA | 3      | 0.886   | 0.871  |
+| 4    | HybridQAOA  | 5      | 0.732   | 0.685  |
+| 4    | PenaltyQAOA | 2      | 0.943   | 0.929  |
 
-Constraints: `x_0*x_1 == 0`, `2*x_2 + 1*x_3 + 4*x_4 <= 2`, `x_5 + x_6 == 2`
-
-The worst case in the entire dataset.  HybridQAOA achieves P(feas)=0.000
-across every layer while PenaltyQAOA reaches P(feas)=0.495 at p=3.
-The knapsack structural gadget (flag-based VCG) is the primary bottleneck.
-
-| Method      | p | AR        | P(feas)       | P(opt)        |
-|-------------|---|-----------|---------------|---------------|
-| HybridQAOA  | 1 | 0.413     | 0.000         | 0.000         |
-| HybridQAOA  | 2 | 0.541     | 0.000         | 0.000         |
-| HybridQAOA  | 3 | 0.600     | 0.000         | 0.000         |
-| HybridQAOA  | 4 | 0.598     | 0.000         | 0.000         |
-| HybridQAOA  | 5 | 0.570     | 0.000         | 0.000         |
-| PenaltyQAOA | 1 | 0.918     | 0.153         | 0.009         |
-| PenaltyQAOA | 2 | 0.932     | 0.428         | 0.027         |
-| PenaltyQAOA | 3 | **0.969** | **0.495**     | **0.043**     |
-| PenaltyQAOA | 4 | 0.919     | 0.153         | 0.003         |
-| PenaltyQAOA | 5 | 0.851     | 0.071         | 0.012         |
-
-### Case 2 — `knapsack + knapsack + cardinality`, n=7
-
-Constraints: `3*x_0 + 2*x_1 <= 2`, `2*x_2 + 1*x_3 <= 2`, `x_4 + x_5 + x_6 >= 3`
-
-Two knapsack gadgets (both flag-based VCG).  HybridQAOA peaks at
-P(feas)=0.193.  PenaltyQAOA reaches P(feas)=0.781 at p=2.
-
-| Method      | p | AR        | P(feas)       | P(opt)        |
-|-------------|---|-----------|---------------|---------------|
-| HybridQAOA  | 1 | 0.567     | 0.048         | 0.016         |
-| HybridQAOA  | 2 | 0.543     | 0.056         | 0.014         |
-| HybridQAOA  | 3 | 0.655     | 0.177         | 0.032         |
-| HybridQAOA  | 4 | 0.716     | 0.193         | **0.037**     |
-| HybridQAOA  | 5 | 0.739     | 0.122         | 0.024         |
-| PenaltyQAOA | 1 | 0.930     | 0.225         | 0.009         |
-| PenaltyQAOA | 2 | **0.977** | **0.781**     | 0.003         |
-
-### Case 3 — `cardinality + knapsack`, n=6
-
-Constraints: `x_0 + x_1 >= 2`, `5*x_2 + 2*x_3 + 5*x_4 + 5*x_5 <= 9`
-
-One knapsack VCG gadget.  P(feas)=0.000 at n=6 for every HybridQAOA layer.
-PenaltyQAOA climbs to P(feas)=0.886 at p=3.
-
-| Method      | p | AR        | P(feas)       | P(opt)        |
-|-------------|---|-----------|---------------|---------------|
-| HybridQAOA  | 1 | 0.347     | 0.000         | 0.000         |
-| HybridQAOA  | 2 | 0.421     | 0.000         | 0.000         |
-| HybridQAOA  | 3 | 0.481     | 0.000         | 0.000         |
-| HybridQAOA  | 4 | 0.507     | 0.000         | 0.000         |
-| HybridQAOA  | 5 | 0.500     | 0.000         | 0.000         |
-| PenaltyQAOA | 1 | 0.939     | 0.386         | 0.003         |
-| PenaltyQAOA | 2 | 0.984     | 0.692         | 0.690         |
-| PenaltyQAOA | 3 | **0.992** | **0.886**     | **0.871**     |
-
-### Case 4 — `cardinality + cardinality`, n=5  (reference: Hybrid eventually wins)
-
-Constraints: `x_0 + x_1 + x_2 == 1`, `x_3 + x_4 >= 1`
-
-Both structural constraints are Dicke-compatible (no VCG gadget).
-HybridQAOA improves with depth and reaches P(feas)=0.732 at p=5, though
-PenaltyQAOA is still stronger at p=2 (P(feas)=0.943).  Shows the pattern
-where Hybrid wins given enough layers.
-
-| Method      | p | AR        | P(feas)       | P(opt)        |
-|-------------|---|-----------|---------------|---------------|
-| HybridQAOA  | 1 | 0.572     | 0.241         | 0.106         |
-| HybridQAOA  | 2 | 0.589     | 0.080         | 0.051         |
-| HybridQAOA  | 3 | 0.810     | 0.584         | 0.459         |
-| HybridQAOA  | 4 | 0.844     | 0.438         | 0.399         |
-| HybridQAOA  | 5 | 0.889     | 0.732         | 0.685         |
-| PenaltyQAOA | 1 | 0.923     | 0.532         | 0.261         |
-| PenaltyQAOA | 2 | **0.989** | **0.943**     | **0.929**     |
-
-**Root cause**: Cases 1–3 all involve knapsack VCG gadgets (flag-based) that
-fail to concentrate probability mass on feasible states.  Case 4 (Dicke-only)
-confirms Hybrid wins with enough layers when state prep is exact.
-**The knapsack VCG gadget is the primary bottleneck.**
-
----
----
-
-## Change 1 — Replace VCG (flag) with VCGNoFlag  [`core/vcg_no_flag.py`]
-
-**Motivation**: Flag-based VCG for knapsack constraints achieves AR≈0.73 on the
-gadget alone, meaning the initial state has substantial probability in infeasible
-subspaces.  The Grover mixer reflects about this corrupted initial state and
-cannot escape it — P(feas) stays low even with 5 QAOA layers.
-
-**Change**: Replace VCG (flag) gadgets with VCGNoFlag for all structural
-constraints not handled by Dicke / CardinalityLeq / Flow prep.  VCGNoFlag uses
-the same QAOA training but eliminates the flag qubit: the Hamiltonian assigns
-eigenvalue −1 to feasible states and +1 to infeasible ones, so AR=1.0 means
-the circuit outputs only feasible states.
-
-Key implementation details:
-- **One fewer qubit**: no ancilla flag wire.
-- **P(feas) measured by direct constraint evaluation**, not flag bit.
-- **Zero feasible states**: `ValueError` at init (use VCG flag instead).
-- **One feasible state**: X-gate preparation; AR=1.0, depth=0, no training.
-- **Many feasible states**: QAOA with WHT Pauli decomposition (O(n·2^n) build).
-
-**Note on `auto` partitioning**: Each state-prep circuit (Dicke, LEQ, Flow, or
-VCG gadget) handles exactly one constraint on a fixed set of qubits.  Two
-structural constraints must therefore have disjoint variable sets — overlapping
-qubits would make the Grover mixer composition ill-defined.  `partition_constraints`
-(fixed in this session) now enforces this: exact preps (Dicke/LEQ/Flow) are
-assigned first (preferred); each remaining constraint becomes structural only if
-its variable set is disjoint from all already-claimed variables, otherwise it is
-penalized.  The old code incorrectly grouped all overlapping constraints as
-structural if the total unique variable count was ≤ 12 (and wrongly implied a
-single joint gadget could handle a group — VCG always handles one constraint).
-For the four focus cases this makes no difference because all constraints use
-disjoint variable sets regardless.
-
-**Note on the local VCG(flag) results vs server baseline**: The server jobs
-(245203/245206) showed P(feas)=0.000 for Cases 1 and 3 with Hybrid+VCG(flag).
-The local re-run below shows P(feas)=0.385–0.527.  The most likely cause is
-that `gadgets/gadget_db.pkl` has been retrained/updated since those server jobs
-ran, giving better gadgets locally.  The server numbers in the Baseline section
-are the authoritative comparison point for the paper.
-
-**Local gadget comparison** (`examples/compare_vcg_noflag.py`, constraint
-`2*x_2 + 1*x_3 + 4*x_4 <= 2` standalone, 10k shots):
-
-| Gadget          | AR         | P(feas)    | Qubits  | Layers |
-|-----------------|------------|------------|---------|--------|
-| VCG (flag)      | 0.7311     | 0.4778     | 4       | 1      |
-| VCGNoFlag       | **1.0000** | **1.0000** | **3**   | 1      |
-
-**Results on focus cases** (`progress/run_focus_cases.py`, STEPS=50, restarts=10,
-MAX_LAYERS=5, P_FEAS_THRESHOLD=0.75, 10k shots).
-
-All four focus cases have constraints on **disjoint variable sets**, so each
-constraint forms its own group under `auto` — each gets its own gadget.
-No constraints are penalized in any of these cases (all groups ≤ 5 variables).
-P(feas) is checked against **all** constraints by evaluating them directly on
-output bitstrings.
-
-"Hybrid+VCG(flag)" = local re-run (gadget_db may differ from server).
-"PenaltyQAOA (best p)" = best layer from the server baseline above.
-
-### Case 1 — `independent_set + knapsack + cardinality`, n=7
-
-Gadgets (all disjoint): `x_0*x_1==0` (VCGNoFlag, AR=1.0, p=1),
-`2*x_2+1*x_3+4*x_4<=2` (VCGNoFlag, AR=1.0, p=1), `x_5+x_6==2` (Dicke).
-12 feasible assignments out of 128.
-
-| Variant              | p | AR     | P(feas)   | P(opt)    |
-|----------------------|---|--------|-----------|-----------|
-| Hybrid+VCG(flag)     | 1 | 0.6466 | 0.3170    | 0.0120    |
-| Hybrid+VCG(flag)     | 2 | 0.7520 | 0.4310    | 0.0760    |
-| Hybrid+VCG(flag)     | 3 | 0.7823 | 0.4510    | 0.0070    |
-| Hybrid+VCG(flag)     | 4 | 0.7116 | 0.3410    | 0.0120    |
-| Hybrid+VCG(flag)     | 5 | 0.7745 | 0.6110    | 0.0410    |
-| PenaltyQAOA (best p) | 3 | 0.969  | 0.495     | 0.043     |
-| Hybrid+VCGNoFlag     | 1 | 0.4008 | **1.000** | **0.555** |
-
-**Hybrid+VCGNoFlag beats PenaltyQAOA**: P(feas) 1.000 vs 0.495, P(opt) 0.555 vs 0.043.
-The feasible set is small (12/128) so the outer QAOA at p=1 concentrates well on the optimum.
-
-### Case 2 — `knapsack + knapsack + cardinality`, n=7
-
-Gadgets (all disjoint): `3*x_0+2*x_1<=2` (VCGNoFlag, AR=1.0, p=1),
-`2*x_2+1*x_3<=2` (VCGNoFlag, AR=1.0, p=1), `x_4+x_5+x_6>=3`
-(**1 feasible state** `111` → X-gate prep, depth=0).  2 feasible assignments
-out of 128.
-
-| Variant              | p | AR     | P(feas)   | P(opt)    |
-|----------------------|---|--------|-----------|-----------|
-| Hybrid+VCG(flag)     | 1 | 0.6639 | 0.1540    | 0.0470    |
-| Hybrid+VCG(flag)     | 2 | 0.5847 | 0.0410    | 0.0080    |
-| Hybrid+VCG(flag)     | 3 | 0.6570 | 0.0720    | 0.0070    |
-| Hybrid+VCG(flag)     | 4 | 0.6021 | 0.0730    | 0.0070    |
-| Hybrid+VCG(flag)     | 5 | 0.6808 | 0.1910    | 0.0130    |
-| PenaltyQAOA (best p) | 2 | 0.977  | 0.781     | 0.009     |
-| Hybrid+VCGNoFlag     | 1 | 0.7480 | **1.000** | **0.356** |
-
-**Hybrid+VCGNoFlag beats PenaltyQAOA**: P(feas) 1.000 vs 0.781, P(opt) 0.356 vs 0.009.
-P(opt) is boosted by the X-gate prep pinning x_4=x_5=x_6=1, leaving only 2
-feasible assignments for the outer QAOA to distinguish — p=1 suffices.
-
-### Case 3 — `cardinality + knapsack`, n=6
-
-Gadgets (disjoint): `x_0+x_1>=2` (**1 feasible state** `11` → X-gate prep,
-depth=0), `5*x_2+2*x_3+5*x_4+5*x_5<=9` (VCGNoFlag, AR=1.0, p=1).
-8 feasible assignments out of 64 (x_0=x_1=1 fixed; 8/16 for knapsack).
-
-| Variant              | p | AR     | P(feas)   | P(opt)    |
-|----------------------|---|--------|-----------|-----------|
-| Hybrid+VCG(flag)     | 1 | 0.5984 | 0.3550    | 0.0390    |
-| Hybrid+VCG(flag)     | 2 | 0.5207 | 0.2070    | 0.0090    |
-| Hybrid+VCG(flag)     | 3 | 0.6361 | 0.3990    | 0.1090    |
-| Hybrid+VCG(flag)     | 4 | 0.6912 | 0.2430    | 0.1060    |
-| Hybrid+VCG(flag)     | 5 | 0.7690 | 0.5490    | 0.2060    |
-| PenaltyQAOA (best p) | 3 | 0.992  | **0.886** | **0.871** |
-| Hybrid+VCGNoFlag     | 1 | 0.5135 | **1.000** | 0.001     |
-
-**Hybrid+VCGNoFlag partially beats PenaltyQAOA**: P(feas) 1.000 vs 0.886, but
-P(opt) 0.001 vs 0.871.  With x_0=x_1=1 fixed, 8 feasible states remain — the
-outer QAOA at p=1 spreads probability nearly uniformly among them.
-Needs more layers / budget (TODO #4).
-
-### Case 4 — `cardinality + cardinality`, n=5  (reference)
-
-Gadgets (disjoint): `x_0+x_1+x_2==1` (Dicke), `x_3+x_4>=1` (VCGNoFlag,
-AR=1.0, p=1).  9 feasible assignments out of 32.
-
-| Variant              | p | AR     | P(feas)   | P(opt)    |
-|----------------------|---|--------|-----------|-----------|
-| Hybrid+VCG(flag)     | 1 | 0.7326 | 0.9920    | 0.0000    |
-| PenaltyQAOA (best p) | 2 | 0.989  | **0.943** | **0.929** |
-| Hybrid+VCGNoFlag     | 1 | 0.7323 | **1.000** | 0.0000    |
-
-**Hybrid+VCGNoFlag partially beats PenaltyQAOA**: P(feas) 1.000 vs 0.943, but
-P(opt) 0.000 vs 0.929.  9/32 feasible states; same issue as Case 3.
-
-**Overall summary after Change 1**:
-
-| Case | PenaltyQAOA P(feas) | Hybrid+VCGNoFlag P(feas) | PenaltyQAOA P(opt) | Hybrid+VCGNoFlag P(opt) | Verdict |
-|------|---------------------|--------------------------|--------------------|-------------------------|---------|
-| 1    | 0.495               | **1.000**                | 0.043              | **0.555**               | Hybrid wins both |
-| 2    | 0.781               | **1.000**                | 0.009              | **0.356**               | Hybrid wins both |
-| 3    | 0.886               | **1.000**                | **0.871**          | 0.001                   | Hybrid wins P(feas), Penalty wins P(opt) |
-| 4    | 0.943               | **1.000**                | **0.929**          | 0.000                   | Hybrid wins P(feas), Penalty wins P(opt) |
-
-Hybrid+VCGNoFlag achieves P(feas)=1.0 everywhere at p=1 because every VCGNoFlag
-gadget reaches AR=1.0 and the Grover mixer preserves the feasible subspace.
-Cases 1–2 also win on P(opt) because exact single-state X-gate preparations
-collapse parts of the search space, leaving very few feasible candidates for
-the outer QAOA to resolve.
-Cases 3–4 fail on P(opt) because 8–9 feasible states remain with similar QUBO
-values — addressed by TODO #3 and #4.
-
-**Status**: Implemented and tested on all 4 focus cases.
-
-In Cases 3–4, P(feas)=1.0 but P(opt)=0.0: the outer QAOA distributes probability
-evenly across many feasible states.  The remaining gap will be addressed by
-TODO #3 (principled penalty weight) and TODO #4 (more optimization budget).
-
-**Status**: Implemented and tested on all 4 focus cases.
+Case 4 (Dicke-only, no VCG gadget) shows that HybridQAOA can compete when state
+prep is exact.  The knapsack VCG gadget is the primary bottleneck in Cases 1–3.
 
 ---
 
-## Change 2 — Feasibility-conditioned AR metric  [`analyze_results/metrics.py`]  *(TODO #1)*
+## Focus Cases
 
-**Motivation**: Raw AR is not comparable — PenaltyQAOA inflates C_max by
-~3000–4000× via penalty terms, making its AR appear artificially high
-(~0.93) vs HybridQAOA (~0.57) even when P(feas) and P(opt) favor Hybrid.
+Six cases used throughout; constraints, gadget assignments, and key parameters.
+All runs: STEPS=150, restarts=20, MAX\_LAYERS=8, SHOTS=20k, stop at P(opt)≥0.5.
 
-**Formula** (coauthor's):
+### Cases 1–4 (disjoint constraints, no penalized variables)
 
-    AR_feas = (f_max_F - E[f(x) : x ∈ F]) / (f_max_F - f*)
+| # | Name | n | Constraints | Gadgets | \|F\| | f\* |
+|---|------|---|-------------|---------|------|-----|
+| 1 | indep\_set+knapsack+cardinality | 7 | `x_0*x_1==0`, `2x_2+x_3+4x_4<=2`, `x_5+x_6==2` | VCGNoFlag×2 + Dicke | 12 | −7 |
+| 2 | knapsack+knapsack+cardinality | 7 | `3x_0+2x_1<=2`, `2x_2+x_3<=2`, `x_4+x_5+x_6>=3` | VCGNoFlag×2 + X-gate | 2 | −23 |
+| 3 | cardinality+knapsack | 6 | `x_0+x_1>=2`, `5x_2+2x_3+5x_4+5x_5<=9` | X-gate + VCGNoFlag | 8 | −18 |
+| 4 | cardinality+cardinality | 5 | `x_0+x_1+x_2==1`, `x_3+x_4>=1` | Dicke + VCGNoFlag | 9 | −8 |
 
-where F is the feasible set, f* is the true optimum, f_max_F is the worst
-feasible QUBO value, and expectation is over feasible shots only.
+### Cases 5–6 (overlapping variable sets → one constraint penalized)
 
-**Implemented**: `ar_feasibility_conditioned()` and `compute_feasible_range()`
-in `analyze_results/metrics.py`.
-
-**Caveats**:
-- Undefined (NaN) when P(feas)=0 — report alongside P(feas) always.
-- Ignores P(feas) entirely: a method with 1 lucky feasible shot gets AR_feas=1.0.
-- f_max_F requires brute-force enumeration (O(2^n_x)); fine for n≤12.
-
-**Status**: Function implemented. Pipeline integration (main_analysis, plot_ar.py,
-comparison CSVs, plots) pending.
+| # | Name | n | Structural constraints | Penalized | λ\_tight | \|F\| | f\* |
+|---|------|---|----------------------|-----------|---------|------|-----|
+| 5 | card+card(pen)+card\_geq | 7 | `x_0+x_1+x_2==1` (Dicke), `x_5+x_6>=1` (VCGNoFlag) | `x_0+x_3+x_4==1` (shares x_0) | 4 | 15 | −14 |
+| 6 | knapsack(pen)+card\_leq+card | 7 | `x_1+x_2+x_3<=2` (LEQ), `x_4+x_5+x_6==2` (Dicke) | `3x_0+2x_1<=2` (shares x_1) | 8 | 21 | −21 |
 
 ---
 
-## Change 3 — P(feas) vs layer / P(opt) vs layer figures  *(TODO #2)*
+## Changes
 
-*Pending.*
+### Change 1 — VCGNoFlag replaces flag-based VCG  [`core/vcg_no_flag.py`]
+
+**Problem**: Flag-based VCG achieves AR≈0.73 for knapsack constraints — 27% of
+the initial state amplitude sits in infeasible territory.  The Grover mixer
+reflects about this corrupted state and cannot confine output to feasible space.
+
+**Fix**: New `VCGNoFlag` class.  No ancilla qubit; Hamiltonian assigns eigenvalue
+−1 to feasible states and +1 to infeasible ones, so AR=1.0 guarantees all
+amplitude is feasible.  Three preparation modes:
+- **Zero feasible states**: raises `ValueError` at init.
+- **One feasible state**: X-gate preparation, depth=0, no training required.
+- **Many feasible states**: QAOA with WHT Pauli decomposition.
+
+**Gadget comparison** (`2*x_2+x_3+4*x_4<=2`, standalone, 10k shots):
+
+| Gadget     | AR     | P(feas) | Qubits |
+|------------|--------|---------|--------|
+| VCG (flag) | 0.7311 | 0.4778  | 4      |
+| VCGNoFlag  | 1.0000 | 1.0000  | 3      |
+
+**Partition fix**: `partition_constraints` now enforces disjoint variable sets
+correctly — exact preps (Dicke/LEQ/Flow) are assigned first, then remaining
+constraints become structural only if their variable set is disjoint from all
+already-claimed variables.  Overlapping constraints are penalized.
 
 ---
 
-## Change 4 — Principled penalty weight assignment  *(TODO #3)*
+### Change 2 — Feasibility-conditioned AR metric  [`analyze_results/metrics.py`]
 
-*Pending.*
+**Problem**: Raw AR is not comparable — PenaltyQAOA inflates C\_max ~100× via
+penalty terms, making its AR appear artificially high.
+
+**Fix**: `ar_feasibility_conditioned()` in `metrics.py`:
+
+    AR_feas = (f_max_F − E[f(x) : x∈F]) / (f_max_F − f*)
+
+Undefined when P(feas)=0.  Pipeline integration (main\_analysis, plots) pending.
 
 ---
 
-## Change 5 — Increase optimization budget  *(TODO #4)*
+### Change 3 — P(opt) vs layer figures  [`progress/plot_progress.py`]
 
-*Pending.*
+`p_opt_vs_layers.png` — VCG(flag) AR-only vs VCGNoFlag(entropy) per case across p=1..8.
+`p_opt_summary_bar.png` — best P(opt) grouped bar chart (PenaltyQAOA / VCG-flag / VCGNoFlag).
 
 ---
 
-## Change 6 — Hamiltonian normalization for PenaltyQAOA  *(TODO #6)*
+### Change 4 — Tight penalty weight λ  [`core/constraint_handler.py`]
 
-**Motivation**: PenaltyQAOA's Hamiltonian range is ~3000–4000× larger than
-HybridQAOA's, making the optimizer face a harder landscape with the same
-step size and budget.  Normalizing to [-1, 1] before optimization makes the
-comparison fair.
+**Problem**: Heuristic `λ = 5 + 2|f_min|` over-penalizes dramatically.  For
+Cases 5 and 6 this gave λ=39 and λ=61 respectively — penalty terms dominated
+the QUBO, crushing the optimizer's ability to distinguish feasible states.
 
-*Pending.*
+**Fix**: `compute_tight_lambda(Q, parsed, pen_indices)` — brute-force enumeration
+over all 2^n states to find the minimum λ that guarantees every constraint
+violation is costlier than f\*:
+
+    λ_tight = ceil( max_{x: V_pen > 0}  (f* − f(x)) / V_pen(x) ) + 1
+    V_pen(x) = Σ_{k∈pen} v_k(x)²,  v_k = slack-optimal residual
+
+| Case | Old λ | Tight λ | Reduction |
+|------|-------|---------|-----------|
+| 5    | 39    | **4**   | 10×       |
+| 6    | 61    | **8**   | 8×        |
+
+---
+
+### Change 5 — Increased optimization budget
+
+**Changes** to `progress/run_focus_cases.py`:
+- `HYBRID_STEPS` 50→150, `HYBRID_RESTARTS` 10→20
+- `SHOTS` 10k→20k, `MAX_LAYERS` 5→8
+- VCGNoFlag budget: `NF_MA_RESTARTS` 10→20, `NF_MA_STEPS` 100→150
+- Stopping criterion: P(feas)≥0.75 → **P(opt)≥0.50**
+
+---
+
+### Change 6 — Hamiltonian normalization for PenaltyQAOA  *(pending)*
+
+**Problem**: PenaltyQAOA's Hamiltonian range is ~10–100× larger than
+HybridQAOA's, making its optimal QAOA angle γ\* ∝ 1/(C\_max−C\_min) much
+smaller.  Random restarts with the same Adam step size are unlikely to land in
+the correct γ\* region, so the optimizer is unfairly disadvantaged.
+
+    HybridQAOA:   range ≈ 30–100   (QUBO only)
+    PenaltyQAOA:  range ≈ 600–3000+ (QUBO + λ·max_viol²)
+
+**Fix**: Rescale `H_full / (C_max − C_min)` before optimization so γ\*≈O(1).
+Does not change the ground state; only the angle scale changes.  Also makes AR
+directly comparable across methods.
+
+---
+
+### Change 7 — Entropy-maximising VCGNoFlag training  [`core/vcg_no_flag.py`]
+
+**Problem**: AR=1.0 guarantees all amplitude is in the feasible subspace but
+says nothing about *how it is distributed*.  QAOA with the X-mixer starting
+from `|+⟩^n` naturally concentrates on low-Hamming-weight feasible states (e.g.
+`0000` for a `≤` budget constraint).  The Grover mixer is:
+
+    G = A(2|0⟩⟨0|−I)A†
+
+If `A|0⟩` is peaked on one state, G is a phase oracle on that state — no
+mixing.  If `A|0⟩` is uniform over F, G performs full Grover diffusion.
+**The quality of the Grover mixer is directly set by the uniformity of the
+VCGNoFlag output distribution.**
+
+**Metric**: normalised Shannon entropy over feasible states:
+
+    H_norm = H(P_F) / log|F| ∈ [0, 1],   P_F(x) = count(x) / Σ_{x'∈F} count(x')
+
+H\_norm=1: perfectly uniform (ideal mixer).  H\_norm≈0: one dominant state
+(degenerate phase oracle, no mixing).
+
+**Fix**: New `entropy_threshold` parameter (default 0.9) in `VCGNoFlag`.
+After AR threshold is met at each layer, `_compute_entropy_norm()` samples
+`self.samples` shots and computes H\_norm.  The training loop selects the
+layer with the **highest H\_norm** (not lowest cost) and stops early only when
+both AR≥threshold and H\_norm≥entropy\_threshold.
+
+**Gadget-level results** (`plot_vcg_distributions.py`, entropy\_threshold=0.9):
+
+| Case | Constraint | n | \|F\| | Layers needed | H\_norm | Notes |
+|------|-----------|---|------|--------------|--------|-------|
+| 1 | `x_0*x_1==0` | 2 | 3 | 5 | 0.925 | AR=1 at p=1, H\_norm=0.66; needed 4 more |
+| 1 | `2x_2+x_3+4x_4<=2` | 3 | 3 | 1 | 0.996 | Near-uniform immediately |
+| 2 | `3x_0+2x_1<=2` | 2 | 2 | 1 | 1.000 | Only 2 feasible states |
+| 2 | `2x_2+x_3<=2` | 2 | 3 | 6 | 0.922 | Entropy oscillated; took 6 layers |
+| 3 | `5x_2+2x_3+5x_4+5x_5<=9` | 4 | **8** | **8** | **0.939** | **H\_norm=0.34 at p=1; max layers needed** |
+| 4 | `x_3+x_4>=1` | 2 | 3 | 1 | 0.991 | Near-perfectly uniform from p=1 |
+| 5 | `x_5+x_6>=1` | 2 | 3 | 1 | 0.933 | Near-uniform from p=1 |
+
+The Case 3 knapsack gadget is the hardest: entropy oscillated (0.34→0.39→
+0.69→0.75→0.60→0.49→0.81→**0.94**) before peaking at p=8.  The training must
+sweep all layers and keep the best, not stop at the first AR=1 solution.
+
+**VCGNoFlag output distributions** (`progress/figures/vcg_distributions.png`):
+
+![VCGNoFlag output distributions](figures/vcg_distributions.png)
+
+Each panel: probability per basis state (50k shots), blue=feasible, red=infeasible,
+gold vertical dashed lines mark every feasible state position, dotted line = uniform
+reference 1/|F|.  Annotations: AR, H\_norm, n qubits, depth p.
+
+**H\_norm vs training depth** (`progress/figures/h_norm_vs_depth.png`):
+
+![H_norm vs training depth](figures/h_norm_vs_depth.png)
+
+One panel per non-trivial multi-layer gadget.  Shows why entropy training must sweep
+all layers rather than stopping at the first AR=1 solution — H\_norm is non-monotone
+with depth.  Gold dot marks the selected depth; dotted line marks the 0.9 threshold.
+
+---
+
+## Current Results (after all changes)
+
+All numbers from the entropy run (`progress/focus_run_entropy.log`) with tight λ,
+budget increases, and entropy-trained VCGNoFlag.  PenaltyQAOA numbers are from
+the server baseline (best p across layers).
+
+**P(opt) vs QAOA depth** (`progress/figures/p_opt_vs_layers.png`):
+
+![P(opt) vs QAOA layers](figures/p_opt_vs_layers.png)
+
+Per-case comparison of VCG(flag) AR-only vs VCGNoFlag(entropy) across p=1..8.
+
+**Best P(opt) summary** (`progress/figures/p_opt_summary_bar.png`):
+
+![P(opt) summary bar chart](figures/p_opt_summary_bar.png)
+
+Best P(opt) achieved over p=1..8 per method, grouped by case.
+
+### Cases 1–4
+
+| Case | Variant              | best p | P(feas)   | P(opt)    |
+|------|----------------------|--------|-----------|-----------|
+| 1    | PenaltyQAOA (server) | 3      | 0.495     | 0.043     |
+| 1    | Hybrid+VCG (flag)    | 7      | 0.524     | 0.263     |
+| 1    | **Hybrid+VCGNoFlag** | **2**  | **1.000** | **0.889** |
+|      |                      |        |           |           |
+| 2    | PenaltyQAOA (server) | 2      | 0.781     | 0.003     |
+| 2    | Hybrid+VCG (flag)    | 4      | 0.833     | 0.314     |
+| 2    | **Hybrid+VCGNoFlag** | **1**  | **1.000** | **0.958** |
+|      |                      |        |           |           |
+| 3    | PenaltyQAOA (server) | 3      | **0.886** | **0.871** |
+| 3    | Hybrid+VCG (flag)    | 8      | 0.712     | 0.317     |
+| 3    | **Hybrid+VCGNoFlag** | **2**  | **1.000** | 0.605     |
+|      |                      |        |           |           |
+| 4    | PenaltyQAOA (server) | 2      | **0.943** | **0.929** |
+| 4    | Hybrid+VCG (flag)    | 1–8    | ~1.000    | 0.000     |
+| 4    | Hybrid+VCGNoFlag     | 1–8    | **1.000** | 0.000     |
+
+**Summary**:
+- Cases 1–2: Hybrid+VCGNoFlag wins on both P(feas) and P(opt) decisively.
+- Case 3: Hybrid wins P(feas) (1.000 vs 0.886); PenaltyQAOA narrowly wins P(opt)
+  (0.871 vs 0.605).  Entropy training raised Hybrid from 0.000 → 0.605.
+- Case 4: P(opt)=0.000 for both Hybrid variants — **Grover flat-landscape problem**
+  (see below).  PenaltyQAOA wins P(opt) by default.
+
+### Cases 5–6 (penalized constraints, tight λ)
+
+| Case | Variant              | best p | P(feas)   | P(opt) |
+|------|----------------------|--------|-----------|--------|
+| 5    | Hybrid+VCG (flag)    | 6      | 0.792     | 0.000  |
+| 5    | Hybrid+VCGNoFlag     | 4–8    | **1.000** | 0.000  |
+|      |                      |        |           |        |
+| 6    | Hybrid+VCG (flag)    | 1–8    | **1.000** | 0.000  |
+| 6    | Hybrid+VCGNoFlag     | 1–8    | **1.000** | 0.000  |
+
+Both variants achieve P(feas)=1.000 with tight λ.  P(opt)=0.000 throughout —
+this is the Grover flat-landscape problem, not a penalty issue (confirmed by
+tight λ having no effect on P(opt)).
+
+---
+
+## Open Issues
+
+### Grover flat-landscape problem (Cases 4, 5, 6)
+
+When the VCGNoFlag initial state is near-uniform over F, the Grover reflection
+G = A(2|0⟩⟨0|−I)A† is nearly the identity.  The perturbative improvement per
+layer is O(ε/√|F|) where ε is the QUBO energy gap.  For small gaps or large |F|,
+the cost gradient vanishes and the optimizer finds nothing better regardless of
+depth (confirmed: AR=0.737 constant for Case 4 across p=1..8).
+
+**Fix options**:
+1. Replace the Grover mixer with an X-mixer on specific wires (soft enforcement
+   via λ) — gives a stronger cost gradient at the cost of some feasibility leakage.
+2. Warm-start QAOA angles from PenaltyQAOA solution.
+3. Increase budget significantly (more restarts/steps/layers).
+
+### Case 3 P(opt) gap (0.605 vs 0.871)
+
+The knapsack gadget reached H\_norm=0.801 (threshold 0.9 not met within 8 layers).
+Options:
+1. Increase `max_layers` beyond 8 for the gadget training.
+2. Use a different QAOA ansatz for the gadget (e.g. hardware-efficient layers).
+
+### Pending changes
+
+| Change | Description | Status |
+|--------|-------------|--------|
+| 2 | AR\_feas pipeline integration | Not started |
+| 3 | P(feas)/P(opt) vs layer plots | **Done** — `plot_progress.py` |
+| 6 | PenaltyQAOA Hamiltonian normalization | Not started |

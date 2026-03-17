@@ -27,6 +27,7 @@ Disadvantages:
 """
 
 import itertools as it
+import math
 import time
 
 import pennylane as qml
@@ -84,6 +85,7 @@ class VCGNoFlag:
         self,
         constraints: list,
         ar_threshold: float = 0.999,
+        entropy_threshold: float = 0.9,
         max_layers: int = 8,
         qaoa_restarts: int = 5,
         qaoa_steps: int = 150,
@@ -95,6 +97,7 @@ class VCGNoFlag:
     ) -> None:
         self.constraints = constraints
         self.ar_threshold = ar_threshold
+        self.entropy_threshold = entropy_threshold
         self.max_layers = max_layers
         self.qaoa_restarts = qaoa_restarts
         self.qaoa_steps = qaoa_steps
@@ -114,6 +117,7 @@ class VCGNoFlag:
 
         self.outcomes = self._make_outcomes()
         n_feasible = self.outcomes.count(-1.0)
+        self.n_feasible = n_feasible
         if n_feasible == 0:
             raise ValueError(
                 f"VCGNoFlag: constraint(s) {self.constraints} have no feasible "
@@ -132,6 +136,7 @@ class VCGNoFlag:
         self.opt_angles = None
         self.n_layers = None
         self.ar = None
+        self.entropy = None
 
     # ------------------------------------------------------------------
     # Training (the only public path to set opt_angles)
@@ -161,6 +166,7 @@ class VCGNoFlag:
             self.opt_angles = None   # not used; opt_circuit handles this case
             self.n_layers = 0
             self.ar = 1.0
+            self.entropy = 1.0       # trivially uniform over 1 feasible state
             self.num_gamma = 0
             self.num_beta = 0
             return 1.0
@@ -184,6 +190,7 @@ class VCGNoFlag:
             print(f'  ma-QAOA sweep  (restarts={self.ma_restarts}, steps={self.ma_steps})')
 
         best_ar = 0.0
+        best_entropy = -1.0
         best_angles = None
         best_n_layers = 1
         prev_angles = None
@@ -211,25 +218,44 @@ class VCGNoFlag:
             prev_angles = opt_angles
             ar = (float(opt_cost) - 1.0) / -2.0
 
-            if ar > best_ar:
+            # Once AR threshold is met, rank by entropy (spread over feasible states).
+            # Before that, still track best AR as fallback.
+            if ar >= self.ar_threshold:
+                ent = self._compute_entropy_norm(opt_angles, p)
+            else:
+                ent = -1.0
+
+            if ar >= self.ar_threshold and ent > best_entropy:
+                best_entropy = ent
+                best_angles = opt_angles
+                best_n_layers = p
+                best_ar = ar
+            elif ar > best_ar and best_entropy < 0:
+                # Fallback: AR not yet reached, track best AR
                 best_ar = ar
                 best_angles = opt_angles
                 best_n_layers = p
 
             if verbose:
-                mark = '✓' if ar >= self.ar_threshold else ' '
-                print(f'    {mark} p={p}: AR={ar:.4f}')
+                ar_mark = '✓' if ar >= self.ar_threshold else ' '
+                ent_str = f'  ent={ent:.4f}' if ent >= 0 else ''
+                print(f'    {ar_mark} p={p}: AR={ar:.4f}{ent_str}')
 
-            if ar >= self.ar_threshold:
+            if ar >= self.ar_threshold and ent >= self.entropy_threshold:
                 break
 
         if best_ar < self.ar_threshold and verbose:
             print(f'  [warn] Did not reach AR>={self.ar_threshold} within '
                   f'{self.max_layers} layers.  Best AR={best_ar:.4f}')
+        elif best_entropy >= 0 and best_entropy < self.entropy_threshold and verbose:
+            print(f'  [warn] AR threshold met but entropy below target '
+                  f'(entropy={best_entropy:.4f} < {self.entropy_threshold}).  '
+                  f'Best entropy used.')
 
         self.opt_angles = best_angles
         self.n_layers = best_n_layers
         self.ar = best_ar
+        self.entropy = best_entropy if best_entropy >= 0 else None
         # Update parameter counts to match the trained depth
         self.num_gamma = len(self.constraint_Ham.ops) if self.decompose else 1
         self.num_beta = self.n_x
@@ -340,6 +366,34 @@ class VCGNoFlag:
             starting_angles=starting_angles,
         )
         return best_cost, best_angles
+
+    def _compute_entropy_norm(self, angles: np.ndarray, n_layers: int) -> float:
+        """
+        Normalised Shannon entropy of the distribution over feasible states.
+
+        H_norm = H(P_{feasible}) / log(|F|)  ∈ [0, 1]
+
+        where H is computed over the conditional distribution
+        p(x | x ∈ F) = count(x) / Σ_{x'∈F} count(x').
+
+        Returns 1.0 if |F| ≤ 1 (trivially uniform).
+        """
+        if self.n_feasible <= 1:
+            return 1.0
+        @qml.qnode(qml.device("default.qubit", wires=self.var_wires, shots=self.samples))
+        def circuit():
+            self._circuit(angles, 'ma-QAOA', n_layers)
+            return qml.counts(all_outcomes=True)
+        counts = circuit()
+        feas_total = sum(v for bs, v in counts.items() if self._is_feasible(bs))
+        if feas_total == 0:
+            return 0.0
+        H = 0.0
+        for bs, cnt in counts.items():
+            if self._is_feasible(bs) and cnt > 0:
+                p = cnt / feas_total
+                H -= p * math.log(p)
+        return H / math.log(self.n_feasible)
 
     def _make_outcomes(self) -> list:
         """Assign -1 (feasible) / +1 (infeasible) to all 2^n_x assignments."""
