@@ -1,4 +1,11 @@
 .jukit
 __pycache__
+*.pyc
 pat.txt
 email.txt
+
+# Generated / ephemeral outputs
+job_files/
+gadgets/pending/
+results/pending/
+current_queue.txt
