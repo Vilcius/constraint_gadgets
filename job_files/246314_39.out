@@ -1,9 +1,0 @@
-Task 39/499
-  QUBO(5x5)  opt=-13.000  δ=31.00
-  Structural : ['x_0 + x_1 + x_2 + x_3 >= 0']
-  Penalty    : ['x_1 + x_2 + x_4 >= 1']
-  HybridQAOA p=1: AR=0.7803  P(feas)=0.7900
-    ✓ P(feasible) threshold reached at p=1
-  PenaltyQAOA p=1: AR=0.9771  P(feas)=0.9737
-    ✓ P(feasible) threshold reached at p=1
-Saved 2 rows to /lustre/sip/proj/SIP-UTK0040/awilkie1/gadget_code/results/pending/task_39.pkl
