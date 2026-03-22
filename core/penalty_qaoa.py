@@ -98,6 +98,7 @@ class PenaltyQAOA:
         self.penalty_Ham = self._build_penalty_hamiltonian()
         self.full_Ham = self.qubo_Ham + self.penalty_Ham
 
+
         # QAOA parameter counts (non-identity terms only)
         self.num_gamma = base.count_gamma_terms(self.full_Ham)
         self.num_beta = len(self.all_wires)  # X-mixer on all qubits

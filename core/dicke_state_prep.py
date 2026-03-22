@@ -6,7 +6,7 @@ equality), the feasible subspace is exactly the Dicke state |D_n^k>, the
 equal superposition of all n-qubit states with Hamming weight k.
 
 This module provides:
-  - A log-depth circuit for preparing |D_n^k>  (Bartschi & Eidenbenz, 2019).
+  - A circuit for preparing |D_n^k>  via qubit-by-qubit conditional-RY gates.
   - Specification of the compatible mixer (XY or Ring-XY), which preserves
     Hamming weight and thus keeps the state within the feasible subspace.
   - An interface (``opt_circuit()``) matching VCG, so that
@@ -31,7 +31,6 @@ References
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from itertools import combinations
@@ -56,112 +55,197 @@ class DickeMixerType(Enum):
 
 
 # ======================================================================
-# Core SCS (Split-Cyclic-Shift) building blocks
+# WDB (Weight Distribution Block) + SCS (Split-Cyclic-Shift) primitives
+# Ported from Bartschi & Eidenbenz (2019), arXiv:2207.09998.
 # ======================================================================
 
-def _scs_gate(n: int, k: int, wire_a: int, wire_b: int) -> None:
+# --- Partition tree ---
+
+class _Node:
+    """Binary partition tree node."""
+
+    def __init__(self, qubits: List[int]):
+        self.qubit_indices: List[int] = qubits
+        self.left_child: Optional["_Node"] = None
+        self.right_child: Optional["_Node"] = None
+
+    def is_leaf(self) -> bool:
+        return self.left_child is None and self.right_child is None
+
+    def get_qubits(self) -> List[int]:
+        return self.qubit_indices
+
+    def get_internal_nodes(self) -> List["_Node"]:
+        if self.is_leaf():
+            return []
+        out = [self]
+        out.extend(self.left_child.get_internal_nodes())
+        out.extend(self.right_child.get_internal_nodes())
+        return out
+
+    def get_leaves(self) -> List["_Node"]:
+        if self.is_leaf():
+            return [self]
+        out = []
+        out.extend(self.left_child.get_leaves())
+        out.extend(self.right_child.get_leaves())
+        return out
+
+
+def _build_partition_tree(qubits: List[int], k: int) -> _Node:
+    """Balanced binary tree with leaf size <= k."""
+    if len(qubits) <= k:
+        return _Node(qubits)
+    chunks = [qubits[i: i + k] for i in range(0, len(qubits), k)]
+
+    def _from_chunks(chunk_list: List[List[int]]) -> _Node:
+        if len(chunk_list) == 1:
+            return _Node(chunk_list[0])
+        mid = len(chunk_list) // 2
+        left = _from_chunks(chunk_list[:mid])
+        right = _from_chunks(chunk_list[mid:])
+        node = _Node(left.get_qubits() + right.get_qubits())
+        node.left_child = left
+        node.right_child = right
+        return node
+
+    return _from_chunks(chunks)
+
+
+# --- SCS gates (leaf-level Dicke state preparation) ---
+
+def _gate_i(n: int, wires: List[int]) -> None:
+    """SCS gate type I: 2-qubit split gate."""
+    qml.CNOT(wires=[wires[0], wires[1]])
+    theta = 2.0 * float(np.arccos(np.sqrt(1.0 / n)))
+    qml.CRY(theta, wires=[wires[1], wires[0]])
+    qml.CNOT(wires=[wires[0], wires[1]])
+
+
+def _gate_ii_l(l: int, n: int, wires: List[int]) -> None:
+    """SCS gate type II: 3-qubit conditional split gate."""
+    qml.CNOT(wires=[wires[0], wires[2]])
+    theta = 2.0 * float(np.arccos(np.sqrt(float(l) / n)))
+    qml.ctrl(qml.RY, control=(wires[2], wires[1]),
+             control_values=(1, 1))(theta, wires=wires[0])
+    qml.CNOT(wires=[wires[0], wires[2]])
+
+
+def _gate_scs_nk(n: int, k: int, wires: List[int]) -> None:
+    """One SCS(n,k) building block."""
+    _gate_i(n, [wires[k - 1], wires[k]])
+    for l in range(2, k + 1):
+        _gate_ii_l(l, n, [wires[k - l], wires[k - l + 1], wires[k]])
+
+
+def _scs_first_block(n: int, k: int, l: int, wires: List[int]) -> None:
+    idxs = wires
+    n_first = l - k - 1
+    n_last = n - l
+    if n_first != 0:
+        idxs = idxs[n_first:]
+    if n_last != 0:
+        idxs = idxs[:-n_last]
+    _gate_scs_nk(l, k, idxs)
+
+
+def _scs_second_block(n: int, k: int, l: int, wires: List[int]) -> None:
+    idxs = wires
+    n_last = n - l
+    if n_last != 0:
+        idxs = idxs[:-n_last]
+    _gate_scs_nk(l, l - 1, idxs)
+
+
+def _dicke_state_scs(n: int, k: int, wires: List[int]) -> None:
     """
-    Apply the SCS (Split-Cyclic-Shift) two-qubit gate.
+    SCS-based Dicke state preparation on ``wires``.
 
-    This is the key building block of the Bartschi-Eidenbenz Dicke state
-    circuit.  It performs a controlled rotation that distributes Hamming
-    weight between two subsystems.
-
-    Implements:
-        |10> -> cos(theta)|10> + sin(theta)|01>
-        |01> -> -sin(theta)|10> + cos(theta)|01>
-
-    where theta = arccos(sqrt(k/n)) effectively splits k excitations
-    among n qubits.
-
-    Parameters
-    ----------
-    n : int
-        Total number of qubits in the current subproblem.
-    k : int
-        Target Hamming weight for the current subproblem.
-    wire_a, wire_b : int
-        The two qubit wire indices.
+    Converts |1^k 0^{n-k}> (after _reverse) to |D_n^k>.
+    Used for leaf-level preparation after WDB weight distribution.
     """
-    if n <= 0 or k <= 0 or k > n:
-        return
-    theta = 2 * math.acos(math.sqrt(k / n))
-    # Controlled rotation: acts only when wire_a=1, wire_b=0
-    # This is equivalent to a partial SWAP with angle theta
-    qml.CNOT(wires=[wire_a, wire_b])
-    qml.RY(theta, wires=wire_a)
-    qml.CNOT(wires=[wire_b, wire_a])
-    qml.RY(-theta, wires=wire_a)
-    qml.CNOT(wires=[wire_b, wire_a])
-    qml.CNOT(wires=[wire_a, wire_b])
+    for l in range(k + 1, n + 1)[::-1]:
+        _scs_first_block(n, k, l, wires)
+    for l in range(2, k + 1)[::-1]:
+        _scs_second_block(n, k, l, wires)
 
 
-def _dicke_recursion(wires: List[int], k: int) -> None:
+def _reverse(register: List[int]) -> None:
+    """Reverse qubit ordering via SWAP ladder."""
+    for i in range(len(register) // 2):
+        qml.SWAP(wires=[register[i], register[len(register) - 1 - i]])
+
+
+# --- WDB gates ---
+
+def _compute_wdb_angles(n: int, m: int, ell: int) -> np.ndarray:
     """
-    Recursive O(log n)-depth Dicke state preparation.
+    RY angles for the controlled-addition step.
 
-    Prepares |D_n^k> on the given wires using the recursive splitting
-    approach of Bartschi & Eidenbenz.
-
-    The idea: split n qubits into two halves (n1, n2).  Prepare a
-    superposition over all valid splits of k excitations:
-        sum_{j=max(0,k-n2)}^{min(k,n1)} alpha_j |D_{n1}^j> |D_{n2}^{k-j}>
-
-    Base cases:
-      - k == 0:  all qubits in |0> (do nothing)
-      - k == n:  all qubits in |1> (flip all)
-      - n == 1:  single qubit |1> if k==1
-
-    Parameters
-    ----------
-    wires : list[int]
-        Qubit wire indices.
-    k : int
-        Target Hamming weight.
+    n = total qubits at node, m = right-child size, ell = weight being split.
+    angle[i] = 2 * arccos( sqrt( C(m,i)*C(n-m, ell-i) / sum_{j>=i} C(m,j)*C(n-m,ell-j) ) )
     """
-    n = len(wires)
+    x = np.array([
+        comb(m, i) * comb(n - m, ell - i) if (ell - i) >= 0 else 0
+        for i in range(ell + 1)
+    ], dtype=float)
+    s = np.array([float(np.sum(x[i:])) for i in range(ell + 1)])
+    return np.where(s > 0, 2.0 * np.arccos(np.sqrt(np.clip(x / s, 0.0, 1.0))), 0.0)
 
-    # Base cases
-    if k == 0:
-        return
-    if k == n:
-        for w in wires:
-            qml.PauliX(wires=w)
-        return
-    if n == 1:
-        if k == 1:
-            qml.PauliX(wires=wires[0])
-        return
 
-    # For n == 2, k == 1: create (|01> + |10>) / sqrt(2)
-    if n == 2 and k == 1:
-        qml.PauliX(wires=wires[0])
-        qml.Hadamard(wires=wires[0])
-        qml.CNOT(wires=[wires[0], wires[1]])
-        qml.PauliX(wires=wires[0])
-        return
+def _one_hot_encode(register: List[int]) -> None:
+    """Unary → one-hot via CNOT ladder (index-safe for non-contiguous wires)."""
+    for i in range(len(register) - 1):
+        qml.CNOT(wires=[register[i + 1], register[i]])
 
-    # General case: use the linear-depth "staircase" approach
-    # which iteratively distributes excitations across qubits.
-    # This is simpler to implement correctly than the full log-depth
-    # recursive split, and still provides good circuit structure.
-    #
-    # Start with k excitations on the first k qubits,
-    # then use SCS gates to spread them across all n qubits.
-    for w in wires[:k]:
-        qml.PauliX(wires=w)
 
-    # Apply SCS gates in a "staircase" pattern
-    # This creates the Dicke state by successively splitting
-    # excitations from left to right.
-    for i in range(k):
-        for j in range(i, n - k + i):
-            # Gate parameters: how many qubits remain, how many excitations
-            remaining_n = n - j
-            remaining_k = k - i
-            if remaining_n > 0 and remaining_k > 0 and remaining_k <= remaining_n:
-                _scs_gate(remaining_n, remaining_k, wires[j], wires[j + 1])
+def _revert_one_hot(register: List[int]) -> None:
+    """One-hot → unary (inverse of _one_hot_encode)."""
+    for i in reversed(range(1, len(register))):
+        qml.CNOT(wires=[register[i], register[i - 1]])
 
+
+def _controlled_addition(
+    reg_a: List[int], reg_b: List[int], n: int, m: int
+) -> None:
+    """Controlled-RY cascade that writes weight onto reg_b."""
+    for ell in range(len(reg_a) - 1, -1, -1):
+        angles = _compute_wdb_angles(n, m, ell + 1)
+        for j in range(min(len(reg_b), ell + 1)):
+            ctrls = [reg_a[ell]]
+            if j > 0:
+                ctrls = ctrls + [reg_b[j - 1]]
+            qml.ctrl(qml.RY, control=ctrls,
+                     control_values=[1] * len(ctrls))(float(angles[j]), wires=reg_b[j])
+
+
+def _fredkin_stair(reg_a: List[int], reg_b: List[int]) -> None:
+    """Fredkin staircase: subtracts distributed weight back out of reg_a."""
+    const = 1
+    if len(reg_a) == len(reg_b):
+        qml.CNOT(wires=[reg_b[-1], reg_a[-1]])
+        const = 2
+    for i in range(len(reg_b) - const, -1, -1):
+        for j in range(i, len(reg_a) - 1):
+            qml.CSWAP(wires=[reg_b[i], reg_a[j], reg_a[j + 1]])
+        qml.CNOT(wires=[reg_b[i], reg_a[-1]])
+
+
+def _apply_wdb(v: _Node, k: int) -> None:
+    """Apply one WDB block at internal node v."""
+    reg_a = v.left_child.get_qubits()[:k]
+    reg_b = v.right_child.get_qubits()[:k]
+    n_v = len(v.get_qubits())
+    m_v = len(v.right_child.get_qubits())   # full right-child size, not capped at k
+    _one_hot_encode(reg_a)
+    _controlled_addition(reg_a, reg_b, n_v, m_v)
+    _revert_one_hot(reg_a)
+    _fredkin_stair(reg_a, reg_b)
+
+
+# ======================================================================
+# Core: Dicke state preparation via WDB partition tree + SCS leaves
+# ======================================================================
 
 def prepare_dicke_state(wires: List[int], k: int) -> None:
     """
@@ -171,6 +255,10 @@ def prepare_dicke_state(wires: List[int], k: int) -> None:
     states with exactly k ones:
 
         |D_n^k> = (1 / sqrt(C(n,k))) * sum_{|x|=k} |x>
+
+    Implemented via the WDB (Weight Distribution Block) partition-tree
+    algorithm with SCS leaf preparation (Bartschi & Eidenbenz, arXiv:2207.09998).
+    Circuit depth O(k log(n/k)) vs O(n) for the naive multi-controlled-RY approach.
 
     Parameters
     ----------
@@ -182,21 +270,34 @@ def prepare_dicke_state(wires: List[int], k: int) -> None:
     n = len(wires)
     if k < 0 or k > n:
         raise ValueError(f"Hamming weight k={k} out of range for n={n} qubits.")
-    _dicke_recursion(wires, k)
+    if k == 0:
+        return  # |0...0> already prepared
+    if k == n:
+        for w in wires:
+            qml.PauliX(wires=w)
+        return
+
+    # Initial state: |1^k 0^{n-k}>  (ones on the first k wires)
+    for w in wires[:k]:
+        qml.PauliX(wires=w)
+
+    # Build partition tree with leaf size k
+    tree = _build_partition_tree(list(wires), k)
+
+    # WDB pass: distribute weight across the tree
+    for v in tree.get_internal_nodes():
+        _apply_wdb(v, k)
+
+    # SCS pass: prepare uniform superposition within each leaf
+    for u in tree.get_leaves():
+        qubits = u.get_qubits()
+        _reverse(qubits)
+        _dicke_state_scs(len(qubits), len(qubits), qubits)
 
 
 # ======================================================================
 # Cardinality inequality state preparation  (sum x_i <= k)
 # ======================================================================
-
-def _m_leq(n: int, k: int) -> int:
-    """Number of n-bit strings with Hamming weight <= k."""
-    if k < 0:
-        return 0
-    if k >= n:
-        return 2 ** n
-    return sum(comb(n, w) for w in range(k + 1))
-
 
 def prepare_cardinality_leq_state(wires: List[int], k: int) -> None:
     """
@@ -205,20 +306,25 @@ def prepare_cardinality_leq_state(wires: List[int], k: int) -> None:
     weight <= k:
 
         |S_n^{<=k}> = (1/sqrt(M)) * sum_{w=0}^{k} sum_{|x|=w} |x>
+                    = (1/sqrt(M)) * sum_{ell=0}^{k} sqrt(C(n,ell)) |D_n^ell>
 
-    where M = sum_{w=0}^{k} C(n, w) and each inner sum is the Dicke state |D_n^w>.
+    where M = sum_{w=0}^{k} C(n, w).
 
-    The circuit is derived from the recursive structure of symmetric states:
+    Algorithm (Bartschi & Eidenbenz, arXiv:1904.07358, Theorem 2):
 
-        |S_n^{<=k}> = sqrt(M(n-1,k)   / M(n,k)) |0> |S_{n-1}^{<=k}>
-                    + sqrt(M(n-1,k-1) / M(n,k)) |1> |S_{n-1}^{<=k-1}>
+      Step 1 — staircase of k controlled-RY gates to build the input superposition
+               sum_{ell=0}^{k} alpha_ell |1^ell 0^{n-ell}>
+               where alpha_ell = sqrt(C(n, ell) / M).
 
-    At each qubit position i, a controlled RY is applied for every possible
-    "ones count so far" j in 0..min(i, k).  The gate angle depends only on
-    the remaining budget b = k - j and the remaining qubit count, so qubits
-    in the same budget class share the same angle.
+               Gate j=0: unconditional RY(2 arccos(beta_0)) on wires[0].
+               Gate j=1..k-1: CRY(2 arccos(beta_j)) on wires[j], controlled by
+               wires[j-1] = 1, where beta_j = alpha_j / sqrt(sum_{i>=j} alpha_i^2).
 
-    Gate count: O(n^(k+1) / k!) -- polynomial for fixed k, practical for k <= n/2.
+      Step 2 — _reverse(wires): converts |1^ell 0^{n-ell}> -> |0^{n-ell} 1^ell>.
+
+      Step 3 — _dicke_state_scs(n, k, wires): applies the SCS unitary U_{n,k}
+               which maps each |0^{n-ell} 1^ell> -> |D_n^ell> for all ell <= k
+               (Definition 2 / Lemma 2 of arXiv:1904.07358).
 
     Parameters
     ----------
@@ -227,41 +333,7 @@ def prepare_cardinality_leq_state(wires: List[int], k: int) -> None:
     k : int
         Maximum allowed Hamming weight (0 <= k <= n).
     """
-    n = len(wires)
-    if k == 0:
-        return  # |0...0> is the only feasible state, already prepared
-    if k >= n:
-        for w in wires:
-            qml.Hadamard(wires=w)  # All 2^n states feasible -> uniform superposition
-        return
-
-    # Qubit 0: unconditional RY
-    M_nk = _m_leq(n, k)
-    M_n1_k1 = _m_leq(n - 1, k - 1)
-    theta0 = 2.0 * float(np.arcsin(np.sqrt(M_n1_k1 / M_nk)))
-    if abs(theta0) > 1e-12:
-        qml.RY(theta0, wires=wires[0])
-
-    # Qubits 1..n-1: controlled RY, conditioned on exact ones-count so far
-    for i in range(1, n):
-        n_rem = n - i
-        for ones_so_far in range(min(i, k) + 1):
-            b = k - ones_so_far          # remaining budget
-            if b < 0:
-                continue
-            M_rem = _m_leq(n_rem, b)
-            M_rem1_b1 = _m_leq(n_rem - 1, b - 1)
-            if M_rem == 0 or M_rem1_b1 == 0:
-                continue
-            theta = 2.0 * float(np.arcsin(np.sqrt(M_rem1_b1 / M_rem)))
-            if abs(theta) < 1e-12:
-                continue
-            # Apply Ry conditioned on exactly ones_so_far of wires[0..i-1] being |1>
-            ctrl_wires = list(wires[:i])
-            for pattern in combinations(range(i), ones_so_far):
-                ctrl_vals = [1 if j in pattern else 0 for j in range(i)]
-                qml.ctrl(qml.RY, control=ctrl_wires,
-                         control_values=ctrl_vals)(theta, wires=wires[i])
+    prepare_dicke_multiweight_state(wires, list(range(k + 1)))
 
 
 # ======================================================================
@@ -652,15 +724,16 @@ class FlowStatePrep:
 
     def opt_circuit(self) -> None:
         """
-        Apply the Bell-pair chain state preparation.
+        Apply the flow state preparation circuit.
 
-        Produces a superposition where every term satisfies HW(in) == HW(out).
-        Remaining wires on the larger register stay at |0>.
+        Produces a *uniform* superposition over all feasible states:
+
+            (1/√M) Σ_{w=0}^{max_w} Σ_{|x|=w, |y|=w} |x⟩|y⟩
+            = Σ_w α_w |D_{n_in}^w⟩ ⊗ |D_{n_out}^w⟩
+
+        where α_w = √(C(n_in,w)·C(n_out,w)/M) and max_w = min(n_in, n_out).
         """
-        min_n = min(self.n_in, self.n_out)
-        for i in range(min_n):
-            qml.Hadamard(wires=self.in_wires[i])
-            qml.CNOT(wires=[self.in_wires[i], self.out_wires[i]])
+        prepare_flow_state(self.in_wires, self.out_wires)
 
     def mixer_circuit(self, beta: float) -> None:
         """
@@ -700,6 +773,208 @@ class FlowStatePrep:
             "needs_flag": False,
             "flag_wires": [],
         }
+
+
+# ======================================================================
+# Multi-weight Dicke state preparation  (arbitrary Hamming weight set)
+# ======================================================================
+
+def prepare_dicke_multiweight_state(wires: List[int], weights: List[int]) -> None:
+    """
+    Prepare a uniform superposition over all bitstrings whose Hamming weight
+    is in ``weights``::
+
+        |ψ⟩ = (1/√M) Σ_{w∈W} Σ_{|x|=w} |x⟩  =  Σ_{w∈W} α_w |D_n^w⟩
+              M = Σ_{w∈W} C(n, w),   α_w = √(C(n,w)/M)
+
+    This generalises both :func:`prepare_dicke_state` (|W|=1) and
+    :func:`prepare_cardinality_leq_state` (W={0,1,...,k}).
+
+    Algorithm (Bartschi & Eidenbenz, arXiv:1904.07358, Theorem 2):
+
+      Step 1 — staircase of max(W) controlled-RY gates to build
+               Σ_{w∈W} α_w |1^w 0^{n-w}>.
+               For j ∉ W: α_j = 0 → θ_j = π (X gate), skipping that weight.
+               For j ∈ W: θ_j = 2 arccos(α_j / √(Σ_{i≥j} α_i²)).
+
+      Step 2 — _reverse(wires): |1^w 0^{n-w}> -> |0^{n-w} 1^w>.
+
+      Step 3 — _dicke_state_scs(n, max(W), wires): SCS unitary U_{n,max(W)}
+               maps each |0^{n-w} 1^w> -> |D_n^w> for all w ≤ max(W).
+
+    Parameters
+    ----------
+    wires : list[int]
+        Qubit wire indices (n = len(wires)).
+    weights : list[int]
+        Target Hamming weights (0 ≤ w ≤ n for each w).
+    """
+    n = len(wires)
+    weight_set = frozenset(weights)
+    max_w = max(weights)
+    M = sum(comb(n, w) for w in weight_set)
+
+    if M == 0:
+        return
+
+    # --- Step 1: staircase ---
+    # α_j = sqrt(C(n,j)/M) if j in W, else 0
+    # beta_j = α_j / sqrt(remaining_sq),  theta_j = 2 arccos(beta_j)
+    remaining_sq = 1.0
+    for j in range(max_w):
+        alpha_j = float(np.sqrt(comb(n, j) / M)) if j in weight_set else 0.0
+        beta = alpha_j / np.sqrt(remaining_sq) if remaining_sq > 1e-14 else 0.0
+        theta = 2.0 * float(np.arccos(np.clip(beta, -1.0, 1.0)))
+        if abs(theta) > 1e-12:
+            if j == 0:
+                qml.RY(theta, wires=wires[0])
+            else:
+                qml.CRY(theta, wires=[wires[j - 1], wires[j]])
+        remaining_sq -= alpha_j ** 2
+
+    # --- Step 2: reverse wire order ---
+    _reverse(list(wires))
+
+    # --- Step 3: apply U_{n,max_w} to map each |0^{n-w} 1^w> -> |D_n^w> ---
+    _dicke_state_scs(n, max_w, list(wires))
+
+
+@dataclass
+class DickeMultiweightStatePrep:
+    """
+    Exact state preparation for constraints whose feasible set is a uniform
+    superposition over multiple Dicke states (i.e. all bitstrings whose
+    Hamming weight belongs to a given set W).
+
+    Examples
+    --------
+    - ``x_0 + x_1 >= 1``  →  W = {1, 2}  (all-ones GEQ, n=2)
+    - ``x_0 * x_1 == 0``  →  W = {0, 1}  (product-zero, n=2)
+    - ``x_0 + x_1 + x_2 <= 2``  →  W = {0, 1, 2}  (same as CardinalityLeq)
+
+    No flag qubits, no QAOA training required.  Requires the Grover mixer
+    (the XY mixer preserves a *single* Hamming weight, not a set).
+
+    Parameters
+    ----------
+    var_wires : list[int]
+        Qubit wire indices.
+    weights : list[int]
+        Sorted list of feasible Hamming weights.
+    constraint_str : str
+        Original constraint string (for bookkeeping).
+    """
+    var_wires: List[int]
+    weights: List[int]
+    constraint_str: str = ""
+
+    n_qubits: int = field(init=False)
+    flag_wires: List[int] = field(init=False, default_factory=list)
+    all_wires: List[int] = field(init=False)
+
+    def __post_init__(self):
+        self.n_qubits = len(self.var_wires)
+        self.flag_wires = []
+        self.all_wires = list(self.var_wires)
+        n = self.n_qubits
+        for w in self.weights:
+            if w < 0 or w > n:
+                raise ValueError(
+                    f"Weight {w} out of range for {n} qubits."
+                )
+
+    def opt_circuit(self) -> None:
+        """Apply the multi-weight Dicke state preparation circuit."""
+        prepare_dicke_multiweight_state(self.var_wires, self.weights)
+
+    @property
+    def needs_flag_penalty(self) -> bool:
+        return False
+
+    def get_info(self) -> dict:
+        return {
+            "constraint": self.constraint_str,
+            "type": "DickeMultiweightStatePrep",
+            "var_wires": self.var_wires,
+            "weights": self.weights,
+            "n_qubits": self.n_qubits,
+            "needs_flag": False,
+            "flag_wires": [],
+        }
+
+
+def prepare_flow_state(in_wires: List[int], out_wires: List[int]) -> None:
+    """
+    Prepare the uniform superposition over all flow-feasible states:
+
+        |ψ⟩ = (1/√M) Σ_{w=0}^{max_w} Σ_{|x|=w, |y|=w} |x⟩|y⟩
+             = Σ_{w=0}^{max_w} α_w |D_{n_in}^w⟩ ⊗ |D_{n_out}^w⟩
+
+    where max_w = min(n_in, n_out), α_w = √(C(n_in,w)·C(n_out,w)/M),
+    and M = Σ_{w=0}^{max_w} C(n_in,w)·C(n_out,w).
+
+    Algorithm (no ancillae, O(n) depth):
+
+      Step 1 — Staircase of max_w controlled-RY gates on in_wires to build
+               Σ_w α_w |1^w 0^{n_in-w}⟩_in.  Gate j=0 is unconditional RY
+               on in_wires[0]; gates j=1,...,max_w-1 are CRY on in_wires[j]
+               controlled by in_wires[j-1]=1.
+
+      Step 2 — CNOT copy: CNOT(in_wires[j], out_wires[j]) for j=0,...,max_w-1.
+               Entangles out_wires to match the weight of in_wires:
+               Σ_w α_w |1^w 0^{n_in-w}⟩_in |1^w 0^{n_out-w}⟩_out.
+
+      Step 3 — _reverse + _dicke_state_scs(n_in, max_w) on in_wires:
+               U_{n_in,max_w} maps each |0^{n_in-w} 1^w⟩ → |D_{n_in}^w⟩.
+
+      Step 4 — _reverse + _dicke_state_scs(n_out, max_w) on out_wires:
+               U_{n_out,max_w} maps each |0^{n_out-w} 1^w⟩ → |D_{n_out}^w⟩.
+
+    Steps 3 and 4 commute (different registers), giving
+    Σ_w α_w |D_{n_in}^w⟩ ⊗ |D_{n_out}^w⟩.
+
+    Parameters
+    ----------
+    in_wires : list[int]
+        Wire indices of variables with +1 coefficient (n_in = len).
+    out_wires : list[int]
+        Wire indices of variables with -1 coefficient (n_out = len).
+    """
+    n_in = len(in_wires)
+    n_out = len(out_wires)
+    max_w = min(n_in, n_out)
+
+    if max_w == 0:
+        return  # trivially |0...0⟩ on both sides
+
+    M = sum(comb(n_in, w) * comb(n_out, w) for w in range(max_w + 1))
+    if M == 0:
+        return
+
+    # --- Step 1: staircase on in_wires ---
+    # α_w = sqrt(C(n_in,w)*C(n_out,w)/M); loop covers w=0,...,max_w-1
+    # (weight max_w gets the remaining amplitude implicitly)
+    remaining_sq = 1.0
+    for j in range(max_w):
+        alpha_j = float(np.sqrt(comb(n_in, j) * comb(n_out, j) / M))
+        beta = alpha_j / np.sqrt(remaining_sq) if remaining_sq > 1e-14 else 0.0
+        theta = 2.0 * float(np.arccos(np.clip(beta, -1.0, 1.0)))
+        if abs(theta) > 1e-12:
+            if j == 0:
+                qml.RY(theta, wires=in_wires[0])
+            else:
+                qml.CRY(theta, wires=[in_wires[j - 1], in_wires[j]])
+        remaining_sq -= alpha_j ** 2
+
+    # --- Step 2: CNOT copy to out_wires ---
+    for j in range(max_w):
+        qml.CNOT(wires=[in_wires[j], out_wires[j]])
+
+    # --- Steps 3 & 4: U_{n_in,max_w} on in_wires, U_{n_out,max_w} on out_wires ---
+    _reverse(list(in_wires))
+    _dicke_state_scs(n_in, max_w, list(in_wires))
+    _reverse(list(out_wires))
+    _dicke_state_scs(n_out, max_w, list(out_wires))
 
 
 def from_flow_constraint(

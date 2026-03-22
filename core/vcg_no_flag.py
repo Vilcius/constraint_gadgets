@@ -29,6 +29,7 @@ Disadvantages:
 import itertools as it
 import math
 import time
+from math import comb
 
 import pennylane as qml
 from pennylane import numpy as np
@@ -36,6 +37,7 @@ from pennylane import numpy as np
 from . import qaoa_base as base
 from . import constraint_handler as ch
 from .vcg import _check_constraint_op
+from .dicke_state_prep import prepare_dicke_multiweight_state
 
 
 class VCGNoFlag:
@@ -130,6 +132,12 @@ class VCGNoFlag:
             idx = self.outcomes.index(-1.0)
             self._single_feasible_bitstring = format(idx, f'0{self.n_x}b')
 
+        # Dicke-superposition: feasible set = union of complete Hamming-weight
+        # classes → exact state preparation, no QAOA needed.
+        self._dicke_superposition_weights = None
+        if n_feasible > 1:
+            self._dicke_superposition_weights = self._check_dicke_superposition()
+
         self.constraint_Ham = self._build_hamiltonian()
 
         # Set after train()
@@ -167,6 +175,19 @@ class VCGNoFlag:
             self.n_layers = 0
             self.ar = 1.0
             self.entropy = 1.0       # trivially uniform over 1 feasible state
+            self.num_gamma = 0
+            self.num_beta = 0
+            return 1.0
+
+        # ── Special case: Dicke superposition → exact prep, no QAOA ──
+        if self._dicke_superposition_weights is not None:
+            if verbose:
+                print(f'  Dicke-superposition detected: weights={self._dicke_superposition_weights} '
+                      f'— using exact state preparation (no QAOA needed).')
+            self.opt_angles = None
+            self.n_layers = 0
+            self.ar = 1.0
+            self.entropy = 1.0
             self.num_gamma = 0
             self.num_beta = 0
             return 1.0
@@ -272,6 +293,9 @@ class VCGNoFlag:
                 if bit == '1':
                     qml.PauliX(wires=wire)
             return
+        if self._dicke_superposition_weights is not None:
+            prepare_dicke_multiweight_state(self.var_wires, self._dicke_superposition_weights)
+            return
         if self.opt_angles is None:
             raise RuntimeError("Call train() before using opt_circuit().")
         self._circuit(self.opt_angles, 'ma-QAOA', self.n_layers)
@@ -373,26 +397,29 @@ class VCGNoFlag:
 
         H_norm = H(P_{feasible}) / log(|F|)  ∈ [0, 1]
 
-        where H is computed over the conditional distribution
-        p(x | x ∈ F) = count(x) / Σ_{x'∈F} count(x').
+        Computed from exact statevector probabilities (qml.probs), not samples,
+        so the result is noiseless and the 0.9999 threshold is meaningful even
+        for small |F|.
 
         Returns 1.0 if |F| ≤ 1 (trivially uniform).
         """
         if self.n_feasible <= 1:
             return 1.0
-        @qml.qnode(qml.device("default.qubit", wires=self.var_wires, shots=self.samples))
+        @qml.qnode(qml.device("default.qubit", wires=self.var_wires))
         def circuit():
             self._circuit(angles, 'ma-QAOA', n_layers)
-            return qml.counts(all_outcomes=True)
-        counts = circuit()
-        feas_total = sum(v for bs, v in counts.items() if self._is_feasible(bs))
-        if feas_total == 0:
+            return qml.probs(wires=self.var_wires)
+        probs = circuit()
+        feas_total = sum(float(probs[i]) for i in range(len(probs))
+                         if self.outcomes[i] == -1.0)
+        if feas_total < 1e-12:
             return 0.0
         H = 0.0
-        for bs, cnt in counts.items():
-            if self._is_feasible(bs) and cnt > 0:
-                p = cnt / feas_total
-                H -= p * math.log(p)
+        for i, p_raw in enumerate(probs):
+            if self.outcomes[i] == -1.0:
+                p = float(p_raw) / feas_total
+                if p > 1e-12:
+                    H -= p * math.log(p)
         return H / math.log(self.n_feasible)
 
     def _make_outcomes(self) -> list:
@@ -446,6 +473,30 @@ class VCGNoFlag:
 
         self.hamiltonian_time = time.time() - start
         return qml.Hamiltonian(np.array(pauli_coeffs), pauli_ops)
+
+    def _check_dicke_superposition(self):
+        """
+        Return a sorted list of Hamming weights if the feasible set is exactly
+        the union of *complete* Dicke classes at those weights — i.e. every
+        bitstring of weight w is feasible (for each w in the set) and no other
+        bitstrings are feasible.  Return None otherwise.
+
+        Examples that trigger this path:
+          - ``x_0 + x_1 >= 1``  (n=2): W = {1, 2}
+          - ``x_0 * x_1 == 0``  (n=2): W = {0, 1}
+          - ``x_0 + x_1 <= 1``  (n=2): W = {0, 1}  (already CardinalityLeq,
+            but also detected here so VCGNoFlag skips training)
+        """
+        n = self.n_x
+        feas_count = {}
+        for i, outcome in enumerate(self.outcomes):
+            if outcome == -1.0:
+                hw = bin(i).count('1')
+                feas_count[hw] = feas_count.get(hw, 0) + 1
+        for w, cnt in feas_count.items():
+            if cnt != comb(n, w):
+                return None  # partial weight class — not a Dicke superposition
+        return sorted(feas_count.keys())
 
     def _is_feasible(self, bitstring: str) -> bool:
         assignment = [int(b) for b in bitstring]

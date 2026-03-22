@@ -626,6 +626,86 @@ def evaluate_lhs(pc: ParsedConstraint, x_bits: str) -> float:
     return val
 
 
+def compute_tight_lambda(
+    Q,
+    all_constraints: List[ParsedConstraint],
+    pen_indices: List[int],
+) -> float:
+    """
+    Compute the minimum penalty weight λ for the penalized constraints such
+    that every state violating them has higher augmented cost than f*.
+
+    For any state x with V_pen(x) > 0 (violates ≥1 penalized constraint under
+    optimal slack assignment), we require:
+
+        f(x) + λ * V_pen(x) > f*
+
+    where V_pen(x) = Σ_{k in pen} v_k(x)² and v_k is the slack-optimal
+    residual violation:
+        LEQ/LT:  v_k = max(0, lhs − rhs)
+        GEQ/GT:  v_k = max(0, rhs − lhs)
+        EQ:      v_k = |lhs − rhs|
+
+    Returns ceil(max_ratio) + 1, where
+        max_ratio = max_{x: V_pen > 0} (f* − f(x)) / V_pen(x)
+
+    ensuring λ is a positive integer strictly sufficient for all states.
+    Returns 1 if pen_indices is empty.
+    """
+    import math
+
+    if not pen_indices:
+        return 1.0
+
+    import numpy as _np
+    n_x = Q.shape[0]
+    pen_pcs = [all_constraints[i] for i in pen_indices]
+
+    def _pen_violation_sq(bits):
+        bs = ''.join(map(str, bits))
+        total = 0.0
+        for pc in pen_pcs:
+            lhs = evaluate_lhs(pc, bs)
+            residual = lhs - pc.rhs
+            if pc.op in (ConstraintOp.LEQ, ConstraintOp.LT):
+                v = max(0.0, residual)
+            elif pc.op in (ConstraintOp.GEQ, ConstraintOp.GT):
+                v = max(0.0, -residual)
+            else:  # EQ
+                v = abs(residual)
+            total += v * v
+        return total
+
+    def _qubo_val(bits):
+        x = _np.array(bits, dtype=float)
+        return float(_np.dot(x, _np.dot(Q, x)))
+
+    # f* = min QUBO over states satisfying ALL constraints
+    f_star = None
+    for bits in it.product([0, 1], repeat=n_x):
+        bs = ''.join(map(str, bits))
+        if check_feasibility(bs, all_constraints, n_x):
+            fval = _qubo_val(bits)
+            if f_star is None or fval < f_star:
+                f_star = fval
+
+    if f_star is None:
+        raise ValueError("compute_tight_lambda: no fully feasible state found.")
+
+    # max (f* - f(x)) / V_pen(x) over states with V_pen > 0
+    max_ratio = 0.0
+    for bits in it.product([0, 1], repeat=n_x):
+        V = _pen_violation_sq(bits)
+        if V < 1e-10:
+            continue
+        fval = _qubo_val(bits)
+        ratio = (f_star - fval) / V
+        if ratio > max_ratio:
+            max_ratio = ratio
+
+    return float(max(1, math.ceil(max_ratio) + 1))
+
+
 # ======================================================================
 # Constraint normalisation and matching (for pre-computed lookup)
 # ======================================================================
