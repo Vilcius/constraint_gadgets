@@ -4,7 +4,7 @@
 **Metrics**: P(feas) and P(opt) — AR is not directly comparable across methods
 due to Hamiltonian scale differences (PenaltyQAOA inflates C_max 10–100× via
 penalty terms).  AR_feas (feasibility-conditioned) is the fair replacement;
-pipeline integration pending.
+pipeline integration done.
 **Bold convention**: best value per column in each table.
 
 ---
@@ -96,7 +96,9 @@ penalty terms, making its AR appear artificially high.
 
     AR_feas = (f_max_F − E[f(x) : x∈F]) / (f_max_F − f*)
 
-Undefined when P(feas)=0.  Pipeline integration (main\_analysis, plots) pending.
+Undefined when P(feas)=0.  Pipeline integration **done**: `split_results.py`
+computes AR\_feas at split time; `plot_ar.py` adds `plot_ar_feas_comparison()`;
+`main_analysis.py` calls it and includes AR\_feas in summary CSVs.
 
 ---
 
@@ -137,19 +139,31 @@ violation is costlier than f\*:
 
 ---
 
-### Change 6 — Hamiltonian normalization for PenaltyQAOA  *(pending)*
+### Change 6 — Hamiltonian normalization for PenaltyQAOA  *(investigated, not applied)*
 
-**Problem**: PenaltyQAOA's Hamiltonian range is ~10–100× larger than
-HybridQAOA's, making its optimal QAOA angle γ\* ∝ 1/(C\_max−C\_min) much
-smaller.  Random restarts with the same Adam step size are unlikely to land in
-the correct γ\* region, so the optimizer is unfairly disadvantaged.
+**Original hypothesis**: PenaltyQAOA's Hamiltonian range is ~10–100× larger than
+HybridQAOA's.  If γ\* ∝ 1/(C\_max−C\_min), random restarts in [−2π, 2π] would
+miss the tiny optimal γ\* region.
 
-    HybridQAOA:   range ≈ 30–100   (QUBO only)
-    PenaltyQAOA:  range ≈ 600–3000+ (QUBO + λ·max_viol²)
+**Investigation result**: The hypothesis was tested (normalizing by eigenvalue
+range, and by max Pauli coefficient) and found to **hurt** performance:
 
-**Fix**: Rescale `H_full / (C_max − C_min)` before optimization so γ\*≈O(1).
-Does not change the ground state; only the angle scale changes.  Also makes AR
-directly comparable across methods.
+| Case | Baseline P(opt) | With normalization |
+|------|-----------------|--------------------|
+| 3    | **0.871**       | 0.132              |
+| 1    | 0.043           | 0.095 (slight gain)|
+
+**Root cause**: The γ\* ∝ 1/(C\_max−C\_min) argument applies to single-γ QAOA
+only.  In ma-QAOA each Pauli term k has its own γ\_k angle.  The optimizer
+finds useful **local minima at γ\_k ≈ O(1)** — accessible by random init —
+that give good P(opt).  Normalizing by max-coefficient shifts those local minima
+to γ\_k' ≈ O(max\_coeff) >> 2π, destroying access to them.  Normalizing by
+eigenvalue range (≈5000) shifts the globally optimal angle beyond 10, also
+inaccessible.
+
+**Conclusion**: Change 6 is not needed.  PenaltyQAOA already finds useful local
+minima with the current initialization.  The scale difference vs HybridQAOA is
+real but does not cause measurable disadvantage in practice for these cases.
 
 ---
 
@@ -288,8 +302,7 @@ depth (confirmed: AR=0.737 constant for Case 4 across p=1..8).
 **Fix options**:
 1. Replace the Grover mixer with an X-mixer on specific wires (soft enforcement
    via λ) — gives a stronger cost gradient at the cost of some feasibility leakage.
-2. Warm-start QAOA angles from PenaltyQAOA solution.
-3. Increase budget significantly (more restarts/steps/layers).
+2. Increase budget significantly (more restarts/steps/layers).
 
 ### Case 3 P(opt) gap (0.605 vs 0.871)
 
@@ -302,6 +315,6 @@ Options:
 
 | Change | Description | Status |
 |--------|-------------|--------|
-| 2 | AR\_feas pipeline integration | Not started |
+| 2 | AR\_feas pipeline integration | **Done** — `split_results.py`, `plot_ar.py`, `main_analysis.py` |
 | 3 | P(feas)/P(opt) vs layer plots | **Done** — `plot_progress.py` |
-| 6 | PenaltyQAOA Hamiltonian normalization | Not started |
+| 6 | PenaltyQAOA Hamiltonian normalization | **Closed** — investigated, normalization hurts; not applied |
