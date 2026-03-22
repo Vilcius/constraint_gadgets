@@ -28,6 +28,9 @@ Usage
     # Train all gadgets sequentially (default):
     python run/create_noflag_database.py
 
+    # Train in parallel using 8 workers:
+    python run/create_noflag_database.py --workers 8
+
     # Custom thresholds / budget:
     python run/create_noflag_database.py \\
         --ar-threshold 0.999 --entropy-threshold 0.9999 --max-layers 8 \\
@@ -48,6 +51,8 @@ warnings.filterwarnings('ignore')
 import argparse
 import json
 import pickle
+import traceback
+from multiprocessing import Pool
 
 import numpy as np
 
@@ -111,6 +116,21 @@ def train_one(constraints: list, ar_threshold: float, entropy_threshold: float,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Multiprocessing worker (must be top-level for pickle)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _worker(args_tuple):
+    """Train one gadget and return (key, result_dict, error_str)."""
+    constraints, train_kwargs = args_tuple
+    key = _db_key(constraints)
+    try:
+        result = train_one(constraints=constraints, **train_kwargs)
+        return key, result, None
+    except Exception:
+        return key, None, traceback.format_exc()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -134,6 +154,8 @@ def main():
     parser.add_argument('--lr',                type=float, default=0.05)
     parser.add_argument('--samples',           type=int,   default=10_000,
                         help='Shots for final counts circuit (entropy uses exact probs, not shots)')
+    parser.add_argument('--workers', type=int, default=1,
+                        help='Number of parallel worker processes (default: 1)')
     parser.add_argument('--force', action='store_true',
                         help='Retrain even if the gadget is already in the DB')
     args = parser.parse_args()
@@ -155,46 +177,70 @@ def main():
     trained = 0
     failed  = 0
 
-    for i, task in enumerate(tasks):
-        constraints = task['constraints']
-        family      = task.get('family', '')
-        key         = _db_key(constraints)
+    train_kwargs = dict(
+        ar_threshold=args.ar_threshold,
+        entropy_threshold=args.entropy_threshold,
+        max_layers=args.max_layers,
+        qaoa_restarts=args.qaoa_restarts,
+        qaoa_steps=args.qaoa_steps,
+        ma_restarts=args.ma_restarts,
+        ma_steps=args.ma_steps,
+        lr=args.lr,
+        samples=args.samples,
+        verbose=(args.workers == 1),  # suppress per-layer output in parallel mode
+    )
 
-        print(f'\n[{i+1}/{len(tasks)}] {family}  {key[:70]}')
-
+    # Filter out already-done tasks
+    pending = []
+    for task in tasks:
+        key = _db_key(task['constraints'])
         if not args.force and key in db:
             entry = db[key]
-            print(f'  [skip] Already in DB: AR={entry["ar"]:.4f}  '
-                  f'entropy={entry["entropy"] if entry["entropy"] is not None else "N/A"}  '
-                  f'layers={entry["n_layers"]}')
+            ent_str = f'{entry["entropy"]:.4f}' if entry['entropy'] is not None else 'N/A'
+            print(f'  [skip] {key[:60]}  AR={entry["ar"]:.4f} ent={ent_str}')
             skipped += 1
-            continue
+        else:
+            pending.append(task)
 
-        try:
-            result = train_one(
-                constraints=constraints,
-                ar_threshold=args.ar_threshold,
-                entropy_threshold=args.entropy_threshold,
-                max_layers=args.max_layers,
-                qaoa_restarts=args.qaoa_restarts,
-                qaoa_steps=args.qaoa_steps,
-                ma_restarts=args.ma_restarts,
-                ma_steps=args.ma_steps,
-                lr=args.lr,
-                samples=args.samples,
-                verbose=True,
-            )
-            db[key] = result
-            _save_db(db, args.db)   # save after every gadget in case of interruption
-            ent_str = f'{result["entropy"]:.4f}' if result['entropy'] is not None else 'N/A'
-            print(f'  Saved: AR={result["ar"]:.4f}  entropy={ent_str}  '
-                  f'layers={result["n_layers"]}')
-            trained += 1
-        except Exception as e:
-            import traceback
-            print(f'  ERROR: {e}')
-            traceback.print_exc()
-            failed += 1
+    print(f'\n{skipped} skipped, {len(pending)} to train '
+          f'(workers={args.workers})\n')
+
+    if args.workers == 1:
+        # Sequential: verbose output per gadget
+        for i, task in enumerate(pending):
+            constraints = task['constraints']
+            key = _db_key(constraints)
+            print(f'[{i+1}/{len(pending)}] {task.get("family","")}  {key[:70]}')
+            key_out, result, err = _worker((constraints, train_kwargs))
+            if err:
+                print(f'  ERROR:\n{err}')
+                failed += 1
+            else:
+                db[key_out] = result
+                _save_db(db, args.db)
+                ent_str = f'{result["entropy"]:.4f}' if result['entropy'] is not None else 'N/A'
+                print(f'  Saved: AR={result["ar"]:.4f}  entropy={ent_str}  '
+                      f'layers={result["n_layers"]}')
+                trained += 1
+    else:
+        # Parallel: results arrive out of order; save after each completes
+        worker_args = [(task['constraints'], train_kwargs) for task in pending]
+        completed = 0
+        with Pool(processes=args.workers) as pool:
+            for key, result, err in pool.imap_unordered(_worker, worker_args):
+                completed += 1
+                if err:
+                    print(f'[{completed}/{len(pending)}] ERROR: {key[:60]}\n{err}')
+                    failed += 1
+                else:
+                    db[key] = result
+                    _save_db(db, args.db)
+                    ent_str = f'{result["entropy"]:.4f}' if result['entropy'] is not None else 'N/A'
+                    print(f'[{completed}/{len(pending)}] Done: '
+                          f'AR={result["ar"]:.4f}  ent={ent_str}  '
+                          f'p={result["n_layers"]}  {key[:55]}',
+                          flush=True)
+                    trained += 1
 
     print(f'\n{"="*60}')
     print(f'Done.  trained={trained}  skipped={skipped}  failed={failed}')
