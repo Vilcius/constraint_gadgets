@@ -29,5 +29,5 @@ mkdir -p "$PROJECT_ROOT/results/pending"
 python3.11 "$PROJECT_ROOT/run/run_hybrid_vs_penalty.py" \
     --task-id "$SLURM_ARRAY_TASK_ID" \
     --params "$PARAMS_FILE" \
-    --db "$PROJECT_ROOT/gadgets/gadget_db.pkl" \
+    --db "$PROJECT_ROOT/gadgets/noflag_db.pkl" \
     --pending-dir "$PROJECT_ROOT/results/pending/"

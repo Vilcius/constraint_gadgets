@@ -15,13 +15,13 @@ Modes
 Sequential (process all tasks in the params file):
     python run/run_hybrid_vs_penalty.py \\
         --params run/params/experiment_params.jsonl \\
-        --db gadgets/gadget_db.pkl
+        --db gadgets/noflag_db.pkl
 
 Single task (SLURM):
     python run/run_hybrid_vs_penalty.py \\
         --params run/params/experiment_params.jsonl \\
         --task-id 42 \\
-        --db gadgets/gadget_db.pkl \\
+        --db gadgets/noflag_db.pkl \\
         --pending-dir results/pending/
 
 Merge per-task results:
@@ -277,8 +277,8 @@ def _parse_args():
                    help='JSON-lines params file from generate_experiment_params.py')
     p.add_argument('--task-id', type=int, default=None,
                    help='Process only the N-th task (SLURM mode).')
-    p.add_argument('--db', default='gadgets/gadget_db.pkl',
-                   help='Path to the pre-built GadgetDatabase pickle.')
+    p.add_argument('--db', default='gadgets/noflag_db.pkl',
+                   help='Path to the pre-built VCGNoFlag database pickle.')
     p.add_argument('--data-dir', default='data/')
     p.add_argument('--pending-dir', default='results/pending/',
                    help='Directory for per-task result pickles.')

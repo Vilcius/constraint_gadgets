@@ -49,7 +49,7 @@ from pennylane import numpy as np
 from . import qaoa_base as base
 from . import constraint_handler as ch
 from . import dicke_state_prep as dsp
-from . import vcg
+from . import vcg_no_flag as vcgnf
 
 
 class HybridQAOA:
@@ -64,8 +64,8 @@ class HybridQAOA:
                                 and feasibility checking.
       - ``dicke_state_prep``    for Dicke-compatible constraints (exact
                                 subspace preparation + XY mixer).
-      - ``vcg``                 for general structural constraints (gadgets
-                                with flag qubits).
+      - ``vcg_no_flag``         for general structural constraints (flag-free
+                                gadgets loaded from noflag_db.pkl).
 
     Parameters
     ----------
@@ -92,12 +92,11 @@ class HybridQAOA:
     dicke_mixer_type : DickeMixerType
         Mixer for Dicke-enforced constraints (default: Ring-XY).
     gadget_db_path : str or None
-        Path to a VCG database pickle (produced by collect_vcg_data /
-        ResultsCollector).  For each non-Dicke structural constraint,
-        HybridQAOA checks whether a matching pre-trained gadget exists in
-        this file (matching on constraint structure, n_layers, angle_strategy).
-        If found it is loaded directly; if not found the gadget is trained
-        from scratch.  Pass None (default) to always train from scratch.
+        Path to the VCGNoFlag database pickle (produced by
+        run/create_noflag_database.py).  For each non-Dicke structural
+        constraint, HybridQAOA looks up the pre-trained VCGNoFlag gadget
+        by constraint string.  If not found the gadget is trained from
+        scratch.  Pass None (default) to always train from scratch.
     """
 
     def __init__(
@@ -150,7 +149,7 @@ class HybridQAOA:
         self.dicke_preps: List[dsp.DickeStatePrep] = []
         self.leq_preps: List[dsp.CardinalityLeqStatePrep] = []
         self.flow_preps: List[dsp.FlowStatePrep] = []
-        self.gadget_preps: List[vcg.VCG] = []
+        self.gadget_preps: List[vcgnf.VCGNoFlag] = []
         self.flag_wires: List[int] = []
 
         # Partition structural indices by type
@@ -183,35 +182,19 @@ class HybridQAOA:
             prep = dsp.from_flow_constraint(pc, mixer_type=dicke_mixer_type)
             self.flow_preps.append(prep)
 
-        # One VCG gadget per structural non-Dicke/non-Flow constraint.
-        # Automatically use a pre-trained gadget from gadget_db_path if one
-        # exists for this constraint; otherwise train from scratch.
-        flag_start = self.n_x
+        # One VCGNoFlag gadget per structural non-Dicke/non-Flow constraint.
+        # Load pre-trained gadget from noflag_db.pkl if available; otherwise
+        # train from scratch using the cqaoa_* budget parameters.
         for idx in gadget_idxs:
             pc = all_constraints[idx]
-            flag_wire = flag_start
-            flag_start += 1
-            use_pre_made = vcg.find_in_db(
-                [pc.raw], gadget_db_path,
-                n_layers=cqaoa_n_layers,
-                angle_strategy=cqaoa_angle_strategy,
-            )
-            gadget = vcg.VCG(
+            gadget = _load_noflag_gadget(
                 constraints=[pc.raw],
-                flag_wires=[flag_wire],
-                angle_strategy=cqaoa_angle_strategy,
-                decompose=decompose,
-                single_flag=False,
-                n_layers=cqaoa_n_layers,
-                steps=cqaoa_steps,
-                num_restarts=cqaoa_num_restarts,
-                pre_made=use_pre_made,
-                path=gadget_db_path,
+                db_path=gadget_db_path,
+                ma_steps=cqaoa_steps,
+                ma_restarts=cqaoa_num_restarts,
             )
-            if not use_pre_made:
-                gadget.optimize_angles(gadget.do_evolution_circuit)
             self.gadget_preps.append(gadget)
-            self.flag_wires.append(flag_wire)
+            # VCGNoFlag has no flag qubit — self.flag_wires stays empty
 
         # Unified state_prep list (all objects with opt_circuit())
         self.state_prep = self.dicke_preps + self.leq_preps + self.flow_preps + self.gadget_preps
@@ -450,3 +433,52 @@ class HybridQAOA:
         )
         self.hamiltonian_time = time.time() - start
         return ham
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Module-level helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _load_noflag_gadget(
+    constraints: list,
+    db_path: Optional[str],
+    ma_steps: int = 50,
+    ma_restarts: int = 10,
+) -> vcgnf.VCGNoFlag:
+    """
+    Return a ready-to-use VCGNoFlag for *constraints*.
+
+    If *db_path* points to a noflag_db.pkl that contains a matching entry
+    (keyed by constraints[0].strip()), the pre-trained angles are restored
+    and train() is skipped.  Otherwise the gadget is trained from scratch
+    using *ma_steps* / *ma_restarts*.
+    """
+    import os
+    import pickle
+
+    gadget = vcgnf.VCGNoFlag(constraints=constraints)
+
+    # Try to load from DB
+    if db_path and os.path.exists(db_path):
+        with open(db_path, 'rb') as f:
+            db = pickle.load(f)
+        key = constraints[0].strip()
+        if key in db:
+            entry = db[key]
+            gadget.opt_angles = entry['opt_angles']
+            gadget.n_layers   = entry['n_layers']
+            gadget.ar         = entry['ar']
+            gadget.entropy    = entry.get('entropy')
+            gadget._single_feasible_bitstring   = entry.get('single_feasible_bitstring')
+            gadget._dicke_superposition_weights = entry.get('dicke_superposition_weights')
+            if gadget.opt_angles is not None:
+                gadget.num_gamma = (len(gadget.constraint_Ham.ops)
+                                    if gadget.decompose else 1)
+                gadget.num_beta  = gadget.n_x
+            return gadget
+
+    # Fallback: train from scratch
+    gadget.ma_steps    = ma_steps
+    gadget.ma_restarts = ma_restarts
+    gadget.train(verbose=False)
+    return gadget
