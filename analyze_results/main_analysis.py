@@ -148,6 +148,10 @@ def analyse(
             plot_ar.plot_ar_comparison(
                 comp_ar,
                 save_path=os.path.join(dirs['ar'], 'hybrid_vs_penalty_ar.png'))
+            if 'AR_feas' in comp_ar.columns:
+                plot_ar.plot_ar_feas_comparison(
+                    comp_ar,
+                    save_path=os.path.join(dirs['ar'], 'hybrid_vs_penalty_ar_feas.png'))
 
         # AR vs QAOA layers
         plot_ar.plot_ar_vs_layers(
@@ -171,7 +175,7 @@ def analyse(
 
         # Summaries
         groupby = [c for c in ['method', 'constraint_type', 'n_x', 'layer'] if c in comp_ar.columns]
-        metrics = [c for c in ['AR', 'p_feasible', 'p_optimal'] if c in comp_ar.columns]
+        metrics = [c for c in ['AR', 'AR_feas', 'p_feasible', 'p_optimal'] if c in comp_ar.columns]
         if groupby and metrics:
             summary_stats(comp_ar, groupby, metrics).to_csv(
                 os.path.join(dirs['summaries'], 'comparison_ar_summary.csv'), index=False)

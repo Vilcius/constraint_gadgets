@@ -34,7 +34,10 @@ import re
 import numpy as np
 import pandas as pd
 
-from analyze_results.metrics import p_feasible_vcg, p_feasible_hybrid, p_optimal_hybrid
+from analyze_results.metrics import (
+    p_feasible_vcg, p_feasible_hybrid, p_optimal_hybrid,
+    ar_feasibility_conditioned,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +68,7 @@ VCG_RESOURCES_COLS = [
 # Hybrid vs Penalty splits
 COMPARISON_AR_COLS = _SHARED_META + [
     'mixer', 'penalty',
-    'AR', 'p_feasible', 'p_optimal',
+    'AR', 'AR_feas', 'p_feasible', 'p_optimal',
     'min_val', 'C_max', 'C_min', 'opt_cost',
 ]
 COMPARISON_RESOURCES_COLS = _SHARED_META + [
@@ -183,6 +186,65 @@ def process_vcg(vcg_dir: str, output_dir: str) -> None:
 # Hybrid vs Penalty processing
 # ---------------------------------------------------------------------------
 
+def _load_qubo_lookup(data_dir: str = 'data/') -> dict:
+    """Return {qubo_string: Q_matrix} mapping for all QUBOs in qubos.csv."""
+    from data.make_data import read_qubos_from_file
+    try:
+        qubos = read_qubos_from_file('qubos.csv', results_dir=data_dir)
+        lookup = {}
+        for n_dict in qubos.values():
+            for entry in n_dict.values():
+                qs = entry.get('qubo_string', '').strip()
+                if qs:
+                    lookup[qs] = entry['Q']
+        return lookup
+    except Exception as e:
+        print(f"  WARNING: could not load QUBO lookup: {e}")
+        return {}
+
+
+def _compute_ar_feas_column(df: pd.DataFrame) -> pd.Series:
+    """Compute AR_feas for every row in the hybrid DataFrame.
+
+    Requires columns: counts, qubo_string, constraints, n_x, min_val.
+    Returns a Series of AR_feas values (NaN when no feasible shots or QUBO missing).
+    """
+    qubo_lookup = _load_qubo_lookup()
+    if not qubo_lookup:
+        print("  WARNING: QUBO lookup empty — AR_feas will be all NaN")
+        return pd.Series([float('nan')] * len(df), index=df.index)
+
+    results = []
+    for _, row in df.iterrows():
+        try:
+            counts = row['counts']
+            if isinstance(counts, list):
+                counts = counts[0]
+            qs = row['qubo_string']
+            if isinstance(qs, list):
+                qs = qs[0]
+            qs = qs.strip()
+            n_x = int(row['n_x'][0] if isinstance(row['n_x'], list) else row['n_x'])
+            min_val = float(row['min_val'][0] if isinstance(row['min_val'], list) else row['min_val'])
+            constraints = row['constraints']
+            if isinstance(constraints, list) and constraints and isinstance(constraints[0], list):
+                constraints = constraints[0]
+
+            Q = qubo_lookup.get(qs)
+            if Q is None:
+                results.append(float('nan'))
+                continue
+
+            res = ar_feasibility_conditioned(counts, Q, constraints, n_x, f_star=min_val)
+            results.append(res['AR_feas'])
+        except Exception:
+            results.append(float('nan'))
+
+    n_computed = sum(1 for v in results if not (v != v))  # not NaN
+    print(f"  AR_feas computed for {n_computed}/{len(results)} rows")
+    return pd.Series(results, index=df.index)
+
+
 def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None:
     print(f"\n{'='*60}")
     print("  Hybrid vs Penalty results")
@@ -211,6 +273,10 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
     # Compute derived metrics (requires counts)
     df['p_feasible'] = df.apply(p_feasible_hybrid, axis=1)
     df['p_optimal']  = df.apply(p_optimal_hybrid, axis=1)
+
+    # AR_feas: feasibility-conditioned AR.  Requires the QUBO matrix, which is
+    # not stored directly — load it from data/qubos.csv keyed by qubo_string.
+    df['AR_feas'] = _compute_ar_feas_column(df)
 
     _save(_select(df, COMPARISON_AR_COLS),
           os.path.join(output_dir, 'comparison_ar.pkl'), 'Comparison AR')

@@ -119,6 +119,68 @@ def plot_ar_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     return fig
 
 
+def plot_ar_feas_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
+    """Side-by-side scatter + box: AR_feas for HybridQAOA vs PenaltyQAOA.
+
+    Left panel: scatter AR_feas(Hybrid) vs AR_feas(Penalty), paired by task+layer.
+    Right panel: box plot of AR_feas distribution per method.
+    Undefined (NaN) rows are silently excluded (P(feas)=0 cases).
+    """
+    pu.setup_style()
+    fig, (ax_sc, ax_bx) = plt.subplots(1, 2, figsize=(12, 5))
+    fig.suptitle('AR_feas  (feasibility-conditioned approximation ratio)\n'
+                 'Undefined when P(feas)=0; excludes infeasible shots from denominator',
+                 fontsize=10)
+
+    C = pu._ROSE_PINE
+
+    # --- scatter ---
+    hybrid  = df[df['method'] == 'HybridQAOA'].dropna(subset=['AR_feas'])
+    penalty = df[df['method'] == 'PenaltyQAOA'].dropna(subset=['AR_feas'])
+
+    h_idx = hybrid.set_index(['constraint_type', 'n_x', 'layer'])
+    p_idx = penalty.set_index(['constraint_type', 'n_x', 'layer'])
+    common = h_idx.index.intersection(p_idx.index)
+
+    if not common.empty:
+        h_vals = h_idx.loc[common, 'AR_feas'].values
+        p_vals = p_idx.loc[common, 'AR_feas'].values
+        ax_sc.scatter(p_vals, h_vals, alpha=0.5, s=30, color=C['pine'])
+        lims = [min(h_vals.min(), p_vals.min()) - 0.02,
+                max(h_vals.max(), p_vals.max()) + 0.02]
+        ax_sc.plot(lims, lims, '--', color=C['subtle'], linewidth=1)
+        ax_sc.set_xlim(lims); ax_sc.set_ylim(lims)
+    else:
+        ax_sc.text(0.5, 0.5, 'No paired rows', transform=ax_sc.transAxes,
+                   ha='center', va='center')
+
+    ax_sc.set_xlabel('PenaltyQAOA  AR_feas')
+    ax_sc.set_ylabel('HybridQAOA  AR_feas')
+    ax_sc.set_title('AR_feas: HybridQAOA vs PenaltyQAOA')
+
+    # --- box ---
+    methods = [m for m in ['HybridQAOA', 'PenaltyQAOA']
+               if m in df['method'].values]
+    data   = [df[df['method'] == m]['AR_feas'].dropna().values for m in methods]
+    colors = [pu.METHOD_COLORS.get(m, C['subtle']) for m in methods]
+
+    if any(len(d) > 0 for d in data):
+        bp = ax_bx.boxplot(data, patch_artist=True,
+                           medianprops={'color': C['gold']})
+        for patch, color in zip(bp['boxes'], colors):
+            patch.set_facecolor(color)
+            patch.set_alpha(0.7)
+    ax_bx.set_xticks(range(1, len(methods) + 1))
+    ax_bx.set_xticklabels(methods)
+    ax_bx.set_ylabel('AR_feas')
+    ax_bx.set_title('AR_feas distribution by method')
+
+    plt.tight_layout()
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
 def plot_ar_by_angle_strategy(df: pd.DataFrame,
                                save_path: str = None) -> plt.Figure:
     """Side-by-side box plots of AR for QAOA vs ma-QAOA."""
