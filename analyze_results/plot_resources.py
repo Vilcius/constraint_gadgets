@@ -152,14 +152,25 @@ def plot_total_time_comparison(df: pd.DataFrame, save_path: str = None) -> plt.F
     df = df.copy()
     df['total_time'] = df['total_time'].apply(_scalar)
 
-    # Sum total_time across all layers for each (task, method)
     task_key = 'qubo_string' if 'qubo_string' in df.columns else df.index.name or df.index
-    cumulative = (
-        df.groupby([task_key, 'method'])['total_time']
-        .sum()
-        .reset_index()
-        .rename(columns={'total_time': 'solve_time'})
-    )
+
+    # Prefer cumulative_time (last layer value = total solve time) when available,
+    # otherwise sum total_time across layers per task.
+    if 'cumulative_time' in df.columns:
+        df['cumulative_time'] = df['cumulative_time'].apply(_scalar)
+        cumulative = (
+            df.groupby([task_key, 'method'])['cumulative_time']
+            .max()
+            .reset_index()
+            .rename(columns={'cumulative_time': 'solve_time'})
+        )
+    else:
+        cumulative = (
+            df.groupby([task_key, 'method'])['total_time']
+            .sum()
+            .reset_index()
+            .rename(columns={'total_time': 'solve_time'})
+        )
 
     methods = ['HybridQAOA', 'PenaltyQAOA']
     colors  = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]

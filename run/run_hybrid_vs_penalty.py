@@ -127,6 +127,7 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
     # ── HybridQAOA layer sweep ───────────────────────────────────────────────
     hybrid_rows = []
     prev_h_angles = None
+    h_cumulative_time = 0.0
 
     for p in range(1, MAX_LAYERS + 1):
         hybrid = hq.HybridQAOA(
@@ -153,9 +154,11 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
             previous_angles=prev_h_angles,
             constraint_type='+'.join(task.get('families', [''])),
         )
-        row['task']       = [task]
-        row['layer']      = [p]
-        row['optimal_x']  = [optimal_x]
+        h_cumulative_time += row['total_time'][0]
+        row['task']             = [task]
+        row['layer']            = [p]
+        row['optimal_x']        = [optimal_x]
+        row['cumulative_time']  = [h_cumulative_time]
         hybrid_rows.append(row)
         prev_h_angles = np.array(row['opt_angles'][0])
 
@@ -172,6 +175,7 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
     # ── PenaltyQAOA layer sweep ──────────────────────────────────────────────
     penalty_rows = []
     prev_p_angles = None
+    p_cumulative_time = 0.0
 
     for p in range(1, MAX_LAYERS + 1):
         pen_solver = pq.PenaltyQAOA(
@@ -216,6 +220,7 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
             'optimize_time':   [pen_solver.optimize_time],
             'counts_time':     [pen_solver.count_time],
             'total_time':      [pen_solver.optimize_time + pen_solver.count_time],
+            'cumulative_time': [p_cumulative_time + pen_solver.optimize_time + pen_solver.count_time],
             'C_max':           [C_max],
             'C_min':           [C_min],
             'min_val':         [min_val],
@@ -224,6 +229,7 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
             'layer':           [p],
             'optimal_x':       [optimal_x],
         }
+        p_cumulative_time += pen_solver.optimize_time + pen_solver.count_time
         penalty_rows.append(row)
         prev_p_angles = np.array(opt_angles)
 
