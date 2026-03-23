@@ -164,6 +164,9 @@ def _dicke_state_scs(n: int, k: int, wires: List[int]) -> None:
     Converts |1^k 0^{n-k}> (after _reverse) to |D_n^k>.
     Used for leaf-level preparation after WDB weight distribution.
     """
+    if k == 0:
+        # |D_n^0> = |0...0> — already the default computational state, no gates needed.
+        return
     for l in range(k + 1, n + 1)[::-1]:
         _scs_first_block(n, k, l, wires)
     for l in range(2, k + 1)[::-1]:
