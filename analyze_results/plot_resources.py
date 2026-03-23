@@ -58,6 +58,30 @@ def plot_depth_vs_n(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     return fig
 
 
+def add_total_time(df: pd.DataFrame) -> pd.DataFrame:
+    """Add a ``total_time`` column (sum of component times) if not already present.
+
+    Works on both old results (no total_time column) and new results (already has it).
+    total_time per row = optimize_time + counts_time + hamiltonian_time (if present).
+    This is the wall-clock time for a *single* QAOA layer.
+
+    To get the full solve time across all layers for a task, sum total_time
+    grouped by (qubo_string, method) or similar task identifier.
+    """
+    if 'total_time' in df.columns:
+        return df
+    df = df.copy()
+
+    def _scalar(v):
+        return float(v[0]) if isinstance(v, list) else float(v) if v is not None else 0.0
+
+    opt  = df['optimize_time'].apply(_scalar) if 'optimize_time' in df.columns else 0.0
+    cnt  = df['counts_time'].apply(_scalar)   if 'counts_time'   in df.columns else 0.0
+    ham  = df['hamiltonian_time'].apply(_scalar) if 'hamiltonian_time' in df.columns else 0.0
+    df['total_time'] = opt + cnt + ham
+    return df
+
+
 def plot_time_breakdown(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     """Stacked bar: mean hamiltonian / optimize / counts time per n_x."""
     pu.setup_style()
@@ -95,6 +119,79 @@ def plot_time_breakdown(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     ax.set_ylabel('Time (s)')
     ax.set_title('Mean time breakdown by n_x')
     ax.legend()
+
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
+def plot_total_time_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
+    """Box + strip: cumulative solve time per task, HybridQAOA vs PenaltyQAOA.
+
+    ``df`` must contain a ``method`` column with values 'HybridQAOA' / 'PenaltyQAOA'
+    and a task identifier (``qubo_string``) so that per-layer times can be summed
+    into a single total-solve-time per task.
+
+    Per-layer ``total_time`` is computed via ``add_total_time`` if not present.
+    """
+    if 'method' not in df.columns:
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, 'No method column', transform=ax.transAxes,
+                ha='center', va='center')
+        if save_path:
+            pu.save_fig(fig, save_path)
+        return fig
+
+    pu.setup_style()
+    df = add_total_time(df)
+
+    def _scalar(v):
+        return float(v[0]) if isinstance(v, list) else float(v) if v is not None else 0.0
+
+    df = df.copy()
+    df['total_time'] = df['total_time'].apply(_scalar)
+
+    # Sum total_time across all layers for each (task, method)
+    task_key = 'qubo_string' if 'qubo_string' in df.columns else df.index.name or df.index
+    cumulative = (
+        df.groupby([task_key, 'method'])['total_time']
+        .sum()
+        .reset_index()
+        .rename(columns={'total_time': 'solve_time'})
+    )
+
+    methods = ['HybridQAOA', 'PenaltyQAOA']
+    colors  = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    rng = np.random.default_rng(42)
+    positions = list(range(len(methods)))
+
+    data_by_method = [
+        cumulative[cumulative['method'] == m]['solve_time'].values
+        for m in methods
+    ]
+
+    bp = ax.boxplot(data_by_method, positions=positions, patch_artist=True,
+                    widths=0.4,
+                    medianprops=dict(color=pu._ROSE_PINE['text'], linewidth=2),
+                    whiskerprops=dict(color=pu._ROSE_PINE['muted']),
+                    capprops=dict(color=pu._ROSE_PINE['muted']),
+                    flierprops=dict(marker='', alpha=0),
+                    zorder=2)
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.45)
+
+    for xi, (m, color, vals) in enumerate(zip(methods, colors, data_by_method)):
+        jitter = rng.uniform(-0.14, 0.14, size=len(vals))
+        ax.scatter(xi + jitter, vals, color=color, s=25, alpha=0.7, zorder=3)
+
+    ax.set_xticks(positions)
+    ax.set_xticklabels(methods)
+    ax.set_ylabel('Total solve time (s)')
+    ax.set_title('Cumulative solve time per task\n(sum across all layers run)')
 
     if save_path:
         pu.save_fig(fig, save_path)
