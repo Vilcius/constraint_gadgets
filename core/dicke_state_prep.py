@@ -2,19 +2,19 @@
 dicke_state_prep.py -- Dicke state preparation for Hamming-weight constraints.
 
 For constraints of the form  sum_i x_i == k  (all-ones linear coefficients,
-equality), the feasible subspace is exactly the Dicke state |D_n^k>, the
+equality), the feasible subspace is exactly the Dicke state |D^n_k>, the
 equal superposition of all n-qubit states with Hamming weight k.
 
 This module provides:
-  - A circuit for preparing |D_n^k>  via qubit-by-qubit conditional-RY gates.
+  - A circuit for preparing |D^n_k>  via qubit-by-qubit conditional-RY gates.
   - Specification of the compatible mixer (XY or Ring-XY), which preserves
     Hamming weight and thus keeps the state within the feasible subspace.
   - An interface (``opt_circuit()``) matching VCG, so that
     DickeStatePrep objects can be dropped directly into HybridQAOA as
     structural state preparation components.
   - ``CardinalityLeqStatePrep`` for ``sum x_i <= k`` inequality constraints,
-    which prepares a uniform superposition of Dicke states |D_n^0> through
-    |D_n^k> (i.e. all weight-0-to-k bitstrings).  Uses the Grover mixer
+    which prepares a uniform superposition of Dicke states |D^n_0> through
+    |D^n_k> (i.e. all weight-0-to-k bitstrings).  Uses the Grover mixer
     (XY does not preserve the feasible subspace for inequalities).
 
 The key advantage over the general constraint gadget (VCG) is that
@@ -161,11 +161,11 @@ def _dicke_state_scs(n: int, k: int, wires: List[int]) -> None:
     """
     SCS-based Dicke state preparation on ``wires``.
 
-    Converts |1^k 0^{n-k}> (after _reverse) to |D_n^k>.
+    Converts |1^k 0^{n-k}> (after _reverse) to |D^n_k>.
     Used for leaf-level preparation after WDB weight distribution.
     """
     if k == 0:
-        # |D_n^0> = |0...0> — already the default computational state, no gates needed.
+        # |D^n_0> = |0...0> — already the default computational state, no gates needed.
         return
     for l in range(k + 1, n + 1)[::-1]:
         _scs_first_block(n, k, l, wires)
@@ -252,12 +252,12 @@ def _apply_wdb(v: _Node, k: int) -> None:
 
 def prepare_dicke_state(wires: List[int], k: int) -> None:
     """
-    Prepare the Dicke state |D_n^k> on the given wires.
+    Prepare the Dicke state |D^n_k> on the given wires.
 
     This is the equal superposition of all n-qubit computational basis
     states with exactly k ones:
 
-        |D_n^k> = (1 / sqrt(C(n,k))) * sum_{|x|=k} |x>
+        |D^n_k> = (1 / sqrt(C(n,k))) * sum_{|x|=k} |x>
 
     Implemented via the WDB (Weight Distribution Block) partition-tree
     algorithm with SCS leaf preparation (Bartschi & Eidenbenz, arXiv:2207.09998).
@@ -304,12 +304,12 @@ def prepare_dicke_state(wires: List[int], k: int) -> None:
 
 def prepare_cardinality_leq_state(wires: List[int], k: int) -> None:
     """
-    Prepare a uniform superposition of Dicke states |D_n^0>, |D_n^1>, ..., |D_n^k>
+    Prepare a uniform superposition of Dicke states |D^n_0>, |D^n_1>, ..., |D^n_k>
     — equivalently, the uniform superposition over all n-bit strings with Hamming
     weight <= k:
 
         |S_n^{<=k}> = (1/sqrt(M)) * sum_{w=0}^{k} sum_{|x|=w} |x>
-                    = (1/sqrt(M)) * sum_{ell=0}^{k} sqrt(C(n,ell)) |D_n^ell>
+                    = (1/sqrt(M)) * sum_{ell=0}^{k} sqrt(C(n,ell)) |D^n_ell>
 
     where M = sum_{w=0}^{k} C(n, w).
 
@@ -326,7 +326,7 @@ def prepare_cardinality_leq_state(wires: List[int], k: int) -> None:
       Step 2 — _reverse(wires): converts |1^ell 0^{n-ell}> -> |0^{n-ell} 1^ell>.
 
       Step 3 — _dicke_state_scs(n, k, wires): applies the SCS unitary U_{n,k}
-               which maps each |0^{n-ell} 1^ell> -> |D_n^ell> for all ell <= k
+               which maps each |0^{n-ell} 1^ell> -> |D^n_ell> for all ell <= k
                (Definition 2 / Lemma 2 of arXiv:1904.07358).
 
     Parameters
@@ -349,7 +349,7 @@ class DickeStatePrep:
     Dicke state preparation component for hybrid QAOA.
 
     Encapsulates everything needed to:
-      1. Prepare the feasible subspace |D_n^k> (state prep circuit).
+      1. Prepare the feasible subspace |D^n_k> (state prep circuit).
       2. Apply a Hamming-weight-preserving mixer.
       3. Interface with HybridQAOA via ``opt_circuit()`` and ``mixer_circuit()``.
 
@@ -550,15 +550,15 @@ class CardinalityLeqStatePrep:
     """
     State preparation for ``sum x_i <= k`` cardinality inequality constraints.
 
-    Prepares a uniform superposition of Dicke states |D_n^0>, |D_n^1>, ...,
-    |D_n^k> — i.e. a uniform superposition over all n-bit strings with
+    Prepares a uniform superposition of Dicke states |D^n_0>, |D^n_1>, ...,
+    |D^n_k> — i.e. a uniform superposition over all n-bit strings with
     Hamming weight <= k (no flag qubits, no training required):
 
         |S_n^{<=k}> = (1/sqrt(M)) * sum_{w=0}^{k} sum_{|x|=w} |x>
 
-    where each inner sum is the Dicke state |D_n^w>.
+    where each inner sum is the Dicke state |D^n_w>.
 
-    Unlike DickeStatePrep (which prepares a single Dicke state |D_n^k> and
+    Unlike DickeStatePrep (which prepares a single Dicke state |D^n_k> and
     uses the XY mixer), this class prepares a superposition across all Dicke
     states from weight 0 to k.  The XY mixer does NOT preserve the feasible
     subspace (it fixes weight exactly), so HybridQAOA must use the Grover
@@ -787,7 +787,7 @@ def prepare_dicke_multiweight_state(wires: List[int], weights: List[int]) -> Non
     Prepare a uniform superposition over all bitstrings whose Hamming weight
     is in ``weights``::
 
-        |ψ⟩ = (1/√M) Σ_{w∈W} Σ_{|x|=w} |x⟩  =  Σ_{w∈W} α_w |D_n^w⟩
+        |ψ⟩ = (1/√M) Σ_{w∈W} Σ_{|x|=w} |x⟩  =  Σ_{w∈W} α_w |D^n_w⟩
               M = Σ_{w∈W} C(n, w),   α_w = √(C(n,w)/M)
 
     This generalises both :func:`prepare_dicke_state` (|W|=1) and
@@ -803,7 +803,7 @@ def prepare_dicke_multiweight_state(wires: List[int], weights: List[int]) -> Non
       Step 2 — _reverse(wires): |1^w 0^{n-w}> -> |0^{n-w} 1^w>.
 
       Step 3 — _dicke_state_scs(n, max(W), wires): SCS unitary U_{n,max(W)}
-               maps each |0^{n-w} 1^w> -> |D_n^w> for all w ≤ max(W).
+               maps each |0^{n-w} 1^w> -> |D^n_w> for all w ≤ max(W).
 
     Parameters
     ----------
@@ -838,7 +838,7 @@ def prepare_dicke_multiweight_state(wires: List[int], weights: List[int]) -> Non
     # --- Step 2: reverse wire order ---
     _reverse(list(wires))
 
-    # --- Step 3: apply U_{n,max_w} to map each |0^{n-w} 1^w> -> |D_n^w> ---
+    # --- Step 3: apply U_{n,max_w} to map each |0^{n-w} 1^w> -> |D^n_w> ---
     _dicke_state_scs(n, max_w, list(wires))
 
 

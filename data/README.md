@@ -37,7 +37,7 @@ rows = read_typed_csv('data/knapsack_constraints.csv')
 
 | Family | Type | Structural handler |
 |---|---|---|
-| `cardinality` (equality) | `sum x_i == k` | `DickeStatePrep` (exact `\|D_n^k⟩`) + XY mixer |
+| `cardinality` (equality) | `sum x_i == k` | `DickeStatePrep` (exact `\|D^n_k⟩`) + XY mixer |
 | `cardinality` (LEQ) | `sum x_i <= k` | `CardinalityLeqStatePrep` (superposition of Dicke states) + Grover mixer |
 | `cardinality` (GEQ) | `sum x_i >= k` | `VCG` (structural Dicke-superposition support planned) |
 | `knapsack` | `sum a_i x_i <= b` | `VCG` |

@@ -314,7 +314,7 @@ def is_cardinality_leq_compatible(pc: ParsedConstraint) -> bool:
     Compatible constraints have the form sum x_i <= b (all +1 linear coefficients,
     LEQ inequality, no quadratic terms, no constant).  The resulting state preparation
     (CardinalityLeqStatePrep) builds a uniform superposition of Dicke states
-    |D_n^0>, |D_n^1>, ..., |D_n^b>.
+    |D^n_0>, |D^n_1>, ..., |D^n_b>.
     """
     return pc.ctype == ConstraintType.CARDINALITY_LEQ
 

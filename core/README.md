@@ -38,8 +38,8 @@ and Grover mixer.
 
 | `ConstraintType` | Example | Structural handler |
 |---|---|---|
-| `DICKE` | `x_0 + x_1 + x_2 == 2` | `DickeStatePrep` (exact `\|D_n^k⟩`) + XY mixer |
-| `CARDINALITY_LEQ` | `x_0 + x_1 + x_2 <= 2` | `CardinalityLeqStatePrep` (uniform superposition of `\|D_n^0⟩…\|D_n^k⟩`) + Grover mixer |
+| `DICKE` | `x_0 + x_1 + x_2 == 2` | `DickeStatePrep` (exact `\|D^n_k⟩`) + XY mixer |
+| `CARDINALITY_LEQ` | `x_0 + x_1 + x_2 <= 2` | `CardinalityLeqStatePrep` (uniform superposition of `\|D^n_0⟩…\|D^n_k⟩`) + Grover mixer |
 | `FLOW` | `x_0 + x_1 - x_2 - x_3 == 0` | `DickeStatePrep` (signed) + XY mixer |
 | `WEIGHTED_SUM` | `3*x_0 + 5*x_1 <= 7` | `VCG` |
 | `QUADRATIC` | `x_0*x_1 + 2*x_2 <= 1` | `VCG` |
