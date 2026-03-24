@@ -145,6 +145,7 @@ class VCGNoFlag:
         self.n_layers = None
         self.ar = None
         self.entropy = None
+        self.train_time = None   # wall-clock seconds for the full train() call
 
     # ------------------------------------------------------------------
     # Training (the only public path to set opt_angles)
@@ -152,7 +153,8 @@ class VCGNoFlag:
 
     def train(self, verbose: bool = True) -> float:
         """
-        Train the gadget following the prescribed two-stage procedure:
+        Train the gadget following the prescribed two-stage procedure.
+        Sets self.train_time to the total wall-clock seconds elapsed.
 
         1. QAOA p=1: optimize 2 parameters (one gamma, one beta) to get
            warm-start angles.
@@ -166,6 +168,8 @@ class VCGNoFlag:
         -------
         float : best AR achieved.
         """
+        _train_start = time.time()
+
         # ── Special case: single feasible state → X-gate preparation ──
         if self._single_feasible_bitstring is not None:
             if verbose:
@@ -177,6 +181,7 @@ class VCGNoFlag:
             self.entropy = 1.0       # trivially uniform over 1 feasible state
             self.num_gamma = 0
             self.num_beta = 0
+            self.train_time = time.time() - _train_start
             return 1.0
 
         # ── Special case: Dicke superposition → exact prep, no QAOA ──
@@ -190,6 +195,7 @@ class VCGNoFlag:
             self.entropy = 1.0
             self.num_gamma = 0
             self.num_beta = 0
+            self.train_time = time.time() - _train_start
             return 1.0
 
         # ── Step 1: QAOA p=1 ─────────────────────────────────────────
@@ -277,6 +283,7 @@ class VCGNoFlag:
         self.n_layers = best_n_layers
         self.ar = best_ar
         self.entropy = best_entropy if best_entropy >= 0 else None
+        self.train_time = time.time() - _train_start
         # Update parameter counts to match the trained depth
         self.num_gamma = len(self.constraint_Ham.ops) if self.decompose else 1
         self.num_beta = self.n_x
