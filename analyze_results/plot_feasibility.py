@@ -9,6 +9,7 @@ import pandas as pd
 
 from . import plot_utils as pu
 from .metrics import aggregate_counts, feasibility_check
+from core import constraint_handler as ch
 
 
 def plot_p_feasible_vcg(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
@@ -155,13 +156,17 @@ def plot_vcg_counts(rows: list, constraint_label: str = '',
     for ax, row, color in zip(axes, rows, colors):
         strategy = row['angle_strategy'][0] if isinstance(row['angle_strategy'], list) else row['angle_strategy']
         counts = row['counts'][0] if isinstance(row['counts'], list) else row['counts']
+        constraints = row['constraints'][0] if isinstance(row['constraints'], list) else row['constraints']
         keys = sorted(counts.keys())
         total = sum(counts.values())
         probs = [counts[k] / total for k in keys]
         ar = row['AR'][0] if isinstance(row['AR'], list) else row['AR']
-        p_feas = sum(p for k, p in zip(keys, probs) if k[-1] == '0')
+        parsed = ch.parse_constraints(constraints)
+        is_feas = [ch.check_feasibility(k, parsed) for k in keys]
+        p_feas = sum(p for p, f in zip(probs, is_feas) if f)
+        bar_colors = [color if f else pu._ROSE_PINE.get('love', 'salmon') for f in is_feas]
 
-        ax.bar(keys, probs, color=color, alpha=0.85)
+        ax.bar(keys, probs, color=bar_colors, alpha=0.85)
         ax.set_title(f'{strategy}  |  AR={ar:.3f}  P(feas)={p_feas:.3f}')
         ax.set_xlabel('Bitstring')
         ax.set_ylabel('Probability')
