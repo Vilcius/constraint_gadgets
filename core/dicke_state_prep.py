@@ -743,8 +743,20 @@ class FlowStatePrep:
         Apply Ring-XY on in_wires and Ring-XY on out_wires independently.
 
         Each Ring-XY preserves HW within its register, so HW(in) == HW(out)
-        is preserved.  Together they connect all feasible states.
+        is preserved.  However, the feasible space decomposes into invariant
+        sectors indexed by the common weight w, and independent Ring-XY mixers
+        act only within each fixed-w sector — they cannot move amplitude
+        between sectors with different w.  For full feasibility-preserving
+        mixing use the Grover mixer (mixer='Grover' in HybridQAOA), which is
+        the default and the mixer used in all reported experiments.
         """
+        import warnings
+        warnings.warn(
+            "FlowStatePrep.mixer_circuit uses independent Ring-XY mixers, which "
+            "cannot mix across weight sectors of the flow-conservation constraint. "
+            "Use mixer='Grover' in HybridQAOA for correct feasibility-preserving mixing.",
+            stacklevel=2,
+        )
         if self.n_in > 1:
             base.apply_xy_mixer(beta, self.in_wires, ring=True)
         if self.n_out > 1:
@@ -815,6 +827,11 @@ def prepare_dicke_multiweight_state(wires: List[int], weights: List[int]) -> Non
     n = len(wires)
     weight_set = frozenset(weights)
     max_w = max(weights)
+
+    if max_w == 0:
+        # Only feasible state is |00...0⟩, which is already the default state.
+        return
+
     M = sum(comb(n, w) for w in weight_set)
 
     if M == 0:
