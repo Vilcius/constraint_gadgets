@@ -14,15 +14,15 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 ├── 📁 core/
 │   ├── qaoa_base.py          ← Shared QAOA logic: Hamiltonians, circuits, optimisation, resources
 │   ├── constraint_handler.py ← Parsing, classification, partitioning, feasibility checking
-│   ├── vcg.py                ← Variational Constraint Gadget (VCG) QAOA
+│   ├── vcg_no_flag.py        ← Variational Constraint Gadget (VCGNoFlag) -- no ancilla qubits
 │   ├── hybrid_qaoa.py        ← Hybrid QAOA: structural (VCG/Dicke) + penalty constraints
 │   ├── penalty_qaoa.py       ← Standard penalty-based QAOA baseline
 │   └── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
 │
 │
 ├── 📁 run/
-│   ├── add_to_vcg_database.py        ← Train a single VCG and register it in the gadget DB
-│   ├── create_vcg_database.py        ← Populate the full gadget DB (knapsack + quadratic-knapsack)
+│   ├── add_to_vcg_database.py        ← Train a single VCGNoFlag and register it in the gadget DB
+│   ├── create_noflag_database.py     ← Populate the full gadget DB (knapsack + quadratic-knapsack)
 │   ├── generate_experiment_params.py ← Enumerate HybridQAOA vs PenaltyQAOA tasks → JSONL
 │   ├── run_hybrid_vs_penalty.py      ← Run the experiment sweep; stores optimal_x for P(opt)
 │   └── params/
@@ -43,10 +43,8 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 │   └── README.md
 │
 ├── 📁 examples/
-│   ├── example_vcg.py        ← VCG demo: train on a single constraint, plot counts
-│   ├── example_hybrid.py     ← HybridQAOA vs PenaltyQAOA on a cardinality-constrained QUBO
-│   ├── test_vcg_layers.py    ← QAOA vs ma-QAOA layer sweep on knapsack constraints
-│   ├── vcg_results.md        ← Detailed results and analysis: QAOA vs ma-QAOA VCG training
+│   ├── example_vcg.py        ← VCGNoFlag demo: train on a single constraint, plot counts
+│   ├── example_hybrid.py     ← HybridQAOA vs PenaltyQAOA on a three-constraint QUBO
 │   ├── results/              ← Saved result pickles (e.g. vcg_layer_sweep.pkl)
 │   └── figures/              ← Generated plots (AR, timing, distributions)
 │
@@ -77,18 +75,22 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 ### Build and optimise a constraint gadget (Python)
 
 ```python
-from core.vcg import VCG
+from core.vcg_no_flag import VCGNoFlag
 
-gadget = VCG(
+gadget = VCGNoFlag(
     constraints=["x_0 + x_1 + x_2 == 1"],
-    flag_wires=[3],
-    angle_strategy="ma-QAOA",
-    n_layers=1,
-    steps=200,
-    num_restarts=20,
+    ar_threshold=0.999,
+    max_layers=8,
+    qaoa_restarts=5,
+    qaoa_steps=150,
+    ma_restarts=20,
+    ma_steps=200,
+    lr=0.05,
+    samples=10_000,
 )
-opt_cost, opt_angles = gadget.optimize_angles(gadget.do_evolution_circuit)
+gadget.train(verbose=True)
 counts = gadget.do_counts_circuit(shots=10_000)
+p_feas = gadget.p_feasible(shots=10_000)
 ```
 
 ### Solve a constrained QUBO with HybridQAOA
@@ -166,22 +168,21 @@ Three constraints are selected and embedded onto specific variable subsets using
 | Label | Constraint | Variables | Handling |
 |---|---|---|---|
 | A | `x_0 + x_1 + x_2 == 1` | {0, 1, 2} | Structural – Dicke state prep |
-| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural – VCG gadget |
+| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural – VCGNoFlag gadget |
 | C | `x_1 + x_4 + x_6 <= 1` | {1, 4, 6} | Penalized (overlaps A and B) |
 
 Constraints A and B are **disjoint** (no shared variables), while C deliberately overlaps both groups
 (x_1 ∈ A, x_4 ∈ B, x_6 is free).
 
-**Qubit layout – 9 qubits total**
+**Qubit layout – 8 qubits total**
 
 | Wires | Count | Role |
 |---|---|---|
 | 0–6 | 7 | Decision variables x_0 … x_6 |
-| 7 | 1 | VCG flag qubit for constraint B (marks infeasible assignments) |
-| 8 | 1 | Slack qubit for constraint C (`x_1+x_4+x_6 + s = 1`, s ∈ {0,1}) |
+| 7 | 1 | Slack qubit for constraint C (`x_1+x_4+x_6 + s = 1`, s ∈ {0,1}) |
 
-Constraint A (Dicke) uses no extra qubits — the W-state circuit operates directly on wires 0–2.
-Constraint B's VCG flag is allocated at the next free wire after the decision variables.
+Constraint A (Dicke) and constraint B (VCGNoFlag) use no ancilla qubits — both operate directly
+on the decision-variable wires.
 Constraint C's inequality `<= 1` needs one binary slack qubit because the minimum feasible LHS value
 is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
 
@@ -194,9 +195,10 @@ is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
   W-state circuit and an XY mixer – no flag qubit, zero approximation error.
 
 - **Not Dicke-compatible** (B): non-unit coefficients or inequality operator.
-  HybridQAOA trains a Variational Constraint Gadget (VCG) whose ground state is the uniform
+  HybridQAOA trains a flag-free VCGNoFlag gadget whose ground state is the uniform
   superposition over feasible assignments for B, then embeds it as the initial state and uses a
-  Grover mixer with one flag qubit marking (un)satisfying assignments.
+  Grover mixer.  P(feasible) is measured by directly evaluating the constraint on bitstrings —
+  no ancilla qubit is involved.
 
 - **Penalized** (C): constraint spans variables from both groups, so it cannot be folded into either
   structural circuit cleanly.  It is instead converted to a quadratic penalty term
@@ -206,18 +208,17 @@ is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
 
 ```python
 hybrid = HybridQAOA(
-    qubo=Q,                         # 7×7 QUBO loaded from data/qubos.csv
+    qubo=Q,                         # 7x7 QUBO loaded from data/qubos.csv
     all_constraints=parsed,         # [A, B, C]
-    structural_indices=[0, 1],      # A (Dicke) + B (VCG) enforced structurally
+    structural_indices=[0, 1],      # A (Dicke) + B (VCGNoFlag) enforced structurally
     penalty_indices=[2],            # C penalized
-    penalty_str=[delta],            # flag-qubit penalty weight
+    penalty_str=[delta],            # penalty weights for penalized constraints
     penalty_pen=delta,              # cost-Hamiltonian penalty weight
     angle_strategy='ma-QAOA',
     mixer='Grover',                 # reflects about the composed A+B state
     n_layers=1,
     steps=50,
     num_restarts=10,
-    pre_made=False,                 # train the VCG for B from scratch
 )
 opt_cost, counts, opt_angles = hybrid.solve()
 ```
@@ -253,14 +254,16 @@ Two figures are saved to `examples/figures/`:
 
 ## How the VCG Works
 
-A **Variational Constraint Gadget (VCG)** is a small QAOA circuit whose ground
-state is the uniform superposition over all bitstrings that satisfy a given
-constraint.  Once trained, it acts as both the initial state and the Grover
-mixer inside HybridQAOA, keeping the search within the feasible subspace.
+A **Variational Constraint Gadget (VCGNoFlag)** is a small QAOA circuit whose
+ground state is the uniform superposition over all bitstrings that satisfy a
+given constraint.  Once trained, it acts as both the initial state and the
+Grover mixer inside HybridQAOA, keeping the search within the feasible
+subspace.  The Hamiltonian is defined directly on the decision-variable qubits
+— no ancilla or flag qubit is used.
 
 ### Step 1 — Constraint Hamiltonian
 
-The VCG builds a diagonal Hamiltonian whose eigenvalues encode feasibility:
+VCGNoFlag builds a diagonal Hamiltonian whose eigenvalues encode feasibility:
 
 ```
 H_constraint = diag(outcomes)   where outcomes[s] = -1 if s is feasible, +1 otherwise
@@ -268,10 +271,9 @@ H_constraint = diag(outcomes)   where outcomes[s] = -1 if s is feasible, +1 othe
 
 Concretely:
 
-1. **Truth table** — enumerate every assignment of the `n_x` decision variables
-   plus `n_c` flag qubits.  For each decision-variable assignment, compute
-   whether the constraint is satisfied and set the corresponding flag bit.
-   All `2^(n_x + n_c)` states are labelled −1 (valid) or +1 (invalid).
+1. **Truth table** — enumerate every assignment of the `n_x` decision variables.
+   For each assignment, evaluate whether all constraints are satisfied.
+   All `2^n_x` states are labelled −1 (feasible) or +1 (infeasible).
 
 2. **Pauli decomposition** — because the Hamiltonian is diagonal, all its
    Pauli terms are products of Z operators (no off-diagonal terms).  There
@@ -365,8 +367,8 @@ A gadget is considered well-trained when `AR ≥ 0.95`.
 ### Build the VCG gadget database
 
 ```bash
-# Train all knapsack / quadratic-knapsack VCGs sequentially
-python run/create_vcg_database.py --db gadgets/gadget_db.pkl
+# Train all knapsack / quadratic-knapsack VCGNoFlag gadgets sequentially
+python run/create_noflag_database.py --db gadgets/gadget_db.pkl
 
 # Or add a single constraint
 python run/add_to_vcg_database.py \
@@ -395,12 +397,12 @@ python slurm/generate_params.py
 
 # Step 2 – submit array jobs (adapt .sh template to your cluster)
 #   VCG training: --array=0-<N_vcg-1>
-#     python run/create_vcg_database.py --task-id $SLURM_ARRAY_TASK_ID
+#     python run/create_noflag_database.py --task-id $SLURM_ARRAY_TASK_ID
 #   Experiments:  --array=0-<N_exp-1>
 #     python run/run_hybrid_vs_penalty.py --task-id $SLURM_ARRAY_TASK_ID
 
 # Step 3 – merge per-task results
-python run/create_vcg_database.py --merge --db gadgets/gadget_db.pkl
+python run/create_noflag_database.py --merge --db gadgets/gadget_db.pkl
 python run/run_hybrid_vs_penalty.py --merge --output results/hybrid_vs_penalty.pkl
 ```
 
@@ -437,19 +439,21 @@ collector.save("results/my_run.pkl")
 df = collector.to_dataframe()
 ```
 
-### VCG Parameters
+### VCGNoFlag Parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `constraints` | list[str] | — | Constraint strings, e.g. `["x_0 + x_1 == 1"]` |
-| `flag_wires` | list[int] | — | Flag qubit wire indices (one per constraint) |
-| `angle_strategy` | str | `"ma-QAOA"` | `"QAOA"` or `"ma-QAOA"` |
-| `n_layers` | int | `1` | QAOA circuit depth |
-| `decompose` | bool | `True` | Decompose Hamiltonian into Pauli terms |
-| `single_flag` | bool | `False` | Use a single shared flag qubit |
-| `steps` | int | `50` | Optimisation steps per restart |
-| `num_restarts` | int | `100` | Random restarts |
-| `learning_rate` | float | `0.01` | Adam step size |
+| `ar_threshold` | float | `0.999` | Stop training when AR >= this value |
+| `entropy_threshold` | float | `0.9` | Stop when normalised entropy >= this value (once AR met) |
+| `max_layers` | int | `8` | Maximum ma-QAOA layers in the sweep |
+| `qaoa_restarts` | int | `5` | Random restarts for Stage 1 QAOA warm-start |
+| `qaoa_steps` | int | `150` | Optimisation steps for Stage 1 QAOA warm-start |
+| `ma_restarts` | int | `20` | Random restarts per ma-QAOA layer |
+| `ma_steps` | int | `200` | Optimisation steps per ma-QAOA layer |
+| `lr` | float | `0.05` | Adam learning rate |
+| `samples` | int | `10_000` | Measurement shots for counts / P(feasible) |
+| `decompose` | bool | `True` | Decompose Hamiltonian into Pauli terms (required for ma-QAOA) |
 
 ### HybridQAOA Parameters
 
@@ -462,7 +466,7 @@ df = collector.to_dataframe()
 | `angle_strategy` | str | `"ma-QAOA"` | `"QAOA"` or `"ma-QAOA"` |
 | `mixer` | str | `"Grover"` | `"Grover"`, `"X-Mixer"`, or `"XY"` |
 | `n_layers` | int | `1` | QAOA circuit depth |
-| `penalty_str` | list[float] | `None` | Flag-qubit penalty weights |
+| `penalty_str` | list[float] | `None` | Penalty weights for penalized constraints |
 | `steps` | int | `50` | Optimisation steps per restart |
 | `num_restarts` | int | `5` | Random restarts per layer |
 | `cqaoa_steps` | int | `30` | Steps for inline VCG training when gadget not in DB |

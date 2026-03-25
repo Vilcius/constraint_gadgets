@@ -9,3 +9,11 @@ job_files/
 gadgets/pending/
 results/pending/
 current_queue.txt
+
+# Deprecated flag-based VCG implementation
+core/vcg.py
+run/create_vcg_database.py
+examples/test_vcg_layers.py
+examples/compare_vcg_noflag.py
+gadgets/gadget_db.pkl
+examples/vcg_results.md

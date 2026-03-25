@@ -6,43 +6,58 @@ Runnable examples and experiment scripts. All scripts run from the project root.
 
 | File | Purpose |
 |---|---|
-| `example_vcg.py` | Minimal VCG usage: train a gadget and inspect its state |
-| `example_hybrid.py` | Minimal HybridQAOA usage: solve a small constrained QUBO |
-| `test_vcg_layers.py` | VCG layer sweep: compare QAOA p=1 baseline vs ma-QAOA sweep on knapsack constraints |
-| `vcg_results.md` | Detailed write-up of the VCG layer sweep results and methodology |
+| `example_vcg.py` | VCGNoFlag usage: train a flag-free gadget on a single constraint and inspect its state |
+| `example_hybrid.py` | HybridQAOA usage: solve a three-constraint QUBO comparing HybridQAOA vs PenaltyQAOA |
 
 ## Running
 
 ```bash
-# Basic VCG example
+# VCGNoFlag example: train on x_0 + x_1 + x_2 == 1, print AR / P(feasible), plot counts
 python examples/example_vcg.py
 
-# Basic HybridQAOA example
+# HybridQAOA vs PenaltyQAOA -- three-constraint COP on 7 decision variables
 python examples/example_hybrid.py
-
-# VCG layer sweep (trains VCGs, saves results + figures; ~15-30 min)
-python examples/test_vcg_layers.py
 ```
 
-## test_vcg_layers.py
+## example_vcg.py
 
-Compares QAOA and ma-QAOA as VCG training strategies on two 5-variable constraints:
+Demonstrates the VCGNoFlag two-stage training procedure on a 3-variable cardinality
+constraint `x_0 + x_1 + x_2 == 1`:
 
-- `knapsack`: linear inequality `5*x_0 + 10*x_1 + 1*x_2 + 9*x_3 + 6*x_4 <= 19`
-- `quad_knapsack`: quadratic inequality over the same variables
+1. Stage 1 -- QAOA p=1 warm-start (2 parameters, fast).
+2. Stage 2 -- ma-QAOA layer sweep until AR >= ar_threshold or entropy threshold met.
 
-**Procedure:**
-1. Single QAOA p=1 run (2 parameters, ~8 s) to obtain a warm-start.
-2. ma-QAOA layer sweep: p=1 seeded from QAOA angles; p>1 jointly re-optimises
-   all layers warm-started from the previous depth. Stops at AR ≥ 0.95.
+P(feasible) is computed by evaluating the constraint directly on measured bitstrings
+-- no flag or ancilla qubit is used.
 
 **Outputs** (written to `examples/results/` and `examples/figures/`):
 
 | Output | Description |
 |---|---|
-| `vcg_layer_sweep.pkl` | Full results DataFrame |
-| `vcg_layer_sweep_ar.png` | AR vs ma-QAOA depth, with QAOA p=1 baseline |
-| `vcg_layer_sweep_time.png` | Optimisation time vs depth |
-| `vcg_layer_sweep_distributions.png` | Measurement distributions at threshold layer |
+| `example_vcg_results.pkl` | Collected results row |
+| `vcg_example_counts.png` | Measurement distribution plot |
 
-See `vcg_results.md` for a detailed analysis of the results.
+## example_hybrid.py
+
+Compares HybridQAOA against a full-penalisation baseline (PenaltyQAOA) on a
+three-constraint combinatorial optimisation problem over 7 binary decision
+variables (`x_0 ... x_6`).
+
+**Constraint routing:**
+
+| Label | Constraint | Variables | Handling |
+|---|---|---|---|
+| A | `x_0 + x_1 + x_2 == 1` | {0, 1, 2} | Structural -- Dicke state prep (exact) |
+| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural -- VCGNoFlag gadget (trained) |
+| C | `x_1 + x_4 + x_6 <= 1` | {1, 4, 6} | Penalized (overlaps A and B) |
+
+HybridQAOA handles constraint partitioning internally; no manual flag-wire setup
+is needed.
+
+**Outputs** (written to `examples/results/` and `examples/figures/`):
+
+| Output | Description |
+|---|---|
+| `example_hybrid_results.pkl` | Collected results rows |
+| `hybrid_example_metrics.png` | Side-by-side AR / P(feasible) / P(optimal) bar chart |
+| `hybrid_example_counts.png` | Top-20 measurement distributions with feasibility colour coding |

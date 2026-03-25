@@ -126,8 +126,8 @@ def plot_entropy_by_type(df: pd.DataFrame, out_dir: str) -> None:
 
     ax.set_xticks(list(x_pos.values()))
     ax.set_xticklabels([FAMILY_LABELS.get(f, f) for f in families])
-    ax.set_ylabel('$H_{\\mathrm{norm}}$ (feasible entropy)')
-    ax.set_title('VCG gadget $H_{\\mathrm{norm}}$ by constraint family')
+    ax.set_ylabel('$\\mathcal{S}_{\\mathrm{norm}}$ (feasible entropy)')
+    ax.set_title('VCG gadget $\\mathcal{S}_{\\mathrm{norm}}$ by constraint family')
 
     # De-duplicate legend
     handles, labels = ax.get_legend_handles_labels()
@@ -135,8 +135,11 @@ def plot_entropy_by_type(df: pd.DataFrame, out_dir: str) -> None:
     for h, l in zip(handles, labels):
         if l not in seen:
             seen[l] = h
-    ax.legend(seen.values(), seen.keys(), title='$n_x$', framealpha=1)
+    ax.legend(seen.values(), seen.keys(), title='$n_x$', framealpha=1,
+              loc='upper center', bbox_to_anchor=(0.5, -0.15),
+              ncol=len(seen))
 
+    fig.tight_layout()
     save_fig(fig, os.path.join(out_dir, 'vcg_entropy_by_type.png'))
     print(f'  Saved vcg_entropy_by_type.png')
 
@@ -173,13 +176,19 @@ def plot_layers_by_type(df: pd.DataFrame, out_dir: str) -> None:
     print(f'  Saved vcg_layers_by_type.png')
 
 
+FAMILY_MARKERS = {
+    'knapsack':           'o',
+    'quadratic_knapsack': '^',
+}
+
 def plot_layers_vs_nx(df: pd.DataFrame, out_dir: str) -> None:
-    """Box + strip: QAOA layers vs n_x."""
+    """Box + strip: QAOA layers vs n_x, colour=n_x, shape=constraint family."""
     setup_style()
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(5, 4.5))
 
     nx_vals = sorted(df['n_x'].unique())
     positions = list(range(len(nx_vals)))
+    families = sorted(df['constraint_type'].unique())
 
     data_by_nx = [df[df['n_x'] == nx]['n_layers'].values for nx in nx_vals]
 
@@ -193,14 +202,31 @@ def plot_layers_vs_nx(df: pd.DataFrame, out_dir: str) -> None:
 
     for patch, nx in zip(bp['boxes'], nx_vals):
         patch.set_facecolor(NX_COLORS[nx])
-        patch.set_alpha(0.5)
+        patch.set_alpha(0.4)
 
     rng = np.random.default_rng(7)
-    for xi, (nx, pos) in enumerate(zip(nx_vals, positions)):
-        vals = df[df['n_x'] == nx]['n_layers'].values
-        jitter = rng.uniform(-0.15, 0.15, size=len(vals))
-        ax.scatter(pos + jitter, vals,
-                   color=NX_COLORS[nx], s=35, alpha=0.85, zorder=3)
+    for pos, nx in zip(positions, nx_vals):
+        sub_nx = df[df['n_x'] == nx]
+        for fam in families:
+            vals = sub_nx[sub_nx['constraint_type'] == fam]['n_layers'].values
+            if len(vals) == 0:
+                continue
+            jitter = rng.uniform(-0.15, 0.15, size=len(vals))
+            ax.scatter(pos + jitter, vals,
+                       color=NX_COLORS[nx],
+                       marker=FAMILY_MARKERS.get(fam, 'o'),
+                       s=40, alpha=0.85, zorder=3)
+
+    # Legend: one entry per family (shape only, neutral colour)
+    legend_handles = [
+        plt.scatter([], [], color=_ROSE_PINE['subtle'],
+                    marker=FAMILY_MARKERS.get(fam, 'o'), s=40,
+                    label=FAMILY_LABELS.get(fam, fam))
+        for fam in families
+    ]
+    ax.legend(handles=legend_handles, framealpha=1,
+              loc='upper center', bbox_to_anchor=(0.5, -0.18),
+              ncol=len(families))
 
     ax.set_xticks(positions)
     ax.set_xticklabels([f'$n_x={nx}$' for nx in nx_vals])
@@ -208,6 +234,7 @@ def plot_layers_vs_nx(df: pd.DataFrame, out_dir: str) -> None:
     ax.set_title('VCG training depth vs problem size')
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
+    fig.tight_layout()
     save_fig(fig, os.path.join(out_dir, 'vcg_layers_vs_nx.png'))
     print(f'  Saved vcg_layers_vs_nx.png')
 

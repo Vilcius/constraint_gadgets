@@ -3,33 +3,33 @@ example_hybrid.py -- Three-constraint HybridQAOA vs full PenaltyQAOA.
 
 Problem structure (7 decision variables, x_0 .. x_6)
 -----------------------------------------------------
-  Constraint A  (structural – Dicke state prep)
+  Constraint A  (structural -- Dicke state prep)
       x_0 + x_1 + x_2 == 1          vars {0, 1, 2}
       Exactly one of three items is selected.
-      All unit +1 coefficients and an equality → Dicke-compatible.
+      All unit +1 coefficients and an equality -> Dicke-compatible.
       HybridQAOA prepares this subspace exactly via a log-depth W-state
-      circuit and an XY mixer – no flag qubit, zero approximation error.
+      circuit and an XY mixer -- no ancilla qubit, zero approximation error.
 
-  Constraint B  (structural – VCG gadget)
+  Constraint B  (structural -- VCGNoFlag gadget)
       6*x_3 + 2*x_4 + 2*x_5 <= 3   vars {3, 4, 5}
       Weighted capacity constraint.  Non-unit coefficients and an inequality
-      make it NOT Dicke-compatible.  HybridQAOA trains a Variational Constraint
-      Gadget (VCG) whose ground state is the uniform superposition over
-      feasible assignments, then uses it as the initial state and Grover
-      mixer – one flag qubit (wire 7) marks (un)satisfying assignments.
+      make it NOT Dicke-compatible.  HybridQAOA trains a flag-free VCGNoFlag
+      gadget whose ground state is the uniform superposition over feasible
+      assignments, then uses it as the initial state and Grover mixer.
+      P(feasible) is measured directly on bitstrings -- no flag qubit.
 
   Constraint C  (penalized)
       x_1 + x_4 + x_6 <= 1          vars {1, 4, 6}
       Shared-resource constraint that deliberately overlaps both groups:
-      x_1 ∈ A, x_4 ∈ B, x_6 is a free variable.
-      Enforced by adding δ·(x_1 + x_4 + x_6 – 1 + s)² to the Hamiltonian.
+      x_1 in A, x_4 in B, x_6 is a free variable.
+      Enforced by adding delta*(x_1 + x_4 + x_6 - 1 + s)^2 to the Hamiltonian.
 
   Variable layout:
       0  1  2  |  3  4  5  |  6        (decision variables)
-      ←── A ──→  ←── B ──→   ↑ C only
+      <-- A -->  <-- B -->   ^ C only
                     C overlaps: x_1 (A) and x_4 (B)
 
-  QUBO: 7 × 7 random matrix loaded from data/qubos.csv.
+  QUBO: 7x7 random matrix loaded from data/qubos.csv.
 
 Comparison
 ----------
@@ -44,8 +44,8 @@ Output
   Prints metrics table (AR, P(feasible), P(optimal)) to stdout.
   Saves collected results to examples/results/example_hybrid_results.pkl.
   Saves two figures to examples/figures/:
-    hybrid_example_metrics.png  –  side-by-side metric comparison
-    hybrid_example_counts.png   –  measurement distributions (top outcomes)
+    hybrid_example_metrics.png  --  side-by-side metric comparison
+    hybrid_example_counts.png   --  measurement distributions (top outcomes)
 """
 
 import sys
@@ -58,8 +58,6 @@ warnings.filterwarnings('ignore')
 from core import constraint_handler as ch
 from core import hybrid_qaoa as hq
 from core import penalty_qaoa as pq
-from core.vcg_no_flag import VCGNoFlag
-import pennylane as qml
 from data.make_data import read_qubos_from_file, get_optimal_x
 from analyze_results.results_helper import (
     ResultsCollector,
@@ -83,30 +81,30 @@ SHOTS = 10_000   # measurement shots
 card_rows = read_typed_csv('data/cardinality_constraints.csv')
 knap_rows = read_typed_csv('data/knapsack_constraints.csv')
 
-# Constraint A – Dicke-compatible (unit coefficients, equality, n=3)
+# Constraint A -- Dicke-compatible (unit coefficients, equality, n=3)
 c_a = next(cs[0] for n, cs in card_rows if n == 3 and '== 1' in cs[0])
 # c_a = 'x_0 + x_1 + x_2 == 1', embedded on vars {0, 1, 2} (no remapping needed)
 
-# Constraint B – NOT Dicke-compatible (weighted inequality, n=3)
-# Pick first 3-variable knapsack; remap to vars {3, 4, 5} – disjoint from A.
+# Constraint B -- NOT Dicke-compatible (weighted inequality, n=3)
+# Pick first 3-variable knapsack; remap to vars {3, 4, 5} -- disjoint from A.
 c_b_raw = next(cs[0] for n, cs in knap_rows if n == 3)
 c_b = remap_constraint_to_vars(c_b_raw, [3, 4, 5])
 # e.g. '6*x_3 + 2*x_4 + 2*x_5 <= 3'
 
-# Constraint C – penalized; overlaps A (x_1) and B (x_4), adds x_6
+# Constraint C -- penalized; overlaps A (x_1) and B (x_4), adds x_6
 # Use a 3-variable cardinality inequality remapped to {1, 4, 6}.
 c_c_raw = next(cs[0] for n, cs in card_rows if n == 3 and '<= 1' in cs[0])
 c_c = remap_constraint_to_vars(c_c_raw, [1, 4, 6])
-# → 'x_1 + x_4 + x_6 <= 1'
+# -> 'x_1 + x_4 + x_6 <= 1'
 
 all_constraints = [c_a, c_b, c_c]
 
 print("=" * 60)
 print("Problem: 3-constraint COP on 7 decision variables")
 print("=" * 60)
-print(f"  A (Dicke,    structural): {c_a}   [vars {{0,1,2}}]")
-print(f"  B (VCG,      structural): {c_b}   [vars {{3,4,5}}]")
-print(f"  C (penalized):            {c_c}        [vars {{1,4,6}}]")
+print(f"  A (Dicke,      structural): {c_a}   [vars {{0,1,2}}]")
+print(f"  B (VCGNoFlag,  structural): {c_b}   [vars {{3,4,5}}]")
+print(f"  C (penalized):              {c_c}        [vars {{1,4,6}}]")
 print()
 
 
@@ -117,7 +115,7 @@ print()
 qubos = read_qubos_from_file('qubos.csv', results_dir='data/')
 Q = qubos[N_X][0]['Q']
 qubo_string = qubos[N_X][0]['qubo_string']
-print(f"QUBO ({N_X}×{N_X}): {qubo_string}\n")
+print(f"QUBO ({N_X}x{N_X}): {qubo_string}\n")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -129,15 +127,15 @@ penalty_weight = float(5 + 2 * abs(total_min))
 
 print(f"Optimal feasible QUBO value : {min_val:.4f}")
 print(f"Optimal bitstring(s)         : {optimal_x}")
-print(f"Penalty weight (δ)           : {penalty_weight:.2f}\n")
+print(f"Penalty weight (delta)       : {penalty_weight:.2f}\n")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 4. HybridQAOA
-#    – A enforced via Dicke state prep (exact, no flag qubit)
-#    – B enforced via VCG gadget (trained from scratch, 1 flag qubit at wire 7)
-#    – C penalized (slack variable added automatically)
-#    – Grover mixer reflects about the composed state-prep circuit
+#    -- A enforced via Dicke state prep (exact, no ancilla qubit)
+#    -- B enforced via VCGNoFlag gadget (trained from scratch, no flag qubit)
+#    -- C penalized (slack variable added automatically)
+#    -- Grover mixer reflects about the composed A+B state-prep circuit
 # ══════════════════════════════════════════════════════════════════════════════
 
 print("Running HybridQAOA ...")
@@ -145,7 +143,7 @@ parsed = ch.parse_constraints(all_constraints)
 hybrid = hq.HybridQAOA(
     qubo=Q,
     all_constraints=parsed,
-    structural_indices=[0, 1],   # A (Dicke) + B (VCG)
+    structural_indices=[0, 1],   # A (Dicke) + B (VCGNoFlag)
     penalty_indices=[2],         # C penalized
     penalty_str=[penalty_weight],
     penalty_pen=penalty_weight,
@@ -198,51 +196,7 @@ print("Saved results to examples/results/example_hybrid_results.pkl\n")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 6a. VCGNoFlag comparison for constraint B
-#     Train a flag-free gadget on the same constraint.  P(feasible) is now
-#     measured by directly evaluating the constraint on the output bitstrings,
-#     with no flag qubit involved.
-# ══════════════════════════════════════════════════════════════════════════════
-
-print("Training VCGNoFlag for constraint B ...")
-vcg_nf = VCGNoFlag(
-    constraints=[c_b],
-    ar_threshold=0.999,
-    max_layers=8,
-    qaoa_restarts=5,
-    qaoa_steps=150,
-    ma_restarts=10,
-    ma_steps=100,
-    lr=0.05,
-    samples=10_000,
-)
-vcg_nf.train(verbose=True)
-vcg_nf_pfeas = vcg_nf.p_feasible()
-print(f"  Done. AR = {vcg_nf.ar:.4f}  P(feas) = {vcg_nf_pfeas:.4f}\n")
-
-# Compare with the VCG gadget embedded in the hybrid solver (constraint B)
-# The hybrid solver's VCG result is accessible via the gadget counts circuit.
-vcg_flag = hybrid.gadget_preps[0]   # the VCG for constraint B
-vcg_flag_counts = vcg_flag.do_counts_circuit(shots=10_000)
-n_c_b = len([c_b])
-vcg_flag_pfeas_flag = sum(
-    v for bs, v in vcg_flag_counts.items() if bs[-n_c_b:] == '0' * n_c_b
-) / sum(vcg_flag_counts.values())
-vcg_flag_cost = vcg_flag.do_evolution_circuit(vcg_flag.opt_angles)
-vcg_flag_eigs = qml.eigvals(vcg_flag.constraint_Ham)
-vcg_flag_ar = (float(vcg_flag_cost) - float(max(vcg_flag_eigs))) / (
-              float(min(vcg_flag_eigs)) - float(max(vcg_flag_eigs)))
-
-print("Constraint B gadget comparison:")
-print(f"  {'Gadget':<16} {'AR':>8} {'P(feas) method':>20} {'P(feas)':>10} {'layers':>8}")
-print("  " + "-" * 66)
-print(f"  {'VCG (flag)':<16} {vcg_flag_ar:>8.4f} {'flag bit = 0':>20} {vcg_flag_pfeas_flag:>10.4f} {vcg_flag.n_layers:>8}")
-print(f"  {'VCGNoFlag':<16} {vcg_nf.ar:>8.4f} {'constraint check':>20} {vcg_nf_pfeas:>10.4f} {vcg_nf.n_layers:>8}")
-print()
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 6b. Metrics
+# 6. Metrics
 # ══════════════════════════════════════════════════════════════════════════════
 
 m_hybrid  = compute_comparison_metrics(
@@ -265,19 +219,19 @@ print()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 7. Plot 1 – Metric comparison bar chart
+# 7. Plot 1 -- Metric comparison bar chart
 # ══════════════════════════════════════════════════════════════════════════════
 
 plot_method_comparison(
     {'HybridQAOA': m_hybrid, 'PenaltyQAOA': m_penalty},
-    title='HybridQAOA vs PenaltyQAOA – 3-constraint COP',
+    title='HybridQAOA vs PenaltyQAOA -- 3-constraint COP',
     save_path='examples/figures/hybrid_example_metrics.png',
 )
 print("Saved: examples/figures/hybrid_example_metrics.png")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 8. Plot 2 – Measurement distributions (top outcomes)
+# 8. Plot 2 -- Measurement distributions (top outcomes)
 # ══════════════════════════════════════════════════════════════════════════════
 
 plot_outcome_distributions(
