@@ -20,7 +20,7 @@ import matplotlib.colors as mcolors
 from core import constraint_handler as ch
 from core import dicke_state_prep as dsp
 from core import qaoa_base as base
-from core.vcg_no_flag import VCGNoFlag
+from core.vcg import VCG
 from data.make_data import read_qubos_from_file, get_optimal_x
 from analyze_results import plot_utils as pu
 
@@ -99,8 +99,8 @@ def build_state_preps(constraints, n_x):
     nf_gadgets = []
     for i in gadget_idxs:
         raw = parsed[i].raw
-        print(f'    Training VCGNoFlag: {raw}', flush=True)
-        vcg_nf = VCGNoFlag(
+        print(f'    Training VCG: {raw}', flush=True)
+        vcg_nf = VCG(
             constraints=[raw],
             ar_threshold=NF_THRESHOLD, max_layers=8,
             qaoa_restarts=NF_QAOA_REST, qaoa_steps=NF_QAOA_STEPS,

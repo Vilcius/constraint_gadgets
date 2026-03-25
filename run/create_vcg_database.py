@@ -1,5 +1,5 @@
 """
-create_noflag_database.py -- Train VCGNoFlag gadgets for all knapsack /
+create_vcg_database.py -- Train VCG gadgets for all knapsack /
 quadratic-knapsack constraints in the project and save them to a database.
 
 The database is a dict saved as a pickle:
@@ -26,19 +26,19 @@ layer otherwise) is stored.
 Usage
 -----
     # Train all gadgets sequentially (default):
-    python run/create_noflag_database.py
+    python run/create_vcg_database.py
 
     # Train in parallel using 8 workers:
-    python run/create_noflag_database.py --workers 8
+    python run/create_vcg_database.py --workers 8
 
     # Custom thresholds / budget:
-    python run/create_noflag_database.py \\
+    python run/create_vcg_database.py \\
         --ar-threshold 0.999 --entropy-threshold 0.9999 --max-layers 8 \\
         --ma-restarts 20 --ma-steps 200 \\
-        --db gadgets/noflag_db.pkl
+        --db gadgets/vcg_db.pkl
 
     # Force-retrain even if already in DB:
-    python run/create_noflag_database.py --force
+    python run/create_vcg_database.py --force
 """
 
 import sys
@@ -56,7 +56,7 @@ from multiprocessing import Pool
 
 import numpy as np
 
-from core.vcg_no_flag import VCGNoFlag
+from core.vcg import VCG
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -89,8 +89,8 @@ def train_one(constraints: list, ar_threshold: float, entropy_threshold: float,
               max_layers: int, qaoa_restarts: int, qaoa_steps: int,
               ma_restarts: int, ma_steps: int, lr: float,
               samples: int, verbose: bool = True) -> dict:
-    """Train a VCGNoFlag gadget and return a serialisable result dict."""
-    vcg = VCGNoFlag(
+    """Train a VCG gadget and return a serialisable result dict."""
+    vcg = VCG(
         constraints=constraints,
         ar_threshold=ar_threshold,
         entropy_threshold=entropy_threshold,
@@ -137,13 +137,13 @@ def _worker(args_tuple):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Train VCGNoFlag gadgets for all knapsack/quadratic-knapsack constraints.',
+        description='Train VCG gadgets for all knapsack/quadratic-knapsack constraints.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     parser.add_argument('--params', default='run/params/vcg_params.jsonl',
                         help='JSON-lines task file (from create_vcg_database.py --generate-params)')
-    parser.add_argument('--db', default='gadgets/noflag_db.pkl',
+    parser.add_argument('--db', default='gadgets/vcg_db.pkl',
                         help='Output database pickle path')
     parser.add_argument('--ar-threshold',      type=float, default=0.999)
     parser.add_argument('--entropy-threshold', type=float, default=0.9999)

@@ -12,7 +12,7 @@ Fix being tested
 -----------------
 Keep only exact Dicke (sum==k) constraints as structural — their XY mixer
 exactly preserves the Hamming weight, so those constraints are hard-enforced.
-Move all remaining structural constraints (VCGNoFlag/LEQ types) to penalty with
+Move all remaining structural constraints (VCG/LEQ types) to penalty with
 tight lambda.  Use mixer="XY":
   - Ring-XY on Dicke wires   -> hard feasibility within each Dicke group
   - RX on all remaining wires -> non-zero gradient everywhere, no flat landscape
@@ -60,7 +60,7 @@ FLAT_CASES = [
         'name': 'cardinality+cardinality',
         'constraints': ['x_0 + x_1 + x_2 == 1', 'x_3 + x_4 >= 1'],
         'n_x': 5, 'qubo_idx': 3,
-        # Dicke-only structural; VCGNoFlag constraint -> penalty
+        # Dicke-only structural; VCG constraint -> penalty
         'str_idx': [0],
         'pen_idx': [1],
     },
@@ -97,9 +97,9 @@ def get_metrics(counts, opt_cost, ham, all_wires, constraints, n_x, optimal_x):
     )
 
 
-def run_grover_noflag(task, Q, parsed, str_idx, pen_idx, lambda_pen, optimal_x, n_x):
-    """Grover + VCGNoFlag baseline (original approach for these cases)."""
-    from core.vcg_no_flag import VCGNoFlag
+def run_grover_vcg(task, Q, parsed, str_idx, pen_idx, lambda_pen, optimal_x, n_x):
+    """Grover + VCG baseline (original approach for these cases)."""
+    from core.vcg import VCG
     import core.dicke_state_prep as dsp
 
     dicke_idxs  = [i for i in str_idx if ch.is_dicke_compatible(parsed[i])]
@@ -115,8 +115,8 @@ def run_grover_noflag(task, Q, parsed, str_idx, pen_idx, lambda_pen, optimal_x, 
     nf_gadgets = []
     for i in gadget_idxs:
         raw = parsed[i].raw
-        print(f'    [grover] Training VCGNoFlag: {raw}', flush=True)
-        vcg_nf = VCGNoFlag(
+        print(f'    [grover] Training VCG: {raw}', flush=True)
+        vcg_nf = VCG(
             constraints=[raw],
             ar_threshold=0.999, entropy_threshold=0.9,
             max_layers=8,
@@ -256,8 +256,8 @@ for task in FLAT_CASES:
     print(f'  str_idx={str_idx}  pen_idx={pen_idx}', flush=True)
     print('=' * 65, flush=True)
 
-    print('  >> Grover + VCGNoFlag (baseline):', flush=True)
-    grover_rows = run_grover_noflag(
+    print('  >> Grover + VCG (baseline):', flush=True)
+    grover_rows = run_grover_vcg(
         task, Q, parsed, str_idx, pen_idx, lambda_pen, optimal_x, n_x)
 
     print('  >> XY mixer (Dicke structural + penalty rest):', flush=True)
@@ -282,7 +282,7 @@ for task in FLAT_CASES:
     print('  ' + '-' * 42, flush=True)
     best_grover = max(res['grover'], key=lambda r: r['p_optimal'])
     best_xy     = max(res['xy'],     key=lambda r: r['p_optimal'])
-    print(f'  {"Grover+VCGNoFlag":<16} {best_grover["p"]:>3}  '
+    print(f'  {"Grover+VCG":<16} {best_grover["p"]:>3}  '
           f'{best_grover["p_feasible"]:>9.4f}  {best_grover["p_optimal"]:>8.4f}', flush=True)
     print(f'  {"XY mixer":<16} {best_xy["p"]:>3}  '
           f'{best_xy["p_feasible"]:>9.4f}  {best_xy["p_optimal"]:>8.4f}', flush=True)

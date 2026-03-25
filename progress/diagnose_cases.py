@@ -1,7 +1,7 @@
 """
 diagnose_cases.py -- Deep diagnostic for Cases 3 and 4 (P(opt)=0 mystery).
 
-For each case, runs VCGNoFlag at p=1 and shows:
+For each case, runs VCG at p=1 and shows:
   1. QUBO value for every feasible state (which is "optimal"?)
   2. Full probability distribution coloured by outcome type:
        gold   = globally optimal feasible state
@@ -26,7 +26,7 @@ import pennylane as qml
 from core import constraint_handler as ch
 from core import dicke_state_prep as dsp
 from core import qaoa_base as base
-from core.vcg_no_flag import VCGNoFlag
+from core.vcg import VCG
 from data.make_data import read_qubos_from_file, get_optimal_x
 from analyze_results.metrics import feasibility_check, evaluate_qubo
 from analyze_results import plot_utils as pu
@@ -67,7 +67,7 @@ COL_INFEAS = C['love']   # infeasible
 pu.setup_style()
 
 fig, axes = plt.subplots(2, 1, figsize=(14, 8))
-fig.suptitle('Probability distributions — VCGNoFlag p=1\n'
+fig.suptitle('Probability distributions — VCG p=1\n'
              '(gold = optimal, teal = feasible, red = infeasible)',
              fontsize=12)
 
@@ -101,7 +101,7 @@ for ax, task in zip(axes, FOCUS_CASES):
         mark = '  ← OPTIMAL' if is_opt else ''
         print(f'    {bs}  QUBO={val:.3f}{mark}')
 
-    # ── Classify non-Dicke/LEQ/Flow structural constraints → VCGNoFlag ──
+    # ── Classify non-Dicke/LEQ/Flow structural constraints → VCG ──
     dicke_idxs  = [i for i in str_idx if ch.is_dicke_compatible(parsed[i])]
     leq_idxs    = [i for i in str_idx if ch.is_cardinality_leq_compatible(parsed[i])]
     flow_idxs   = [i for i in str_idx if ch.is_flow_compatible(parsed[i])]
@@ -117,8 +117,8 @@ for ax, task in zip(axes, FOCUS_CASES):
     nf_gadgets = []
     for i in gadget_idxs:
         raw = parsed[i].raw
-        print(f'\n  Training VCGNoFlag: {raw}')
-        vcg_nf = VCGNoFlag(
+        print(f'\n  Training VCG: {raw}')
+        vcg_nf = VCG(
             constraints=[raw],
             ar_threshold=0.999, max_layers=8,
             qaoa_restarts=NF_QAOA_RESTARTS, qaoa_steps=NF_QAOA_STEPS,

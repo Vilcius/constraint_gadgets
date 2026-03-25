@@ -7,15 +7,15 @@ All scripts are runnable directly or importable as a library.
 
 | File | Purpose |
 |---|---|
-| `add_to_vcg_database.py` | Train a single VCGNoFlag (QAOA warm-start -> ma-QAOA sweep) and add it to the gadget DB |
-| `create_noflag_database.py` | **Primary DB builder.** Populate the full gadget DB for all knapsack and quadratic-knapsack constraints using VCGNoFlag (no ancilla qubits) |
+| `add_to_vcg_database.py` | Train a single VCG (QAOA warm-start -> ma-QAOA sweep) and add it to the gadget DB |
+| `create_vcg_database.py` | **Primary DB builder.** Populate the full gadget DB for all knapsack and quadratic-knapsack constraints using VCG (no ancilla qubits) |
 | `generate_experiment_params.py` | Enumerate HybridQAOA vs PenaltyQAOA experiment tasks and write a JSONL parameter file |
 | `run_hybrid_vs_penalty.py` | Run the experiment sweep: HybridQAOA and PenaltyQAOA layer sweeps for each task; stores `optimal_x` (brute-force optimal bitstrings) in every result row for P(opt) computation |
 
 ## Workflow
 
 ```
-1. create_noflag_database.py     ← train VCGNoFlag gadgets; saves gadgets/gadget_db.pkl
+1. create_vcg_database.py     ← train VCG gadgets; saves gadgets/gadget_db.pkl
 2. generate_experiment_params.py ← enumerate tasks; saves run/params/experiment_params.jsonl
 3. run_hybrid_vs_penalty.py      ← run experiments; saves results/hybrid_vs_penalty.pkl
 ```
@@ -52,26 +52,26 @@ ar = train_and_add(
 )
 ```
 
-## create_noflag_database.py
+## create_vcg_database.py
 
 Discovers all knapsack and quadratic-knapsack constraints (n >= 3) and trains
-a VCGNoFlag gadget for each one. Skips constraints already present in the DB.
+a VCG gadget for each one. Skips constraints already present in the DB.
 This is the primary database-building script — no ancilla qubits are used.
 
 ```bash
 # Sequential (all constraints, ~8 hours):
-python run/create_noflag_database.py
+python run/create_vcg_database.py
 
 # SLURM parallel:
 # Step 1 – write task list
-python run/create_noflag_database.py --generate-params \
+python run/create_vcg_database.py --generate-params \
     --params-out run/params/vcg_params.jsonl
 
 # Step 2 – submit array job (N = number of lines in vcg_params.jsonl)
 #   sbatch --array=0-<N-1> slurm/vcg_array.sh
 
 # Step 3 – merge per-task results
-python run/create_noflag_database.py --merge \
+python run/create_vcg_database.py --merge \
     --pending-dir gadgets/pending/ \
     --db gadgets/gadget_db.pkl
 ```

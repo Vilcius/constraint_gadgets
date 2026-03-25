@@ -1,8 +1,8 @@
 """
-plot_vcg_distributions.py -- VCGNoFlag output distributions with feasible-state markers.
+plot_vcg_distributions.py -- VCG output distributions with feasible-state markers.
 
 For every non-trivial gadget (|F| > 1) trained with entropy maximisation this script:
-  1. Trains a VCGNoFlag gadget.
+  1. Trains a VCG gadget.
   2. Samples 50k shots from opt_circuit().
   3. Plots the probability distribution as a bar chart:
        green  = feasible state
@@ -28,7 +28,7 @@ import pennylane as qml
 from pennylane import numpy as np
 
 from core import constraint_handler as ch
-from core.vcg_no_flag import VCGNoFlag
+from core.vcg import VCG
 from analyze_results import plot_utils as pu
 
 os.makedirs('progress/figures', exist_ok=True)
@@ -83,7 +83,7 @@ def is_vcg_eligible(pc):
 
 
 # ── Collect non-trivial gadget constraints ────────────────────────────────────
-gadgets = []   # (case_label, raw_str, VCGNoFlag)
+gadgets = []   # (case_label, raw_str, VCG)
 
 for task in FOCUS_CASES:
     parsed = ch.parse_constraints(task['constraints'])
@@ -92,7 +92,7 @@ for task in FOCUS_CASES:
         if is_vcg_eligible(parsed[i]):
             raw = parsed[i].raw
             print(f'[{task["label"]}]  Training: {raw}', flush=True)
-            vcg = VCGNoFlag(
+            vcg = VCG(
                 constraints=[raw],
                 ar_threshold=NF_AR_THRESHOLD,
                 entropy_threshold=NF_ENT_THRESHOLD,
@@ -114,7 +114,7 @@ for task in FOCUS_CASES:
                 gadgets.append((task['label'], raw, vcg))
 
 if not gadgets:
-    print('No non-trivial VCGNoFlag gadgets found.')
+    print('No non-trivial VCG gadgets found.')
     sys.exit(0)
 
 # ── Plot ───────────────────────────────────────────────────────────────────────
@@ -200,7 +200,7 @@ fig.legend(handles=patches, loc='lower center', ncol=4, fontsize=9,
            bbox_to_anchor=(0.5, -0.01))
 
 fig.suptitle(
-    'VCGNoFlag output distributions (entropy-maximising training)\n'
+    'VCG output distributions (entropy-maximising training)\n'
     'Gold dashed lines mark feasible states; dotted line = ideal uniform reference',
     fontsize=10, y=1.01,
 )

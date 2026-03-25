@@ -1,7 +1,7 @@
 """
-example_vcg.py -- Toy demo: VCGNoFlag training on a single cardinality constraint.
+example_vcg.py -- Toy demo: VCG training on a single cardinality constraint.
 
-Trains a flag-free Variational Constraint Gadget (VCGNoFlag) for
+Trains a Variational Constraint Gadget (VCG) for
 'x_0 + x_1 + x_2 == 1' using the prescribed two-stage procedure:
   Stage 1 -- QAOA p=1 warm-start (2 parameters, fast).
   Stage 2 -- ma-QAOA layer sweep until AR >= ar_threshold or entropy threshold.
@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import warnings
 warnings.filterwarnings('ignore')
 
-from core.vcg_no_flag import VCGNoFlag
+from core.vcg import VCG
 from analyze_results.results_helper import ResultsCollector, collect_vcg_data
 from analyze_results.plot_feasibility import plot_vcg_counts
 
@@ -36,13 +36,13 @@ CONSTRAINT = 'x_0 + x_1 + x_2 == 1'   # 3-variable cardinality
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 1. Create and train a VCGNoFlag gadget
+# 1. Create and train a VCG gadget
 # ══════════════════════════════════════════════════════════════════════════════
 
 print(f"Constraint: {CONSTRAINT}\n")
 
-print("Training VCGNoFlag ...")
-gadget = VCGNoFlag(
+print("Training VCG ...")
+gadget = VCG(
     constraints=[CONSTRAINT],
     ar_threshold=0.999,
     entropy_threshold=0.9,

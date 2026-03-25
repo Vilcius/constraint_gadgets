@@ -1,4 +1,4 @@
-# VCG (flag) vs VCGNoFlag — Comparison
+# VCG (flag) vs VCG — Comparison
 
 ## Problem setup (example_hybrid.py)
 
@@ -17,27 +17,27 @@ Both gadgets are trained independently on Constraint B (`n_x = 3` decision varia
 | Gadget       | Qubits    | AR     | P(feas) method   | P(feas) | Layers |
 |--------------|-----------|--------|------------------|---------|--------|
 | VCG (flag)   | n_x + 1 = 4 | 0.8062 | flag bit = 0     | 0.4634  | 1      |
-| VCGNoFlag    | n_x = 3   | 1.0000 | constraint check | 1.0000  | 1      |
+| VCG    | n_x = 3   | 1.0000 | constraint check | 1.0000  | 1      |
 
-**VCGNoFlag wins on every metric at the same depth.**
+**VCG wins on every metric at the same depth.**
 
 Key differences:
 
-- **AR**: VCGNoFlag achieves the ground state exactly (AR = 1.0); VCG (flag) is stuck at
+- **AR**: VCG achieves the ground state exactly (AR = 1.0); VCG (flag) is stuck at
   0.8062 with the same training budget.
-- **P(feas)**: VCGNoFlag's P(feas) = 1.0 by direct constraint evaluation. VCG (flag)
+- **P(feas)**: VCG's P(feas) = 1.0 by direct constraint evaluation. VCG (flag)
   reports P(feas) via the flag bit, which is a conservative proxy — flag=1 does not
   always mean infeasible, so 0.4634 is an underestimate of the true feasible fraction.
-- **Qubits**: VCGNoFlag needs one fewer qubit (no ancilla flag qubit).
+- **Qubits**: VCG needs one fewer qubit (no ancilla flag qubit).
 - **Hamiltonian**: VCG (flag) operates on n_x + 1 qubits (2^(n_x+1) states, half
-  "impossible" flag assignments). VCGNoFlag operates directly on n_x qubits (2^n_x
+  "impossible" flag assignments). VCG operates directly on n_x qubits (2^n_x
   states), making the Hamiltonian smaller and the optimisation landscape simpler.
 
 ---
 
 ## 2. Full solver results (HybridQAOA uses VCG flag-based for Constraint B)
 
-VCGNoFlag has not yet been run inside HybridQAOA.  The current results use the
+VCG has not yet been run inside HybridQAOA.  The current results use the
 flag-based VCG as the state-prep gadget for Constraint B.
 
 | Method       | AR     | P(feasible) | P(optimal) | Notes                          |
@@ -51,9 +51,9 @@ flag-based VCG as the state-prep gadget for Constraint B.
 
 ---
 
-## 3. What VCGNoFlag inside HybridQAOA would look like
+## 3. What VCG inside HybridQAOA would look like
 
-`VCGNoFlag` exposes `opt_circuit()` and `flag_wires = []`, so it is compatible
+`VCG` exposes `opt_circuit()` and `flag_wires = []`, so it is compatible
 with HybridQAOA's Grover mixer interface.  The effect would be:
 
 - No flag qubit added to the problem circuit for Constraint B.
@@ -62,21 +62,21 @@ with HybridQAOA's Grover mixer interface.  The effect would be:
 - The prepared state has P(feas) = 1.0 for Constraint B from the start, vs
   P(feas) ≈ 0.46 with the flag-based VCG.
 
-Expected improvement: since VCGNoFlag starts from a perfect feasible superposition
+Expected improvement: since VCG starts from a perfect feasible superposition
 for Constraint B, the outer QAOA should need fewer layers to find the optimal
 solution.  P(feasible) and P(optimal) for the full problem should improve,
-especially for constraints where VCGNoFlag achieves AR = 1.0.
+especially for constraints where VCG achieves AR = 1.0.
 
 ---
 
 ## 4. Open questions / next steps
 
-1. **Run HybridQAOA with VCGNoFlag** for Constraint B and compare P(feas) and
+1. **Run HybridQAOA with VCG** for Constraint B and compare P(feas) and
    P(opt) against the flag-based baseline.
-2. **Does VCGNoFlag always reach AR = 1.0?**  The Constraint B case (3 variables)
-   is small.  For larger n_x, check whether VCGNoFlag still converges at p=1.
+2. **Does VCG always reach AR = 1.0?**  The Constraint B case (3 variables)
+   is small.  For larger n_x, check whether VCG still converges at p=1.
 3. **Codebase cleanup**: once the full-solver comparison is done, decide whether to:
-   - Replace `core/vcg.py` with `core/vcg_no_flag.py` as the default gadget, or
+   - `core/vcg.py` is now the canonical flag-free VCG gadget, or
    - Keep both and let `HybridQAOA` accept either via duck typing.
 4. **Feasibility-conditioned AR**: compute AR over feasible shots only to make
    HybridQAOA and PenaltyQAOA directly comparable (see TODO.md item 1).

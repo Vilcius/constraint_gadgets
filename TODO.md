@@ -36,7 +36,7 @@ really reach threshold before the full solver runs.
 
 ## 5. Update Conclusion section
 The conclusion still describes the old single/two-constraint framing. Update
-to reflect: multi-constraint hybrid solver, VCGNoFlag comparison, Appendix B,
+to reflect: multi-constraint hybrid solver, VCG comparison, Appendix B,
 and the improved warm-start results.
 
 ## 6. Hamiltonian normalization for PenaltyQAOA

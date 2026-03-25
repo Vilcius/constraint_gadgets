@@ -14,15 +14,15 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 ├── 📁 core/
 │   ├── qaoa_base.py          ← Shared QAOA logic: Hamiltonians, circuits, optimisation, resources
 │   ├── constraint_handler.py ← Parsing, classification, partitioning, feasibility checking
-│   ├── vcg_no_flag.py        ← Variational Constraint Gadget (VCGNoFlag) -- no ancilla qubits
+│   ├── vcg.py        ← Variational Constraint Gadget (VCG) -- no ancilla qubits
 │   ├── hybrid_qaoa.py        ← Hybrid QAOA: structural (VCG/Dicke) + penalty constraints
 │   ├── penalty_qaoa.py       ← Standard penalty-based QAOA baseline
 │   └── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
 │
 │
 ├── 📁 run/
-│   ├── add_to_vcg_database.py        ← Train a single VCGNoFlag and register it in the gadget DB
-│   ├── create_noflag_database.py     ← Populate the full gadget DB (knapsack + quadratic-knapsack)
+│   ├── add_to_vcg_database.py        ← Train a single VCG and register it in the gadget DB
+│   ├── create_vcg_database.py     ← Populate the full gadget DB (knapsack + quadratic-knapsack)
 │   ├── generate_experiment_params.py ← Enumerate HybridQAOA vs PenaltyQAOA tasks → JSONL
 │   ├── run_hybrid_vs_penalty.py      ← Run the experiment sweep; stores optimal_x for P(opt)
 │   └── params/
@@ -43,7 +43,7 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 │   └── README.md
 │
 ├── 📁 examples/
-│   ├── example_vcg.py        ← VCGNoFlag demo: train on a single constraint, plot counts
+│   ├── example_vcg.py        ← VCG demo: train on a single constraint, plot counts
 │   ├── example_hybrid.py     ← HybridQAOA vs PenaltyQAOA on a three-constraint QUBO
 │   ├── results/              ← Saved result pickles (e.g. vcg_layer_sweep.pkl)
 │   └── figures/              ← Generated plots (AR, timing, distributions)
@@ -75,9 +75,9 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 ### Build and optimise a constraint gadget (Python)
 
 ```python
-from core.vcg_no_flag import VCGNoFlag
+from core.vcg import VCG
 
-gadget = VCGNoFlag(
+gadget = VCG(
     constraints=["x_0 + x_1 + x_2 == 1"],
     ar_threshold=0.999,
     max_layers=8,
@@ -168,7 +168,7 @@ Three constraints are selected and embedded onto specific variable subsets using
 | Label | Constraint | Variables | Handling |
 |---|---|---|---|
 | A | `x_0 + x_1 + x_2 == 1` | {0, 1, 2} | Structural – Dicke state prep |
-| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural – VCGNoFlag gadget |
+| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural – VCG gadget |
 | C | `x_1 + x_4 + x_6 <= 1` | {1, 4, 6} | Penalized (overlaps A and B) |
 
 Constraints A and B are **disjoint** (no shared variables), while C deliberately overlaps both groups
@@ -181,7 +181,7 @@ Constraints A and B are **disjoint** (no shared variables), while C deliberately
 | 0–6 | 7 | Decision variables x_0 … x_6 |
 | 7 | 1 | Slack qubit for constraint C (`x_1+x_4+x_6 + s = 1`, s ∈ {0,1}) |
 
-Constraint A (Dicke) and constraint B (VCGNoFlag) use no ancilla qubits — both operate directly
+Constraint A (Dicke) and constraint B (VCG) use no ancilla qubits — both operate directly
 on the decision-variable wires.
 Constraint C's inequality `<= 1` needs one binary slack qubit because the minimum feasible LHS value
 is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
@@ -195,7 +195,7 @@ is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
   W-state circuit and an XY mixer – no flag qubit, zero approximation error.
 
 - **Not Dicke-compatible** (B): non-unit coefficients or inequality operator.
-  HybridQAOA trains a flag-free VCGNoFlag gadget whose ground state is the uniform
+  HybridQAOA trains a flag-free VCG gadget whose ground state is the uniform
   superposition over feasible assignments for B, then embeds it as the initial state and uses a
   Grover mixer.  P(feasible) is measured by directly evaluating the constraint on bitstrings —
   no ancilla qubit is involved.
@@ -210,7 +210,7 @@ is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
 hybrid = HybridQAOA(
     qubo=Q,                         # 7x7 QUBO loaded from data/qubos.csv
     all_constraints=parsed,         # [A, B, C]
-    structural_indices=[0, 1],      # A (Dicke) + B (VCGNoFlag) enforced structurally
+    structural_indices=[0, 1],      # A (Dicke) + B (VCG) enforced structurally
     penalty_indices=[2],            # C penalized
     penalty_str=[delta],            # penalty weights for penalized constraints
     penalty_pen=delta,              # cost-Hamiltonian penalty weight
@@ -254,7 +254,7 @@ Two figures are saved to `examples/figures/`:
 
 ## How the VCG Works
 
-A **Variational Constraint Gadget (VCGNoFlag)** is a small QAOA circuit whose
+A **Variational Constraint Gadget (VCG)** is a small QAOA circuit whose
 ground state is the uniform superposition over all bitstrings that satisfy a
 given constraint.  Once trained, it acts as both the initial state and the
 Grover mixer inside HybridQAOA, keeping the search within the feasible
@@ -263,7 +263,7 @@ subspace.  The Hamiltonian is defined directly on the decision-variable qubits
 
 ### Step 1 — Constraint Hamiltonian
 
-VCGNoFlag builds a diagonal Hamiltonian whose eigenvalues encode feasibility:
+VCG builds a diagonal Hamiltonian whose eigenvalues encode feasibility:
 
 ```
 H_constraint = diag(outcomes)   where outcomes[s] = -1 if s is feasible, +1 otherwise
@@ -367,8 +367,8 @@ A gadget is considered well-trained when `AR ≥ 0.95`.
 ### Build the VCG gadget database
 
 ```bash
-# Train all knapsack / quadratic-knapsack VCGNoFlag gadgets sequentially
-python run/create_noflag_database.py --db gadgets/gadget_db.pkl
+# Train all knapsack / quadratic-knapsack VCG gadgets sequentially
+python run/create_vcg_database.py --db gadgets/gadget_db.pkl
 
 # Or add a single constraint
 python run/add_to_vcg_database.py \
@@ -397,12 +397,12 @@ python slurm/generate_params.py
 
 # Step 2 – submit array jobs (adapt .sh template to your cluster)
 #   VCG training: --array=0-<N_vcg-1>
-#     python run/create_noflag_database.py --task-id $SLURM_ARRAY_TASK_ID
+#     python run/create_vcg_database.py --task-id $SLURM_ARRAY_TASK_ID
 #   Experiments:  --array=0-<N_exp-1>
 #     python run/run_hybrid_vs_penalty.py --task-id $SLURM_ARRAY_TASK_ID
 
 # Step 3 – merge per-task results
-python run/create_noflag_database.py --merge --db gadgets/gadget_db.pkl
+python run/create_vcg_database.py --merge --db gadgets/gadget_db.pkl
 python run/run_hybrid_vs_penalty.py --merge --output results/hybrid_vs_penalty.pkl
 ```
 
@@ -439,7 +439,7 @@ collector.save("results/my_run.pkl")
 df = collector.to_dataframe()
 ```
 
-### VCGNoFlag Parameters
+### VCG Parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|

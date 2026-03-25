@@ -1,5 +1,5 @@
 """
-run_focus_cases.py -- Run the 4 focus cases with VCG (flag) and VCGNoFlag.
+run_focus_cases.py -- Run the 4 focus cases with VCG (flag) and VCG.
 
 Uses the exact same constraint instances as the server runs (from
 run/params/experiment_params.jsonl), same QAOA budget, same layer sweep.
@@ -22,7 +22,7 @@ from core import constraint_handler as ch
 from core import hybrid_qaoa as hq
 from core import dicke_state_prep as dsp
 from core import qaoa_base as base
-from core.vcg_no_flag import VCGNoFlag
+from core.vcg import VCG
 from data.make_data import read_qubos_from_file, get_optimal_x
 from analyze_results.metrics import compute_comparison_metrics
 
@@ -38,7 +38,7 @@ HYBRID_CQAOA_STEPS    = 50
 HYBRID_CQAOA_RESTARTS = 10
 HYBRID_LR         = 0.01
 
-# VCGNoFlag gadget training budget
+# VCG gadget training budget
 NF_QAOA_RESTARTS  = 10
 NF_QAOA_STEPS     = 200
 NF_MA_RESTARTS    = 20
@@ -133,9 +133,9 @@ def run_flag_variant(task, Q, parsed, str_idx, pen_idx,
     return rows
 
 
-def run_noflag_variant(task, Q, parsed, str_idx, pen_idx,
+def run_vcg_variant(task, Q, parsed, str_idx, pen_idx,
                        lambda_pen, optimal_x, n_x):
-    """Layer sweep with VCGNoFlag gadgets (manually assembled circuit)."""
+    """Layer sweep with VCG gadgets (manually assembled circuit)."""
     all_constraints = task['constraints']
 
     # Classify structural constraints
@@ -152,12 +152,12 @@ def run_noflag_variant(task, Q, parsed, str_idx, pen_idx,
     leq_preps   = [dsp.from_cardinality_leq_constraint(parsed[i]) for i in leq_idxs]
     flow_preps  = [dsp.from_flow_constraint(parsed[i]) for i in flow_idxs]
 
-    # Train VCGNoFlag for each gadget constraint (once, reused across layers)
+    # Train VCG for each gadget constraint (once, reused across layers)
     nf_gadgets = []
     for i in gadget_idxs:
         raw = parsed[i].raw
-        print(f'    [noflag] Training VCGNoFlag: {raw}', flush=True)
-        vcg_nf = VCGNoFlag(
+        print(f'    [vcg] Training VCG: {raw}', flush=True)
+        vcg_nf = VCG(
             constraints=[raw],
             ar_threshold=NF_THRESHOLD, entropy_threshold=0.9,
             max_layers=8,
@@ -241,7 +241,7 @@ def run_noflag_variant(task, Q, parsed, str_idx, pen_idx,
                         all_constraints, n_x, optimal_x)
         rows.append({'p': p, **m})
         prev_angles = opt_angles
-        print(f'    [noflag] p={p}: P(feas)={m["p_feasible"]:.3f}  P(opt)={m["p_optimal"]:.3f}', flush=True)
+        print(f'    [vcg] p={p}: P(feas)={m["p_feasible"]:.3f}  P(opt)={m["p_optimal"]:.3f}', flush=True)
         if m['p_optimal'] >= P_OPT_THRESHOLD:
             break
     return rows
@@ -276,11 +276,11 @@ for task in FOCUS_CASES:
     flag_rows = run_flag_variant(
         task, Q, parsed, str_idx, pen_idx, delta_flag, lambda_pen, optimal_x, n_x)
 
-    print('  >> VCGNoFlag:', flush=True)
-    nf_rows = run_noflag_variant(
+    print('  >> VCG:', flush=True)
+    vcg_rows = run_vcg_variant(
         task, Q, parsed, str_idx, pen_idx, lambda_pen, optimal_x, n_x)
 
-    all_results[name] = {'flag': flag_rows, 'noflag': nf_rows}
+    all_results[name] = {'flag': flag_rows, 'vcg': vcg_rows}
     print(flush=True)
 
 
@@ -295,8 +295,8 @@ for name, res in all_results.items():
     print('  ' + '-' * 45, flush=True)
     for row in res['flag']:
         print(f'  {"VCG(flag)":<12} {row["p"]:>3}  {row["AR"]:>7.4f}  {row["p_feasible"]:>9.4f}  {row["p_optimal"]:>8.4f}', flush=True)
-    for row in res['noflag']:
-        print(f'  {"VCGNoFlag":<12} {row["p"]:>3}  {row["AR"]:>7.4f}  {row["p_feasible"]:>9.4f}  {row["p_optimal"]:>8.4f}', flush=True)
+    for row in res['vcg']:
+        print(f'  {"VCG":<12} {row["p"]:>3}  {row["AR"]:>7.4f}  {row["p_feasible"]:>9.4f}  {row["p_optimal"]:>8.4f}', flush=True)
 
 # ── Save ──────────────────────────────────────────────────────────────────────
 out = 'progress/focus_results.pkl'

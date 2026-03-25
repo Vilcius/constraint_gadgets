@@ -49,7 +49,7 @@ from pennylane import numpy as np
 from . import qaoa_base as base
 from . import constraint_handler as ch
 from . import dicke_state_prep as dsp
-from . import vcg_no_flag as vcgnf
+from . import vcg as vcgmod
 
 
 class HybridQAOA:
@@ -64,8 +64,8 @@ class HybridQAOA:
                                 and feasibility checking.
       - ``dicke_state_prep``    for Dicke-compatible constraints (exact
                                 subspace preparation + XY mixer).
-      - ``vcg_no_flag``         for general structural constraints (flag-free
-                                gadgets loaded from noflag_db.pkl).
+      - ``vcg``                 for general structural constraints (flag-free
+                                gadgets loaded from vcg_db.pkl).
 
     Parameters
     ----------
@@ -92,9 +92,9 @@ class HybridQAOA:
     dicke_mixer_type : DickeMixerType
         Mixer for Dicke-enforced constraints (default: Ring-XY).
     gadget_db_path : str or None
-        Path to the VCGNoFlag database pickle (produced by
-        run/create_noflag_database.py).  For each non-Dicke structural
-        constraint, HybridQAOA looks up the pre-trained VCGNoFlag gadget
+        Path to the VCG database pickle (produced by
+        run/create_vcg_database.py).  For each non-Dicke structural
+        constraint, HybridQAOA looks up the pre-trained VCG gadget
         by constraint string.  If not found the gadget is trained from
         scratch.  Pass None (default) to always train from scratch.
     """
@@ -149,7 +149,7 @@ class HybridQAOA:
         self.dicke_preps: List[dsp.DickeStatePrep] = []
         self.leq_preps: List[dsp.CardinalityLeqStatePrep] = []
         self.flow_preps: List[dsp.FlowStatePrep] = []
-        self.gadget_preps: List[vcgnf.VCGNoFlag] = []
+        self.gadget_preps: List[vcgmod.VCG] = []
         self.flag_wires: List[int] = []
 
         # Partition structural indices by type
@@ -182,19 +182,19 @@ class HybridQAOA:
             prep = dsp.from_flow_constraint(pc, mixer_type=dicke_mixer_type)
             self.flow_preps.append(prep)
 
-        # One VCGNoFlag gadget per structural non-Dicke/non-Flow constraint.
-        # Load pre-trained gadget from noflag_db.pkl if available; otherwise
+        # One VCG gadget per structural non-Dicke/non-Flow constraint.
+        # Load pre-trained gadget from vcg_db.pkl if available; otherwise
         # train from scratch using the cqaoa_* budget parameters.
         for idx in gadget_idxs:
             pc = all_constraints[idx]
-            gadget = _load_noflag_gadget(
+            gadget = _load_vcg_gadget(
                 constraints=[pc.raw],
                 db_path=gadget_db_path,
                 ma_steps=cqaoa_steps,
                 ma_restarts=cqaoa_num_restarts,
             )
             self.gadget_preps.append(gadget)
-            # VCGNoFlag has no flag qubit — self.flag_wires stays empty
+            # VCG has no flag qubit — self.flag_wires stays empty
 
         # Unified state_prep list (all objects with opt_circuit())
         self.state_prep = self.dicke_preps + self.leq_preps + self.flow_preps + self.gadget_preps
@@ -439,16 +439,16 @@ class HybridQAOA:
 # Module-level helper
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _load_noflag_gadget(
+def _load_vcg_gadget(
     constraints: list,
     db_path: Optional[str],
     ma_steps: int = 50,
     ma_restarts: int = 10,
-) -> vcgnf.VCGNoFlag:
+) -> vcgmod.VCG:
     """
-    Return a ready-to-use VCGNoFlag for *constraints*.
+    Return a ready-to-use VCG for *constraints*.
 
-    If *db_path* points to a noflag_db.pkl that contains a matching entry
+    If *db_path* points to a vcg_db.pkl that contains a matching entry
     (keyed by constraints[0].strip()), the pre-trained angles are restored
     and train() is skipped.  Otherwise the gadget is trained from scratch
     using *ma_steps* / *ma_restarts*.
@@ -456,7 +456,7 @@ def _load_noflag_gadget(
     import os
     import pickle
 
-    gadget = vcgnf.VCGNoFlag(constraints=constraints)
+    gadget = vcgmod.VCG(constraints=constraints)
 
     # Try to load from DB
     if db_path and os.path.exists(db_path):

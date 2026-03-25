@@ -1,12 +1,12 @@
 """
-vcg_no_flag.py -- Flag-free Variational Constraint Gadget (VCGNoFlag).
+vcg.py -- Flag-free Variational Constraint Gadget (VCG).
 
-Like VCG, uses QAOA to prepare a superposition of states satisfying a
-constraint.  Unlike VCG, there is no flag qubit: the Hamiltonian is
-defined directly on the n_x decision-variable qubits, assigning
-eigenvalue -1 to feasible assignments and +1 to infeasible ones.
+Uses QAOA to prepare a superposition of states satisfying a constraint.
+There is no flag qubit: the Hamiltonian is defined directly on the n_x
+decision-variable qubits, assigning eigenvalue -1 to feasible assignments
+and +1 to infeasible ones.
 
-Training procedure (identical to VCG, via add_to_vcg_database):
+Training procedure:
 1. Single QAOA p=1 run to get warm-start angles.
 2. ma-QAOA layer sweep, warm-starting each new layer from the previous
    depth's optimal angles, until AR >= ar_threshold or max_layers.
@@ -14,13 +14,13 @@ Training procedure (identical to VCG, via add_to_vcg_database):
 The only public training entry point is train().  Raw angle optimisation
 is intentionally not exposed.
 
-Advantages over VCG:
+Advantages (vs old flag-based VCG):
   - One fewer qubit (no ancilla).
   - P(feasible) is measured by directly evaluating the constraint on
     output bitstrings -- no ambiguity between flag-bit and actual
     constraint satisfaction.
 
-Disadvantages:
+Notes:
   - Cannot use the HybridQAOA flag-penalty mechanism (no flag wire).
     Use with the Grover mixer by passing as a state-prep component
     whose opt_circuit() prepares the approximate feasible subspace.
@@ -36,13 +36,27 @@ from pennylane import numpy as np
 
 from . import qaoa_base as base
 from . import constraint_handler as ch
-from .vcg import _check_constraint_op
 from .dicke_state_prep import prepare_dicke_multiweight_state
 
 
-class VCGNoFlag:
+def _check_constraint_op(lhs_val: float, op: ch.ConstraintOp, rhs: float) -> bool:
+    """Return True if ``lhs_val op rhs`` holds."""
+    if op == ch.ConstraintOp.EQ:
+        return abs(lhs_val - rhs) < 1e-6
+    if op == ch.ConstraintOp.LEQ:
+        return lhs_val <= rhs + 1e-6
+    if op == ch.ConstraintOp.LT:
+        return lhs_val < rhs - 1e-6
+    if op == ch.ConstraintOp.GEQ:
+        return lhs_val >= rhs - 1e-6
+    if op == ch.ConstraintOp.GT:
+        return lhs_val > rhs + 1e-6
+    return False
+
+
+class VCG:
     """
-    Flag-free Variational Constraint Gadget.
+    Variational Constraint Gadget (VCG).
 
     Parameters
     ----------
@@ -122,9 +136,8 @@ class VCGNoFlag:
         self.n_feasible = n_feasible
         if n_feasible == 0:
             raise ValueError(
-                f"VCGNoFlag: constraint(s) {self.constraints} have no feasible "
-                f"binary assignments. Use VCG (flag-based) instead, or check "
-                f"your constraint."
+                f"VCG: constraint(s) {self.constraints} have no feasible "
+                f"binary assignments. Check your constraint."
             )
         # Single feasible state: record it for X-gate preparation, skip QAOA.
         self._single_feasible_bitstring = None
@@ -492,7 +505,7 @@ class VCGNoFlag:
           - ``x_0 + x_1 >= 1``  (n=2): W = {1, 2}
           - ``x_0 * x_1 == 0``  (n=2): W = {0, 1}
           - ``x_0 + x_1 <= 1``  (n=2): W = {0, 1}  (already CardinalityLeq,
-            but also detected here so VCGNoFlag skips training)
+            but also detected here so VCG skips training)
         """
         n = self.n_x
         feas_count = {}

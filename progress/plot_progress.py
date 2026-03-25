@@ -5,7 +5,7 @@ Figures produced
 ----------------
 1. p_opt_vs_layers.png
    P(opt) vs QAOA depth p for Cases 1–4, comparing VCG(flag) [AR-only baseline]
-   vs VCGNoFlag(entropy).
+   vs VCG(entropy).
 
 2. h_norm_vs_depth.png
    H_norm vs training depth (number of ma-QAOA layers) for every non-trivial
@@ -56,7 +56,7 @@ VCG_FLAG = {
     },
 }
 
-# ── VCGNoFlag(entropy) layer sweep  [focus_run_entropy.log] ───────────────────
+# ── VCG(entropy) layer sweep  [focus_run_entropy.log] ───────────────────
 VCG_NOFLAG = {
     'Case 1\nindep+knap+card': {1: 0.410, 2: 0.889},
     'Case 2\nknap+knap+card':  {1: 0.534},
@@ -127,7 +127,7 @@ for i, name in enumerate(case_names):
             label='VCG(flag) — AR-only')
     ax.plot(noflag_ps, noflag_vals,
             color=C['iris'], marker='s', linewidth=1.8, markersize=5,
-            label='VCGNoFlag — entropy')
+            label='VCG — entropy')
     if pen_best > 0:
         ax.axhline(pen_best, color=C['love'], linestyle='--', linewidth=1.4,
                    label=f'PenaltyQAOA best ({pen_best:.3f})')
@@ -142,7 +142,7 @@ for i, name in enumerate(case_names):
     ax.legend(fontsize=8, loc='upper left')
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.2f'))
 
-fig1.suptitle('$P$(opt) vs QAOA depth: VCG(flag) vs VCGNoFlag(entropy)',
+fig1.suptitle('$P$(opt) vs QAOA depth: VCG(flag) vs VCG(entropy)',
               fontsize=12, y=1.01)
 fig1.tight_layout()
 out1 = 'progress/figures/p_opt_vs_layers.png'
@@ -193,7 +193,7 @@ for i, (gadget_name, h_per_layer) in enumerate(multi_layer.items()):
 for j in range(i + 1, len(axes2)):
     axes2[j].set_visible(False)
 
-fig2.suptitle('$H_\\mathrm{norm}$ vs training depth for non-trivial VCGNoFlag gadgets\n'
+fig2.suptitle('$H_\\mathrm{norm}$ vs training depth for non-trivial VCG gadgets\n'
               '(gold dot = selected depth; dotted line = entropy threshold)',
               fontsize=11, y=1.01)
 fig2.tight_layout()
@@ -211,7 +211,7 @@ short_labels = ['Case 1', 'Case 2', 'Case 3', 'Case 4']
 
 # Best P(opt) across all layers for each variant
 flag_best   = [max(VCG_FLAG[n].values())   for n in case_names]
-noflag_best = [max(VCG_NOFLAG[n].values()) for n in case_names]
+vcg_best = [max(VCG_NOFLAG[n].values()) for n in case_names]
 pen_best_v  = [PENALTY_BEST[n]              for n in case_names]
 
 x = np.arange(len(short_labels))
@@ -220,7 +220,7 @@ w = 0.25
 fig3, ax3 = plt.subplots(figsize=(9, 5))
 bars1 = ax3.bar(x - w,     pen_best_v,  w, label='PenaltyQAOA',          color=C['love'],  alpha=0.85)
 bars2 = ax3.bar(x,         flag_best,   w, label='VCG(flag)  AR-only',    color=C['pine'],  alpha=0.85)
-bars3 = ax3.bar(x + w,     noflag_best, w, label='VCGNoFlag  entropy',    color=C['iris'],  alpha=0.85)
+bars3 = ax3.bar(x + w,     vcg_best, w, label='VCG  entropy',    color=C['iris'],  alpha=0.85)
 
 # Value labels on bars
 for bars in (bars1, bars2, bars3):

@@ -44,29 +44,29 @@ All runs: STEPS=150, restarts=20, MAX\_LAYERS=8, SHOTS=20k, stop at P(opt)≥0.5
 
 | # | Name | n | Constraints | Gadgets | \|F\| | f\* |
 |---|------|---|-------------|---------|------|-----|
-| 1 | indep\_set+knapsack+cardinality | 7 | `x_0*x_1==0`, `2x_2+x_3+4x_4<=2`, `x_5+x_6==2` | VCGNoFlag×2 + Dicke | 12 | −7 |
-| 2 | knapsack+knapsack+cardinality | 7 | `3x_0+2x_1<=2`, `2x_2+x_3<=2`, `x_4+x_5+x_6>=3` | VCGNoFlag×2 + X-gate | 2 | −23 |
-| 3 | cardinality+knapsack | 6 | `x_0+x_1>=2`, `5x_2+2x_3+5x_4+5x_5<=9` | X-gate + VCGNoFlag | 8 | −18 |
-| 4 | cardinality+cardinality | 5 | `x_0+x_1+x_2==1`, `x_3+x_4>=1` | Dicke + VCGNoFlag | 9 | −8 |
+| 1 | indep\_set+knapsack+cardinality | 7 | `x_0*x_1==0`, `2x_2+x_3+4x_4<=2`, `x_5+x_6==2` | VCG×2 + Dicke | 12 | −7 |
+| 2 | knapsack+knapsack+cardinality | 7 | `3x_0+2x_1<=2`, `2x_2+x_3<=2`, `x_4+x_5+x_6>=3` | VCG×2 + X-gate | 2 | −23 |
+| 3 | cardinality+knapsack | 6 | `x_0+x_1>=2`, `5x_2+2x_3+5x_4+5x_5<=9` | X-gate + VCG | 8 | −18 |
+| 4 | cardinality+cardinality | 5 | `x_0+x_1+x_2==1`, `x_3+x_4>=1` | Dicke + VCG | 9 | −8 |
 
 ### Cases 5–6 (overlapping variable sets → one constraint penalized)
 
 | # | Name | n | Structural constraints | Penalized | λ\_tight | \|F\| | f\* |
 |---|------|---|----------------------|-----------|---------|------|-----|
-| 5 | card+card(pen)+card\_geq | 7 | `x_0+x_1+x_2==1` (Dicke), `x_5+x_6>=1` (VCGNoFlag) | `x_0+x_3+x_4==1` (shares x_0) | 4 | 15 | −14 |
+| 5 | card+card(pen)+card\_geq | 7 | `x_0+x_1+x_2==1` (Dicke), `x_5+x_6>=1` (VCG) | `x_0+x_3+x_4==1` (shares x_0) | 4 | 15 | −14 |
 | 6 | knapsack(pen)+card\_leq+card | 7 | `x_1+x_2+x_3<=2` (LEQ), `x_4+x_5+x_6==2` (Dicke) | `3x_0+2x_1<=2` (shares x_1) | 8 | 21 | −21 |
 
 ---
 
 ## Changes
 
-### Change 1 — VCGNoFlag replaces flag-based VCG  [`core/vcg_no_flag.py`]
+### Change 1 — VCG replaces flag-based VCG  [`core/vcg.py`]
 
 **Problem**: Flag-based VCG achieves AR≈0.73 for knapsack constraints — 27% of
 the initial state amplitude sits in infeasible territory.  The Grover mixer
 reflects about this corrupted state and cannot confine output to feasible space.
 
-**Fix**: New `VCGNoFlag` class.  No ancilla qubit; Hamiltonian assigns eigenvalue
+**Fix**: New `VCG` class.  No ancilla qubit; Hamiltonian assigns eigenvalue
 −1 to feasible states and +1 to infeasible ones, so AR=1.0 guarantees all
 amplitude is feasible.  Three preparation modes:
 - **Zero feasible states**: raises `ValueError` at init.
@@ -78,7 +78,7 @@ amplitude is feasible.  Three preparation modes:
 | Gadget     | AR     | P(feas) | Qubits |
 |------------|--------|---------|--------|
 | VCG (flag) | 0.7311 | 0.4778  | 4      |
-| VCGNoFlag  | 1.0000 | 1.0000  | 3      |
+| VCG  | 1.0000 | 1.0000  | 3      |
 
 **Partition fix**: `partition_constraints` now enforces disjoint variable sets
 correctly — exact preps (Dicke/LEQ/Flow) are assigned first, then remaining
@@ -104,8 +104,8 @@ computes AR\_feas at split time; `plot_ar.py` adds `plot_ar_feas_comparison()`;
 
 ### Change 3 — P(opt) vs layer figures  [`progress/plot_progress.py`]
 
-`p_opt_vs_layers.png` — VCG(flag) AR-only vs VCGNoFlag(entropy) per case across p=1..8.
-`p_opt_summary_bar.png` — best P(opt) grouped bar chart (PenaltyQAOA / VCG-flag / VCGNoFlag).
+`p_opt_vs_layers.png` — VCG(flag) AR-only vs VCG(entropy) per case across p=1..8.
+`p_opt_summary_bar.png` — best P(opt) grouped bar chart (PenaltyQAOA / VCG-flag / VCG).
 
 ---
 
@@ -134,7 +134,7 @@ violation is costlier than f\*:
 **Changes** to `progress/run_focus_cases.py`:
 - `HYBRID_STEPS` 50→150, `HYBRID_RESTARTS` 10→20
 - `SHOTS` 10k→20k, `MAX_LAYERS` 5→8
-- VCGNoFlag budget: `NF_MA_RESTARTS` 10→20, `NF_MA_STEPS` 100→150
+- VCG budget: `NF_MA_RESTARTS` 10→20, `NF_MA_STEPS` 100→150
 - Stopping criterion: P(feas)≥0.75 → **P(opt)≥0.50**
 
 ---
@@ -167,7 +167,7 @@ real but does not cause measurable disadvantage in practice for these cases.
 
 ---
 
-### Change 7 — Entropy-maximising VCGNoFlag training  [`core/vcg_no_flag.py`]
+### Change 7 — Entropy-maximising VCG training  [`core/vcg.py`]
 
 **Problem**: AR=1.0 guarantees all amplitude is in the feasible subspace but
 says nothing about *how it is distributed*.  QAOA with the X-mixer starting
@@ -179,7 +179,7 @@ from `|+⟩^n` naturally concentrates on low-Hamming-weight feasible states (e.g
 If `A|0⟩` is peaked on one state, G is a phase oracle on that state — no
 mixing.  If `A|0⟩` is uniform over F, G performs full Grover diffusion.
 **The quality of the Grover mixer is directly set by the uniformity of the
-VCGNoFlag output distribution.**
+VCG output distribution.**
 
 **Metric**: normalised Shannon entropy over feasible states:
 
@@ -188,7 +188,7 @@ VCGNoFlag output distribution.**
 H\_norm=1: perfectly uniform (ideal mixer).  H\_norm≈0: one dominant state
 (degenerate phase oracle, no mixing).
 
-**Fix**: New `entropy_threshold` parameter (default 0.9) in `VCGNoFlag`.
+**Fix**: New `entropy_threshold` parameter (default 0.9) in `VCG`.
 After AR threshold is met at each layer, `_compute_entropy_norm()` samples
 `self.samples` shots and computes H\_norm.  The training loop selects the
 layer with the **highest H\_norm** (not lowest cost) and stops early only when
@@ -210,9 +210,9 @@ The Case 3 knapsack gadget is the hardest: entropy oscillated (0.34→0.39→
 0.69→0.75→0.60→0.49→0.81→**0.94**) before peaking at p=8.  The training must
 sweep all layers and keep the best, not stop at the first AR=1 solution.
 
-**VCGNoFlag output distributions** (`progress/figures/vcg_distributions.png`):
+**VCG output distributions** (`progress/figures/vcg_distributions.png`):
 
-![VCGNoFlag output distributions](figures/vcg_distributions.png)
+![VCG output distributions](figures/vcg_distributions.png)
 
 Each panel: probability per basis state (50k shots), blue=feasible, red=infeasible,
 gold vertical dashed lines mark every feasible state position, dotted line = uniform
@@ -231,14 +231,14 @@ with depth.  Gold dot marks the selected depth; dotted line marks the 0.9 thresh
 ## Current Results (after all changes)
 
 All numbers from the entropy run (`progress/focus_run_entropy.log`) with tight λ,
-budget increases, and entropy-trained VCGNoFlag.  PenaltyQAOA numbers are from
+budget increases, and entropy-trained VCG.  PenaltyQAOA numbers are from
 the server baseline (best p across layers).
 
 **P(opt) vs QAOA depth** (`progress/figures/p_opt_vs_layers.png`):
 
 ![P(opt) vs QAOA layers](figures/p_opt_vs_layers.png)
 
-Per-case comparison of VCG(flag) AR-only vs VCGNoFlag(entropy) across p=1..8.
+Per-case comparison of VCG(flag) AR-only vs VCG(entropy) across p=1..8.
 
 **Best P(opt) summary** (`progress/figures/p_opt_summary_bar.png`):
 
@@ -252,22 +252,22 @@ Best P(opt) achieved over p=1..8 per method, grouped by case.
 |------|----------------------|--------|-----------|-----------|
 | 1    | PenaltyQAOA (server) | 3      | 0.495     | 0.043     |
 | 1    | Hybrid+VCG (flag)    | 7      | 0.524     | 0.263     |
-| 1    | **Hybrid+VCGNoFlag** | **2**  | **1.000** | **0.889** |
+| 1    | **Hybrid+VCG** | **2**  | **1.000** | **0.889** |
 |      |                      |        |           |           |
 | 2    | PenaltyQAOA (server) | 2      | 0.781     | 0.003     |
 | 2    | Hybrid+VCG (flag)    | 4      | 0.833     | 0.314     |
-| 2    | **Hybrid+VCGNoFlag** | **1**  | **1.000** | **0.958** |
+| 2    | **Hybrid+VCG** | **1**  | **1.000** | **0.958** |
 |      |                      |        |           |           |
 | 3    | PenaltyQAOA (server) | 3      | **0.886** | **0.871** |
 | 3    | Hybrid+VCG (flag)    | 8      | 0.712     | 0.317     |
-| 3    | **Hybrid+VCGNoFlag** | **2**  | **1.000** | 0.605     |
+| 3    | **Hybrid+VCG** | **2**  | **1.000** | 0.605     |
 |      |                      |        |           |           |
 | 4    | PenaltyQAOA (server) | 2      | **0.943** | **0.929** |
 | 4    | Hybrid+VCG (flag)    | 1–8    | ~1.000    | 0.000     |
-| 4    | Hybrid+VCGNoFlag     | 1–8    | **1.000** | 0.000     |
+| 4    | Hybrid+VCG     | 1–8    | **1.000** | 0.000     |
 
 **Summary**:
-- Cases 1–2: Hybrid+VCGNoFlag wins on both P(feas) and P(opt) decisively.
+- Cases 1–2: Hybrid+VCG wins on both P(feas) and P(opt) decisively.
 - Case 3: Hybrid wins P(feas) (1.000 vs 0.886); PenaltyQAOA narrowly wins P(opt)
   (0.871 vs 0.605).  Entropy training raised Hybrid from 0.000 → 0.605.
 - Case 4: P(opt)=0.000 for both Hybrid variants — **Grover flat-landscape problem**
@@ -278,10 +278,10 @@ Best P(opt) achieved over p=1..8 per method, grouped by case.
 | Case | Variant              | best p | P(feas)   | P(opt) |
 |------|----------------------|--------|-----------|--------|
 | 5    | Hybrid+VCG (flag)    | 6      | 0.792     | 0.000  |
-| 5    | Hybrid+VCGNoFlag     | 4–8    | **1.000** | 0.000  |
+| 5    | Hybrid+VCG     | 4–8    | **1.000** | 0.000  |
 |      |                      |        |           |        |
 | 6    | Hybrid+VCG (flag)    | 1–8    | **1.000** | 0.000  |
-| 6    | Hybrid+VCGNoFlag     | 1–8    | **1.000** | 0.000  |
+| 6    | Hybrid+VCG     | 1–8    | **1.000** | 0.000  |
 
 Both variants achieve P(feas)=1.000 with tight λ.  P(opt)=0.000 throughout —
 this is the Grover flat-landscape problem, not a penalty issue (confirmed by
@@ -293,7 +293,7 @@ tight λ having no effect on P(opt)).
 
 ### Grover flat-landscape problem (Cases 4, 5, 6)
 
-When the VCGNoFlag initial state is near-uniform over F, the Grover reflection
+When the VCG initial state is near-uniform over F, the Grover reflection
 G = A(2|0⟩⟨0|−I)A† is nearly the identity.  The perturbative improvement per
 layer is O(ε/√|F|) where ε is the QUBO energy gap.  For small gaps or large |F|,
 the cost gradient vanishes and the optimizer finds nothing better regardless of

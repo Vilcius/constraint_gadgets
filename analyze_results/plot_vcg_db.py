@@ -1,5 +1,5 @@
 """
-plot_vcg_db.py -- Generate VCG gadget-creation summary plots from noflag_db.pkl.
+plot_vcg_db.py -- Generate VCG gadget-creation summary plots from vcg_db.pkl.
 
 Plots produced
 --------------
@@ -12,7 +12,7 @@ Plots produced
 Usage
 -----
     python analyze_results/plot_vcg_db.py \
-        --db gadgets/noflag_db.pkl \
+        --db gadgets/vcg_db.pkl \
         --output-dir analysis_output/figures/vcg_db/
 """
 
@@ -328,7 +328,7 @@ def print_summary(df: pd.DataFrame) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description='Plot VCG gadget creation summary.')
-    parser.add_argument('--db',         default='gadgets/noflag_db.pkl')
+    parser.add_argument('--db',         default='gadgets/vcg_db.pkl')
     parser.add_argument('--output-dir', default='analysis_output/figures/vcg_db/')
     args = parser.parse_args()
 

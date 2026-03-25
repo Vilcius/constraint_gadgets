@@ -10,10 +10,10 @@ Problem structure (7 decision variables, x_0 .. x_6)
       HybridQAOA prepares this subspace exactly via a log-depth W-state
       circuit and an XY mixer -- no ancilla qubit, zero approximation error.
 
-  Constraint B  (structural -- VCGNoFlag gadget)
+  Constraint B  (structural -- VCG gadget)
       6*x_3 + 2*x_4 + 2*x_5 <= 3   vars {3, 4, 5}
       Weighted capacity constraint.  Non-unit coefficients and an inequality
-      make it NOT Dicke-compatible.  HybridQAOA trains a flag-free VCGNoFlag
+      make it NOT Dicke-compatible.  HybridQAOA trains a flag-free VCG
       gadget whose ground state is the uniform superposition over feasible
       assignments, then uses it as the initial state and Grover mixer.
       P(feasible) is measured directly on bitstrings -- no flag qubit.
@@ -103,7 +103,7 @@ print("=" * 60)
 print("Problem: 3-constraint COP on 7 decision variables")
 print("=" * 60)
 print(f"  A (Dicke,      structural): {c_a}   [vars {{0,1,2}}]")
-print(f"  B (VCGNoFlag,  structural): {c_b}   [vars {{3,4,5}}]")
+print(f"  B (VCG,  structural): {c_b}   [vars {{3,4,5}}]")
 print(f"  C (penalized):              {c_c}        [vars {{1,4,6}}]")
 print()
 
@@ -133,7 +133,7 @@ print(f"Penalty weight (delta)       : {penalty_weight:.2f}\n")
 # ══════════════════════════════════════════════════════════════════════════════
 # 4. HybridQAOA
 #    -- A enforced via Dicke state prep (exact, no ancilla qubit)
-#    -- B enforced via VCGNoFlag gadget (trained from scratch, no flag qubit)
+#    -- B enforced via VCG gadget (trained from scratch, no flag qubit)
 #    -- C penalized (slack variable added automatically)
 #    -- Grover mixer reflects about the composed A+B state-prep circuit
 # ══════════════════════════════════════════════════════════════════════════════
@@ -143,7 +143,7 @@ parsed = ch.parse_constraints(all_constraints)
 hybrid = hq.HybridQAOA(
     qubo=Q,
     all_constraints=parsed,
-    structural_indices=[0, 1],   # A (Dicke) + B (VCGNoFlag)
+    structural_indices=[0, 1],   # A (Dicke) + B (VCG)
     penalty_indices=[2],         # C penalized
     penalty_str=[penalty_weight],
     penalty_pen=penalty_weight,

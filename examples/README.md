@@ -6,13 +6,13 @@ Runnable examples and experiment scripts. All scripts run from the project root.
 
 | File | Purpose |
 |---|---|
-| `example_vcg.py` | VCGNoFlag usage: train a flag-free gadget on a single constraint and inspect its state |
+| `example_vcg.py` | VCG usage: train a flag-free gadget on a single constraint and inspect its state |
 | `example_hybrid.py` | HybridQAOA usage: solve a three-constraint QUBO comparing HybridQAOA vs PenaltyQAOA |
 
 ## Running
 
 ```bash
-# VCGNoFlag example: train on x_0 + x_1 + x_2 == 1, print AR / P(feasible), plot counts
+# VCG example: train on x_0 + x_1 + x_2 == 1, print AR / P(feasible), plot counts
 python examples/example_vcg.py
 
 # HybridQAOA vs PenaltyQAOA -- three-constraint COP on 7 decision variables
@@ -21,7 +21,7 @@ python examples/example_hybrid.py
 
 ## example_vcg.py
 
-Demonstrates the VCGNoFlag two-stage training procedure on a 3-variable cardinality
+Demonstrates the VCG two-stage training procedure on a 3-variable cardinality
 constraint `x_0 + x_1 + x_2 == 1`:
 
 1. Stage 1 -- QAOA p=1 warm-start (2 parameters, fast).
@@ -48,7 +48,7 @@ variables (`x_0 ... x_6`).
 | Label | Constraint | Variables | Handling |
 |---|---|---|---|
 | A | `x_0 + x_1 + x_2 == 1` | {0, 1, 2} | Structural -- Dicke state prep (exact) |
-| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural -- VCGNoFlag gadget (trained) |
+| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural -- VCG gadget (trained) |
 | C | `x_1 + x_4 + x_6 <= 1` | {1, 4, 6} | Penalized (overlaps A and B) |
 
 HybridQAOA handles constraint partitioning internally; no manual flag-wire setup
