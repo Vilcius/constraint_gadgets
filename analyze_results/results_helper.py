@@ -260,20 +260,14 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
     """
     C_max = float(max(qml.eigvals(vcg.constraint_Ham)))
     C_min = float(min(qml.eigvals(vcg.constraint_Ham)))
-    # train() must have been called before collect_vcg_data.
-    # skip_optimize=True (default path): read ar/opt_angles set by train().
-    # skip_optimize=False (legacy): re-run a single optimize step.
     if skip_optimize:
         opt_angles = vcg.opt_angles
-        ar = vcg.ar
-        opt_cost = C_max + ar * (C_min - C_max)
+        opt_cost = float(vcg.do_evolution_circuit(opt_angles))
     else:
-        # Legacy path: single optimize call (does not use two-stage train()).
         opt_cost, opt_angles = vcg.optimize_angles(vcg.do_evolution_circuit)
-        ar = (float(opt_cost) - C_max) / (C_min - C_max)
-    _shots = shots if shots is not None else 10_000
+    resources, est_shots, est_error, group_est_shots, group_est_error = vcg.get_circuit_resources()
+    _shots = shots if shots is not None else est_shots
     counts = vcg.do_counts_circuit(shots=_shots)
-    opt_angles_list = opt_angles.tolist() if opt_angles is not None else []
     row = {
         'constraint_type': [constraint_type],
         'constraints': [vcg.constraints],
@@ -284,19 +278,24 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
         'decompose': [decompose],
         'Hamiltonian': [vcg.constraint_Ham],
         'outcomes': [vcg.outcomes],
-        'angle_strategy': [getattr(vcg, 'angle_strategy', 'ma-QAOA')],
+        'angle_strategy': [vcg.angle_strategy],
         'n_layers': [vcg.n_layers],
         'num_gamma': [vcg.num_gamma],
         'num_beta': [vcg.num_beta],
-        'opt_angles': [opt_angles_list],
+        'opt_angles': [opt_angles.tolist()],
         'opt_cost': [float(opt_cost)],
         'counts': [counts],
-        'hamiltonian_time': [getattr(vcg, 'hamiltonian_time', None)],
-        'train_time': [getattr(vcg, 'train_time', None)],
-        'counts_time': [getattr(vcg, 'count_time', None)],
+        'resources': [resources],
+        'est_shots': [_shots],
+        'est_error': [est_error],
+        'group_est_shots': [group_est_shots],
+        'group_est_error': [group_est_error],
+        'hamiltonian_time': [vcg.hamiltonian_time],
+        'optimize_time': [vcg.optimize_time],
+        'counts_time': [vcg.count_time],
         'C_max': [C_max],
         'C_min': [C_min],
-        'AR': [ar],
+        'AR': [(float(opt_cost) - C_max) / (C_min - C_max)],
     }
     if gadget_db_path is not None:
         db = GadgetDatabase()

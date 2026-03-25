@@ -22,12 +22,14 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pickle
 import warnings
 warnings.filterwarnings('ignore')
 
+import matplotlib.pyplot as plt
+
 from core.vcg import VCG
-from analyze_results.results_helper import ResultsCollector, collect_vcg_data
-from analyze_results.plot_feasibility import plot_vcg_counts
+from core import constraint_handler as ch
 
 os.makedirs('examples/figures', exist_ok=True)
 os.makedirs('examples/results', exist_ok=True)
@@ -71,28 +73,43 @@ print(f"  P(feasible) = {p_feas:.4f}  (constraint check on 10 000 shots)")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 3. Collect results and save
+# 3. Save results
 # ══════════════════════════════════════════════════════════════════════════════
 
-collector = ResultsCollector()
-collector.load('examples/results/example_vcg_results.pkl')
-
-row = collect_vcg_data(gadget, constraint_type='knapsack', skip_optimize=True)
-collector.add(row)
-
-collector.save('examples/results/example_vcg_results.pkl')
+results = {
+    'constraint': CONSTRAINT,
+    'ar': gadget.ar,
+    'n_layers': gadget.n_layers,
+    'p_feasible': p_feas,
+    'train_time': gadget.train_time,
+    'opt_angles': gadget.opt_angles,
+}
+with open('examples/results/example_vcg_results.pkl', 'wb') as f:
+    pickle.dump(results, f)
 print("\nSaved results to examples/results/example_vcg_results.pkl")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 4. Plot measurement distributions
+# 4. Plot measurement distribution
 # ══════════════════════════════════════════════════════════════════════════════
 
 counts = gadget.do_counts_circuit(shots=10_000)
-plot_vcg_counts(
-    rows=[row],
-    constraint_label=CONSTRAINT,
-    save_path='examples/figures/vcg_example_counts.png',
-)
+parsed = ch.parse_constraints([CONSTRAINT])
+total = sum(counts.values())
+
+keys = sorted(counts.keys())
+probs = [counts[k] / total for k in keys]
+feasible = [ch.check_feasibility(k, parsed) for k in keys]
+colors = ['steelblue' if f else 'salmon' for f in feasible]
+
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.bar(keys, probs, color=colors, alpha=0.85)
+ax.set_title(f'VCG measurement distribution\n{CONSTRAINT}  |  AR={gadget.ar:.3f}  P(feas)={p_feas:.3f}')
+ax.set_xlabel('Bitstring')
+ax.set_ylabel('Probability')
+ax.tick_params(axis='x', rotation=45)
+plt.tight_layout()
+plt.savefig('examples/figures/vcg_example_counts.png', dpi=150)
+plt.close()
 print("Saved: examples/figures/vcg_example_counts.png")
 print("\nDone.")
