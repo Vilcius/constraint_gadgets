@@ -12,7 +12,7 @@ Runnable examples and experiment scripts. All scripts run from the project root.
 ## Running
 
 ```bash
-# VCG example: train on x_0 + x_1 + x_2 == 1, print AR / P(feasible), plot counts
+# VCG example: train on 3*x_0 + 2*x_1 + x_2 <= 3, print AR / P(feasible), plot counts
 python examples/example_vcg.py
 
 # HybridQAOA vs PenaltyQAOA -- three-constraint COP on 7 decision variables
@@ -21,8 +21,8 @@ python examples/example_hybrid.py
 
 ## example_vcg.py
 
-Demonstrates the VCG two-stage training procedure on a 3-variable cardinality
-constraint `x_0 + x_1 + x_2 == 1`:
+Demonstrates the VCG two-stage training procedure on a 3-variable knapsack
+constraint `3*x_0 + 2*x_1 + x_2 <= 3`:
 
 1. Stage 1 -- QAOA p=1 warm-start (2 parameters, fast).
 2. Stage 2 -- ma-QAOA layer sweep until AR >= ar_threshold or entropy threshold met.

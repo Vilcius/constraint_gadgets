@@ -1,8 +1,8 @@
 """
-example_vcg.py -- Toy demo: VCG training on a single cardinality constraint.
+example_vcg.py -- Toy demo: VCG training on a single knapsack constraint.
 
 Trains a Variational Constraint Gadget (VCG) for
-'x_0 + x_1 + x_2 == 1' using the prescribed two-stage procedure:
+'3*x_0 + 2*x_1 + x_2 <= 3' using the prescribed two-stage procedure:
   Stage 1 -- QAOA p=1 warm-start (2 parameters, fast).
   Stage 2 -- ma-QAOA layer sweep until AR >= ar_threshold or entropy threshold.
 
@@ -32,7 +32,7 @@ from analyze_results.plot_feasibility import plot_vcg_counts
 os.makedirs('examples/figures', exist_ok=True)
 os.makedirs('examples/results', exist_ok=True)
 
-CONSTRAINT = 'x_0 + x_1 + x_2 == 1'   # 3-variable cardinality
+CONSTRAINT = '3*x_0 + 2*x_1 + x_2 <= 3'   # 3-variable knapsack
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -77,7 +77,7 @@ print(f"  P(feasible) = {p_feas:.4f}  (constraint check on 10 000 shots)")
 collector = ResultsCollector()
 collector.load('examples/results/example_vcg_results.pkl')
 
-row = collect_vcg_data(gadget, constraint_type='cardinality')
+row = collect_vcg_data(gadget, constraint_type='knapsack', skip_optimize=True)
 collector.add(row)
 
 collector.save('examples/results/example_vcg_results.pkl')

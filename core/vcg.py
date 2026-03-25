@@ -194,6 +194,7 @@ class VCG:
             self.entropy = 1.0       # trivially uniform over 1 feasible state
             self.num_gamma = 0
             self.num_beta = 0
+            self.angle_strategy = 'X-gates'
             self.train_time = time.time() - _train_start
             return 1.0
 
@@ -208,6 +209,7 @@ class VCG:
             self.entropy = 1.0
             self.num_gamma = 0
             self.num_beta = 0
+            self.angle_strategy = 'exact-Dicke'
             self.train_time = time.time() - _train_start
             return 1.0
 
@@ -300,6 +302,7 @@ class VCG:
         # Update parameter counts to match the trained depth
         self.num_gamma = len(self.constraint_Ham.ops) if self.decompose else 1
         self.num_beta = self.n_x
+        self.angle_strategy = 'ma-QAOA'
         return best_ar
 
     # ------------------------------------------------------------------

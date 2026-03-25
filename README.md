@@ -78,7 +78,7 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 from core.vcg import VCG
 
 gadget = VCG(
-    constraints=["x_0 + x_1 + x_2 == 1"],
+    constraints=["3*x_0 + 2*x_1 + x_2 <= 3"],
     ar_threshold=0.999,
     max_layers=8,
     qaoa_restarts=5,
@@ -132,10 +132,11 @@ collector.load("results/cardinality_constraint_results.pkl")  # resume if exists
 
 # Gadget database (minimal fields only) – for HybridQAOA lookup
 # collect_vcg_data registers the gadget automatically when gadget_db_path is given
-row = collect_vcg_data(gadget, constraint_type="cardinality",
-                       gadget_db_path="gadgets/gadget_db.pkl")
+row = collect_vcg_data(gadget, constraint_type="knapsack",
+                       gadget_db_path="gadgets/vcg_db.pkl",
+                       skip_optimize=True)   # train() already ran
 collector.add(row)
-collector.save("results/cardinality_constraint_results.pkl")
+collector.save("results/knapsack_constraint_results.pkl")
 
 df = collector.to_dataframe()
 ```
@@ -147,7 +148,7 @@ keeping it lean relative to the full results file. Entries are deduplicated auto
 ### Run the toy examples
 
 ```bash
-# VCG demo: train on x_0 + x_1 + x_2 == 1, print AR / P(feasible), plot counts
+# VCG demo: train on 3*x_0 + 2*x_1 + x_2 <= 3, print AR / P(feasible), plot counts
 python examples/example_vcg.py
 
 # HybridQAOA vs PenaltyQAOA – three-constraint COP on 7 decision variables
