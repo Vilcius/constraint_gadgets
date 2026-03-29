@@ -23,8 +23,8 @@ def plot_p_feasible_vcg(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
         stds  = grp.groupby('n_x')['p_feasible'].std().fillna(0)
         ax.plot(means.index, means.values, marker='o', label=family, color=color)
         ax.fill_between(means.index,
-                        means.values - stds.values,
-                        means.values + stds.values,
+                        np.clip(means.values - stds.values, 0, 1),
+                        np.clip(means.values + stds.values, 0, 1),
                         alpha=0.2, color=color)
 
     ax.set_xlabel('n_x')
@@ -48,8 +48,8 @@ def plot_p_feasible_hybrid(df: pd.DataFrame, save_path: str = None) -> plt.Figur
         stds  = grp.groupby('n_x')['p_feasible'].std().fillna(0)
         ax.plot(means.index, means.values, marker='s', label=family, color=color)
         ax.fill_between(means.index,
-                        means.values - stds.values,
-                        means.values + stds.values,
+                        np.clip(means.values - stds.values, 0, 1),
+                        np.clip(means.values + stds.values, 0, 1),
                         alpha=0.2, color=color)
 
     ax.set_xlabel('n_x')
@@ -74,8 +74,8 @@ def plot_p_optimal_hybrid(df: pd.DataFrame, save_path: str = None) -> plt.Figure
         stds  = grp.groupby('n_x')['p_optimal'].std().fillna(0)
         ax.plot(means.index, means.values, marker='^', label=method, color=color)
         ax.fill_between(means.index,
-                        means.values - stds.values,
-                        means.values + stds.values,
+                        np.clip(means.values - stds.values, 0, None),
+                        np.clip(means.values + stds.values, 0, 1),
                         alpha=0.2, color=color)
 
     ax.set_xlabel('$n_x$')
@@ -99,8 +99,8 @@ def plot_p_feasible_comparison(df: pd.DataFrame, save_path: str = None) -> plt.F
         stds  = grp.groupby('n_x')['p_feasible'].std().fillna(0)
         ax.plot(means.index, means.values, marker='o', label=method, color=color)
         ax.fill_between(means.index,
-                        means.values - stds.values,
-                        means.values + stds.values,
+                        np.clip(means.values - stds.values, 0, 1),
+                        np.clip(means.values + stds.values, 0, 1),
                         alpha=0.2, color=color)
 
     ax.set_xlabel('n_x')
