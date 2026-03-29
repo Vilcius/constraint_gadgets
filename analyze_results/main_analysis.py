@@ -120,7 +120,7 @@ def analyse(
         plot_resources.plot_depth_vs_n(
             vcg_res,
             save_path=os.path.join(dirs['resources'], 'vcg_depth_vs_n.png'))
-        plot_resources.plot_time_breakdown(
+        plot_resources.plot_vcg_total_time(
             vcg_res,
             save_path=os.path.join(dirs['resources'], 'vcg_time_breakdown.png'))
 
@@ -134,6 +134,20 @@ def analyse(
     # Hybrid vs Penalty comparison analysis
     # ------------------------------------------------------------------
     if not comp_ar.empty:
+        # Filter to finalized tasks only: converged (p_feas >= 0.75) OR
+        # ran all p_max layers without converging.  Partial rows (still
+        # running on the server) are excluded so metrics aren't diluted.
+        p_max = int(comp_ar['n_layers'].max())
+        finalized = comp_ar[
+            (comp_ar['p_feasible'] >= 0.75) |
+            (comp_ar['n_layers'] == p_max)
+        ].copy()
+        n_total = len(comp_ar)
+        n_fin   = len(finalized)
+        print(f"\n  Finalized tasks: {n_fin}/{n_total} "
+              f"({finalized.groupby('method').size().to_dict()})")
+        comp_ar = finalized
+
         print("\n--- Comparison AR plots ---")
 
         # AR by n_x, separated by method
@@ -157,6 +171,18 @@ def analyse(
         plot_ar.plot_ar_vs_layers(
             comp_ar,
             save_path=os.path.join(dirs['ar'], 'ar_vs_layers.png'))
+
+        # AR_feas vs QAOA layers
+        if 'AR_feas' in comp_ar.columns:
+            plot_ar.plot_ar_feas_vs_layers(
+                comp_ar,
+                save_path=os.path.join(dirs['ar'], 'ar_feas_vs_layers.png'))
+
+        # Layers until convergence
+        if 'layer' in comp_ar.columns and 'n_layers' in comp_ar.columns:
+            plot_ar.plot_layers_to_threshold(
+                comp_ar,
+                save_path=os.path.join(dirs['ar'], 'layers_to_threshold.png'))
 
         # Feasibility
         if 'p_feasible' in comp_ar.columns:
@@ -186,9 +212,12 @@ def analyse(
         plot_resources.plot_shots_vs_n(
             comp_res,
             save_path=os.path.join(dirs['resources'], 'comparison_shots_vs_n.png'))
-        plot_resources.plot_time_breakdown(
+        plot_resources.plot_comparison_total_time(
             comp_res,
             save_path=os.path.join(dirs['resources'], 'comparison_time_breakdown.png'))
+        plot_resources.plot_cumulative_time(
+            comp_res,
+            save_path=os.path.join(dirs['resources'], 'comparison_cumulative_time.png'))
 
         groupby = [c for c in ['method', 'constraint_type', 'n_x'] if c in comp_res.columns]
         metrics = [c for c in ['est_shots', 'optimize_time', 'num_gamma', 'num_beta']
