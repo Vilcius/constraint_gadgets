@@ -199,12 +199,22 @@ def apply_grover_mixer(
         qml.adjoint(gadget.opt_circuit)()
 
     # Reflection about |0...0>
+    # Implements ctrl(PhaseShift(phi, last), rest) via the identity:
+    #   ctrl(PhaseShift(phi, last), [c0,...,cn-2])
+    #   = ctrl(RZ(phi/2^k, all_wires[-(k+1)]), all_wires[:n-k-1])  for k=0..n-2
+    #   @ PhaseShift(phi/2^{n-1}, all_wires[0])
+    # All resulting gates (ctrl(RZ) and single-qubit PhaseShift) are
+    # differentiable via Catalyst adjoint, unlike C(PhaseShift).
     for wire in all_wires:
         qml.PauliX(wires=wire)
-    qml.ctrl(
-        qml.PhaseShift(beta / np.pi, wires=all_wires[-1]),
-        control=all_wires[:-1],
-    )
+    phi = beta / np.pi
+    n = len(all_wires)
+    for k in range(n - 1):
+        qml.ctrl(
+            qml.RZ(phi / (2 ** k), wires=all_wires[-(k + 1)]),
+            control=all_wires[:n - k - 1],
+        )
+    qml.PhaseShift(phi / (2 ** (n - 1)), wires=all_wires[0])
     for wire in all_wires:
         qml.PauliX(wires=wire)
 
@@ -418,13 +428,17 @@ def run_optimization(
                 n_layers, num_gamma, num_beta, angle_strategy, prev_layer_angles
             )
 
-        new_cost = opt_mult * cost_fn(angles)
+        # step_and_cost returns (new_angles, cost_at_old_angles).
+        # Track cost-before-step for convergence; one final evaluation per
+        # restart is cheaper than one extra evaluation per step.
+        last_step_cost = float("inf")
         for _ in range(steps):
-            angles, prev_cost = opt.step_and_cost(cost_fn, angles)
-            new_cost = cost_fn(angles)
-            if np.abs(new_cost - prev_cost) <= conv_tol:
+            angles, step_cost = opt.step_and_cost(cost_fn, angles)
+            if np.abs(step_cost - last_step_cost) <= conv_tol:
                 break
+            last_step_cost = step_cost
 
+        new_cost = opt_mult * cost_fn(angles)
         if new_cost < best_cost:
             best_cost = new_cost
             best_angles = angles
