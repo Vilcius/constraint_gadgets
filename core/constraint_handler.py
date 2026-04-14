@@ -30,6 +30,7 @@ class ConstraintType(Enum):
     """Classification of a single constraint."""
     DICKE = auto()              # sum x_i == b  (all +1 coefficients, equality)
     CARDINALITY_LEQ = auto()    # sum x_i <= b  (all +1 coefficients, LEQ inequality)
+    CARDINALITY_GEQ_SINGLE = auto()    # sum x_i >= n  (all +1 coefficients, GEQ, rhs == n_vars; single feasible)
     FLOW = auto()               # sum_in x_i - sum_out x_j == 0  (±1 coefficients, equality, rhs=0)
     WEIGHTED_SUM = auto()       # sum c_i x_i op b  (linear, possibly inequality)
     QUADRATIC = auto()          # contains x_i * x_j terms
@@ -292,6 +293,11 @@ def _classify(
     if all_unit_pos and no_constant and op == ConstraintOp.LEQ:
         return ConstraintType.CARDINALITY_LEQ
 
+    # Cardinality GEQ single-feasible: all +1, GEQ, rhs == n_vars (only all-ones satisfies)
+    if all_unit_pos and no_constant and op == ConstraintOp.GEQ:
+        if abs(rhs - len(linear)) < 1e-12:
+            return ConstraintType.CARDINALITY_GEQ_SINGLE
+
     # Flow: all ±1 coefficients, both signs present, equality, rhs=0, no constant
     all_unit_abs = all(abs(abs(c) - 1.0) < 1e-12 for c in linear.values())
     has_positive = any(c > 0 for c in linear.values())
@@ -317,6 +323,20 @@ def is_cardinality_leq_compatible(pc: ParsedConstraint) -> bool:
     |D^n_0>, |D^n_1>, ..., |D^n_b>.
     """
     return pc.ctype == ConstraintType.CARDINALITY_LEQ
+
+
+def is_cardinality_geq_single_compatible(pc: ParsedConstraint) -> bool:
+    """Check if a parsed constraint has a single feasible solution of all ones.
+
+    Compatible constraints have the form ``sum x_i >= n`` where n equals the
+    number of variables (all +1 linear coefficients, GEQ, rhs == n_vars).
+    The unique feasible solution is the all-ones bitstring, prepared with X
+    gates on every variable qubit.
+    """
+    return pc.ctype == ConstraintType.CARDINALITY_GEQ_SINGLE
+
+
+is_cardinality_geq_compatible = is_cardinality_geq_single_compatible
 
 
 def is_flow_compatible(pc: ParsedConstraint) -> bool:

@@ -294,12 +294,12 @@ class HybridQAOACatalyst:
 
         @jax.jit
         def step(angles, opt_state):
-            cost, grads = jax.value_and_grad(cost_circuit)(angles)
+            cost, grads = jax.value_and_grad(lambda a: jnp.real(cost_circuit(a)))(angles)
             updates, new_opt_state = optimizer.update(grads, opt_state)
             new_angles = optax.apply_updates(angles, updates)
             return new_angles, new_opt_state, cost
 
-        compiled_cost = jax.jit(cost_circuit)
+        compiled_cost = jax.jit(lambda a: jnp.real(cost_circuit(a)))
 
         return compiled_cost, step
 
