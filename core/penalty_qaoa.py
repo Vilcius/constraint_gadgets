@@ -103,6 +103,14 @@ class PenaltyQAOA:
         self.num_gamma = base.count_gamma_terms(self.full_Ham)
         self.num_beta = len(self.all_wires)  # X-mixer on all qubits
 
+        # Cache qnode once so it is not recompiled on every gradient call
+        _dev_exact = qml.device("lightning.qubit", wires=self.all_wires)
+        @qml.qnode(_dev_exact)
+        def _cost_circuit(angles):
+            self.qaoa_circuit(angles)
+            return qml.expval(self.full_Ham)
+        self._cost_circuit = _cost_circuit
+
     # ------------------------------------------------------------------
     # Hamiltonian construction
     # ------------------------------------------------------------------
@@ -142,12 +150,7 @@ class PenaltyQAOA:
 
     def do_evolution_circuit(self, angles: np.ndarray) -> float:
         """Compute <psi|H_full|psi> for gradient-based optimisation."""
-        @qml.qnode(qml.device("lightning.qubit", wires=self.all_wires))
-        def circuit(angles):
-            self.qaoa_circuit(angles)
-            return qml.expval(self.full_Ham)
-
-        return circuit(angles)
+        return self._cost_circuit(angles)
 
     def do_counts_circuit(
         self, angles: Optional[np.ndarray] = None, shots: int = 1000

@@ -83,8 +83,32 @@ PENALTY_LR         = 0.01
 # Single-task runner
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _flatten_rows(rows: list, method: str) -> list:
+    """Tag a list of result-row dicts with the method name."""
+    out = []
+    for row in rows:
+        r = dict(row)
+        r['method'] = [method]
+        out.append(r)
+    return out
+
+
+def _save_rows(rows: list, path: str) -> None:
+    """Append rows to an existing pickle or create a new one."""
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        try:
+            existing = pd.read_pickle(path)
+            df = pd.concat([existing, pd.DataFrame(rows)], ignore_index=True)
+        except Exception:
+            df = pd.DataFrame(rows)
+    else:
+        df = pd.DataFrame(rows)
+    df.to_pickle(path)
+
+
 def run_task(task: dict, qubos: dict, gadget_db_path: str,
-             verbose: bool = True) -> dict:
+             verbose: bool = True,
+             hybrid_checkpoint_path: str = None) -> dict:
     """Run one HybridQAOA + PenaltyQAOA experiment.
 
     Parameters
@@ -95,6 +119,10 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
         Pre-loaded QUBO dictionary (from read_qubos_from_file).
     gadget_db_path : str
         Path to the pre-built GadgetDatabase pickle.
+    hybrid_checkpoint_path : str or None
+        If given, HybridQAOA rows are written here immediately after the
+        hybrid sweep completes — before PenaltyQAOA starts.  This ensures
+        hybrid results survive a SLURM timeout during the penalty sweep.
 
     Returns
     -------
@@ -171,6 +199,12 @@ def run_task(task: dict, qubos: dict, gadget_db_path: str,
             if verbose:
                 print(f'    ✓ P(feasible) threshold reached at p={p}')
             break
+
+    # Save HybridQAOA rows immediately so a SLURM timeout during PenaltyQAOA
+    # does not lose them.
+    if hybrid_checkpoint_path is not None and hybrid_rows:
+        _save_rows(_flatten_rows(hybrid_rows, 'HybridQAOA'), hybrid_checkpoint_path)
+        print(f'  [checkpoint] HybridQAOA rows saved → {hybrid_checkpoint_path}', flush=True)
 
     # ── PenaltyQAOA layer sweep ──────────────────────────────────────────────
     penalty_rows = []
@@ -327,7 +361,11 @@ if __name__ == '__main__':
         print(f'Task {args.task_id}/{len(tasks)-1}')
         failure_out = os.path.join(args.pending_dir, f'task_{args.task_id}.failed.json')
         try:
-            result = run_task(task, qubos, args.db)
+            # Pass result_path as checkpoint: HybridQAOA rows are written there
+            # immediately after the hybrid sweep so a SLURM timeout during the
+            # PenaltyQAOA sweep still preserves the hybrid results.
+            result = run_task(task, qubos, args.db,
+                              hybrid_checkpoint_path=result_path)
         except Exception as e:
             tb = traceback.format_exc()
             print(f'ERROR: {e}\n{tb}', flush=True)
@@ -342,20 +380,12 @@ if __name__ == '__main__':
                 f.write(json.dumps(failure) + '\n')
             sys.exit(1)
 
-        # Flatten all rows into one DataFrame
-        all_rows = []
-        for row in result['hybrid_rows']:
-            r = dict(row)
-            r['method'] = ['HybridQAOA']
-            all_rows.append(r)
-        for row in result['penalty_rows']:
-            r = dict(row)
-            r['method'] = ['PenaltyQAOA']
-            all_rows.append(r)
-
-        if all_rows:
-            pd.DataFrame(all_rows).to_pickle(result_path)
-            print(f'Saved {len(all_rows)} rows to {result_path}')
+        # Append PenaltyQAOA rows to the file (HybridQAOA rows already saved)
+        penalty_rows = _flatten_rows(result['penalty_rows'], 'PenaltyQAOA')
+        if penalty_rows:
+            _save_rows(penalty_rows, result_path)
+        n_total = len(pd.read_pickle(result_path)) if os.path.exists(result_path) else 0
+        print(f'Saved {n_total} total rows to {result_path}')
         sys.exit(0)
 
     # ── Sequential mode ──────────────────────────────────────────────────────

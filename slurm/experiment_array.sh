@@ -3,7 +3,7 @@
 #SBATCH -A SIP-UTK0040
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=24:00:00
+#SBATCH --time=168:00:00
 #SBATCH -p campus
 #SBATCH -e job_files/%A_%a.err
 #SBATCH -o job_files/%A_%a.out

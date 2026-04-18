@@ -148,6 +148,7 @@ class HybridQAOA:
         # ============================================================
         self.dicke_preps: List[dsp.DickeStatePrep] = []
         self.leq_preps: List[dsp.CardinalityLeqStatePrep] = []
+        self.geq_preps: List[dsp.CardinalityGeqSingleStatePrep] = []
         self.flow_preps: List[dsp.FlowStatePrep] = []
         self.gadget_preps: List[vcgmod.VCG] = []
         self.flag_wires: List[int] = []
@@ -157,11 +158,14 @@ class HybridQAOA:
                       if ch.is_dicke_compatible(all_constraints[i])]
         leq_idxs = [i for i in structural_indices
                     if ch.is_cardinality_leq_compatible(all_constraints[i])]
+        geq_idxs = [i for i in structural_indices
+                    if ch.is_cardinality_geq_single_compatible(all_constraints[i])]
         flow_idxs = [i for i in structural_indices
                      if ch.is_flow_compatible(all_constraints[i])]
         gadget_idxs = [i for i in structural_indices
                        if not ch.is_dicke_compatible(all_constraints[i])
                        and not ch.is_cardinality_leq_compatible(all_constraints[i])
+                       and not ch.is_cardinality_geq_single_compatible(all_constraints[i])
                        and not ch.is_flow_compatible(all_constraints[i])]
 
         # Dicke state preps (no flags, exact)
@@ -170,11 +174,17 @@ class HybridQAOA:
             prep = dsp.from_parsed_constraint(pc, mixer_type=dicke_mixer_type)
             self.dicke_preps.append(prep)
 
-        # Cardinality inequality state preps (no flags, exact, Grover mixer required)
+        # Cardinality LEQ state preps (no flags, exact, Grover mixer required)
         for idx in leq_idxs:
             pc = all_constraints[idx]
             prep = dsp.from_cardinality_leq_constraint(pc)
             self.leq_preps.append(prep)
+
+        # Cardinality GEQ single-feasible state preps (X on all wires; Grover mixer)
+        for idx in geq_idxs:
+            pc = all_constraints[idx]
+            prep = dsp.from_cardinality_geq_single_constraint(pc)
+            self.geq_preps.append(prep)
 
         # Flow state preps (no flags, Bell-pair + Ring-XY mixer)
         for idx in flow_idxs:
@@ -197,7 +207,8 @@ class HybridQAOA:
             # VCG has no flag qubit — self.flag_wires stays empty
 
         # Unified state_prep list (all objects with opt_circuit())
-        self.state_prep = self.dicke_preps + self.leq_preps + self.flow_preps + self.gadget_preps
+        self.state_prep = (self.dicke_preps + self.leq_preps + self.geq_preps
+                           + self.flow_preps + self.gadget_preps)
 
         # --- flag penalty weights ---
         if self.flag_wires:
@@ -249,10 +260,26 @@ class HybridQAOA:
         # --- QAOA parameter counts ---
         self.num_gamma = base.count_gamma_terms(self.problem_ham)
 
+        # Cache qnode once so it is not recompiled on every gradient call
+        _dev_exact = qml.device("lightning.qubit", wires=self.all_wires)
+        @qml.qnode(_dev_exact)
+        def _cost_circuit(angles):
+            self.hybrid_circuit(angles)
+            return qml.expval(self.problem_ham)
+        self._cost_circuit = _cost_circuit
+
         if self.mixer == "X-Mixer":
             self.num_beta = len(self.all_wires)
         elif self.mixer in ("XY", "Ring-XY"):
-            # One beta per Dicke group + one per Flow group + one per remaining wire
+            # One beta per Dicke group + one per Flow group + one per remaining wire.
+            # Note: leq_preps and geq_preps require the Grover mixer; using XY with
+            # them will apply individual RX gates to their wires instead, which is
+            # incorrect.  Use mixer='Grover' when leq_preps or geq_preps are present.
+            if self.leq_preps or self.geq_preps:
+                raise ValueError(
+                    "XY/Ring-XY mixer is incompatible with CardinalityLeqStatePrep "
+                    "and CardinalityGeqSingleStatePrep. Use mixer='Grover'."
+                )
             structured_wire_set = set()
             for d in self.dicke_preps:
                 structured_wire_set.update(d.var_wires)
@@ -284,11 +311,7 @@ class HybridQAOA:
 
     def do_evolution_circuit(self, angles: np.ndarray) -> float:
         """Compute <psi| H_hyb |psi> for gradient-based optimisation."""
-        @qml.qnode(qml.device("lightning.qubit", wires=self.all_wires))
-        def circuit(angles):
-            self.hybrid_circuit(angles)
-            return qml.expval(self.problem_ham)
-        return circuit(angles)
+        return self._cost_circuit(angles)
 
     def do_counts_circuit(
         self, angles: Optional[np.ndarray] = None, shots: int = 1000

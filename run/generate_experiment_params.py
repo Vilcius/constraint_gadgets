@@ -5,9 +5,9 @@ parameter combinations and write them as JSON-per-line for SLURM array jobs.
 Problem structure
 -----------------
 Each experiment consists of 2–3 constraints drawn from any supported family,
-assigned to disjoint variable ranges so that n_x = total variables <= 10.
-Structural vs penalty partitioning is decided at run time by
-``partition_constraints(strategy="auto")`` in the run script — not here.
+placed on a shared variable space of size n_x.  Variable assignments overlap
+across constraints so that partition_constraints(strategy='auto') must make
+genuine structural-vs-penalty decisions at run time.
 
 Constraint families included
 -----------------------------
@@ -20,19 +20,19 @@ Constraint families included
 
 Variable assignment
 -------------------
-Constraints are normalised to x_0..x_{k-1} when loaded, then remapped to
-sequential non-overlapping ranges when building each task:
-  constraint 0  → x_0 .. x_{n0-1}
-  constraint 1  → x_{n0} .. x_{n0+n1-1}
-  ...
-n_x = sum of all constraint variable counts.
+Constraints are normalised to x_0..x_{k-1} when loaded, then each constraint's
+k variables are randomly sampled (without replacement within the constraint, but
+with possible overlap across constraints) from a shared pool {0, ..., n_x-1}.
+n_x is chosen to be strictly less than the sum of individual variable counts,
+which guarantees that at least two constraints must share at least one variable.
+Tasks where all pairs happen to be disjoint despite the shared pool are rejected.
 
 Output format (one JSON object per line)
 -----------------------------------------
 {
-  "constraints" : ["x_0 + x_1 + x_2 == 1", "3*x_3 + 2*x_4 <= 4"],
+  "constraints" : ["x_0 + x_1 + x_2 == 1", "3*x_1 + 2*x_3 <= 4"],
   "families"    : ["cardinality", "knapsack"],
-  "n_x"         : 5,
+  "n_x"         : 4,
   "qubo_idx"    : 2,
 }
 
@@ -111,13 +111,41 @@ def _load_all_constraints(data_dir: str) -> list:
 # Task generation
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _vars_used(constraint_str: str) -> set:
+    """Return set of variable indices referenced in a constraint string."""
+    return set(int(m) for m in re.findall(r'x_(\d+)', constraint_str))
+
+
+def _has_feasible_solution(constraints: list, n_x: int) -> bool:
+    """Return True if any bitstring of length n_x satisfies all constraints."""
+    import itertools
+    for bits in itertools.product([0, 1], repeat=n_x):
+        var_dict = {f'x_{i}': b for i, b in enumerate(bits)}
+        if all(eval(c, {"__builtins__": {}}, var_dict) for c in constraints):
+            return True
+    return False
+
+
 def generate_tasks(data_dir: str = 'data/', max_tasks: int = 500,
                    seed: int = 42, n_constraints_range: tuple = (2, 3),
-                   max_n_x: int = 10) -> list:
-    """Sample experiment tasks from all constraint families.
+                   max_n_x: int = 10, allow_infeasible: bool = False) -> list:
+    """Sample experiment tasks from all constraint families with overlapping variable supports.
 
-    Each task has 2–3 constraints assigned to disjoint variable ranges.
-    Structural vs penalty partitioning is left to the run script.
+    Each task has 2–3 constraints mapped onto a shared variable space of size
+    n_x < sum(individual variable counts), so constraints are forced to share
+    at least some variables.  Tasks where all constraints happen to be
+    variable-disjoint despite the shared pool are rejected.
+
+    The overlapping supports mean that partition_constraints(strategy='auto')
+    must genuinely decide which constraints to handle structurally and which
+    to penalize.
+
+    Parameters
+    ----------
+    allow_infeasible : bool
+        If False (default), tasks whose constraint combination has no feasible
+        bitstring are silently skipped.  Pass True to include them (useful for
+        studying method behaviour on infeasible instances).
 
     Returns list of task dicts (see module docstring for format).
     """
@@ -131,7 +159,7 @@ def generate_tasks(data_dir: str = 'data/', max_tasks: int = 500,
 
     seen_keys = set()
     tasks = []
-    max_attempts = max_tasks * 50
+    max_attempts = max_tasks * 200
 
     for _ in range(max_attempts):
         if len(tasks) >= max_tasks:
@@ -140,35 +168,68 @@ def generate_tasks(data_dir: str = 'data/', max_tasks: int = 500,
         n_c = rng.randint(*n_constraints_range)
         sampled = rng.sample(pool, min(n_c, len(pool)))
 
-        # Assign sequential, disjoint variable ranges
-        offset = 0
+        # Total variables if assigned disjointly
+        total_vars = sum(k for k, _, _ in sampled)
+        max_k = max(k for k, _, _ in sampled)
+
+        # Choose n_x strictly smaller than total_vars to force overlap,
+        # but large enough that every individual constraint fits.
+        # n_x in [max_k, total_vars - 1], capped at max_n_x.
+        n_x_min = max_k
+        n_x_max = min(total_vars - 1, max_n_x)
+        if n_x_min > n_x_max:
+            continue  # impossible to create overlap within max_n_x
+
+        if n_x_min not in qubos and not any(n in qubos for n in range(n_x_min, n_x_max + 1)):
+            continue
+
+        # Pick a valid n_x that has QUBOs available
+        valid_nx = [n for n in range(n_x_min, n_x_max + 1) if n in qubos and qubos[n]]
+        if not valid_nx:
+            continue
+        n_x = rng.choice(valid_nx)
+
+        # Assign each constraint's variables by sampling without replacement
+        # from {0, ..., n_x-1}.  Overlaps across constraints are allowed.
         constraint_strs = []
         families = []
-        for n_vars, c_norm, fam in sampled:
-            target = list(range(offset, offset + n_vars))
-            c_mapped = remap_constraint_to_vars(c_norm, target)
+        for k, c_norm, fam in sampled:
+            if k > n_x:
+                break  # shouldn't happen given n_x >= max_k, but guard anyway
+            chosen = rng.sample(range(n_x), k)
+            c_mapped = remap_constraint_to_vars(c_norm, chosen)
             constraint_strs.append(c_mapped)
             families.append(fam)
-            offset += n_vars
+        else:
+            # Check that at least one pair of constraints shares a variable
+            var_sets = [_vars_used(c) for c in constraint_strs]
+            any_overlap = any(
+                not var_sets[i].isdisjoint(var_sets[j])
+                for i in range(len(var_sets))
+                for j in range(i + 1, len(var_sets))
+            )
+            if not any_overlap and rng.random() > 0.20:
+                continue  # allow ~20% fully-disjoint tasks, reject the rest
 
-        n_x = offset
-        if n_x > max_n_x or n_x < 2:
-            continue
-        if n_x not in qubos or not qubos[n_x]:
-            continue
+            key = tuple(sorted(constraint_strs))
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
 
-        key = tuple(sorted(constraint_strs))
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
+            if not allow_infeasible and not _has_feasible_solution(constraint_strs, n_x):
+                continue
 
-        qubo_idx = rng.randint(0, len(qubos[n_x]) - 1)
-        tasks.append({
-            'constraints': constraint_strs,
-            'families':    families,
-            'n_x':         n_x,
-            'qubo_idx':    qubo_idx,
-        })
+            qubo_idx = rng.randint(0, len(qubos[n_x]) - 1)
+            tasks.append({
+                'constraints': constraint_strs,
+                'families':    families,
+                'n_x':         n_x,
+                'qubo_idx':    qubo_idx,
+            })
+
+        # Explicit break check in case inner loop broke early
+        if len(tasks) >= max_tasks:
+            break
 
     return tasks
 
@@ -189,6 +250,8 @@ def _parse_args():
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--max-n-x', type=int, default=10,
                    help='Maximum total variable count per task.')
+    p.add_argument('--allow-infeasible', action='store_true',
+                   help='Include tasks whose constraints have no feasible solution.')
     return p.parse_args()
 
 
@@ -199,6 +262,7 @@ if __name__ == '__main__':
         max_tasks=args.max_tasks,
         seed=args.seed,
         max_n_x=args.max_n_x,
+        allow_infeasible=args.allow_infeasible,
     )
 
     out_dir = os.path.dirname(args.output)
@@ -215,3 +279,16 @@ if __name__ == '__main__':
     nx_counts  = Counter(t['n_x'] for t in tasks)
     print('Family breakdown:', dict(sorted(fam_counts.items())))
     print('n_x distribution:', dict(sorted(nx_counts.items())))
+
+    # Show partitioning preview on a sample
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from core import constraint_handler as ch
+    n_show = min(5, len(tasks))
+    print(f'\nPartitioning preview (first {n_show} tasks):')
+    for t in tasks[:n_show]:
+        parsed = ch.parse_constraints(t['constraints'])
+        si, pi = ch.partition_constraints(parsed, strategy='auto')
+        print(f"  n_x={t['n_x']}  families={t['families']}")
+        print(f"    structural: {[t['constraints'][i] for i in si]}")
+        print(f"    penalty:    {[t['constraints'][i] for i in pi]}")

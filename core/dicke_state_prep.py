@@ -602,7 +602,13 @@ class CardinalityLeqStatePrep:
 
         Matches the ``opt_circuit()`` interface of VCG and DickeStatePrep so
         this object can be passed to ``apply_grover_mixer`` transparently.
+
+        Special case: when ``max_hamming_weight == 0`` the only feasible state
+        is |0...0⟩, which is the default computational basis state — no gates
+        are applied.
         """
+        if self.max_hamming_weight == 0:
+            return
         prepare_cardinality_leq_state(self.var_wires, self.max_hamming_weight)
 
     @property
@@ -658,6 +664,105 @@ def from_cardinality_leq_constraint(
     return CardinalityLeqStatePrep(
         var_wires=var_wires,
         max_hamming_weight=k,
+        constraint_str=pc.raw,
+    )
+
+
+# ======================================================================
+# Cardinality GEQ single-feasible state preparation  (sum x_i >= n)
+# ======================================================================
+
+@dataclass
+class CardinalityGeqSingleStatePrep:
+    """
+    State preparation for the single-feasible cardinality GEQ constraint.
+
+    Handles constraints of the form ``sum x_i >= n`` where n equals the
+    number of variables — the unique feasible solution is the all-ones
+    bitstring.  Preparation is a PauliX gate on every variable qubit.
+
+    This is the GEQ analogue of ``CardinalityLeqStatePrep`` with
+    ``max_hamming_weight == 0``.  No flag qubits or training are required.
+
+    Parameters
+    ----------
+    var_wires : list[int]
+        Qubit wire indices for the decision variables.
+    constraint_str : str
+        Original constraint string (for bookkeeping only).
+
+    Attributes
+    ----------
+    flag_wires : list[int]
+        Always empty — no ancilla qubits needed.
+    """
+    var_wires: List[int]
+    constraint_str: str = ""
+
+    n_qubits: int = field(init=False)
+    flag_wires: List[int] = field(init=False, default_factory=list)
+    all_wires: List[int] = field(init=False)
+
+    def __post_init__(self):
+        self.n_qubits = len(self.var_wires)
+        self.flag_wires = []
+        self.all_wires = list(self.var_wires)
+
+    def opt_circuit(self) -> None:
+        """Apply PauliX to every variable qubit to prepare the all-ones state."""
+        for wire in self.var_wires:
+            qml.PauliX(wires=wire)
+
+    @property
+    def needs_flag_penalty(self) -> bool:
+        return False
+
+    def get_info(self) -> dict:
+        return {
+            "constraint": self.constraint_str,
+            "type": "CardinalityGeqSingleStatePrep",
+            "var_wires": self.var_wires,
+            "n_qubits": self.n_qubits,
+            "needs_flag": False,
+            "flag_wires": [],
+        }
+
+
+def from_cardinality_geq_single_constraint(
+    pc,  # constraint_handler.ParsedConstraint
+) -> "CardinalityGeqSingleStatePrep":
+    """
+    Create a CardinalityGeqSingleStatePrep from a ParsedConstraint.
+
+    The constraint must satisfy ``is_cardinality_geq_compatible``: all +1
+    linear coefficients, GEQ operator, rhs == n_vars (single feasible solution).
+
+    Parameters
+    ----------
+    pc : ParsedConstraint
+        A parsed constraint with ctype == ConstraintType.CARDINALITY_GEQ.
+
+    Returns
+    -------
+    CardinalityGeqSingleStatePrep
+
+    Raises
+    ------
+    ValueError
+        If the constraint is not cardinality-geq-compatible.
+    """
+    from . import constraint_handler as ch
+
+    if not ch.is_cardinality_geq_compatible(pc):
+        raise ValueError(
+            f"Constraint '{pc.raw}' is not cardinality-geq-compatible "
+            f"(type={pc.ctype.name}). "
+            "Requires: all +1 linear coefficients, GEQ operator, rhs == n_vars."
+        )
+
+    var_wires = sorted(pc.variables)
+    return CardinalityGeqSingleStatePrep(
+        var_wires=var_wires,
         constraint_str=pc.raw,
     )
 
