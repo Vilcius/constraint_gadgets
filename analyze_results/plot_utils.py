@@ -46,8 +46,8 @@ CONSTRAINT_COLORS = {
 # Method colours
 METHOD_COLORS = {
     'VCG':          _ROSE_PINE['pine'],
-    'HybridQAOA':   _ROSE_PINE['iris'],
-    'PenaltyQAOA':  _ROSE_PINE['love'],
+    'HybridQAOA':   '#9f7aea',   # amethyst / lavender
+    'PenaltyQAOA':  '#4fc3f7',   # crystal blue / cyan
 }
 
 # Angle-strategy colours

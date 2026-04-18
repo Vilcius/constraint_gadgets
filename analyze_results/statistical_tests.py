@@ -59,7 +59,7 @@ def run_full_stats(vcg_df: pd.DataFrame, hybrid_df: pd.DataFrame,
     os.makedirs(output_dir, exist_ok=True)
 
     # VCG angle strategy comparison
-    if not vcg_df.empty and 'AR' in vcg_df.columns:
+    if not vcg_df.empty and 'AR' in vcg_df.columns and 'angle_strategy' in vcg_df.columns:
         angle_vcg = compare_angle_strategies(vcg_df, 'AR')
         angle_vcg.to_csv(os.path.join(output_dir, 'vcg_angle_strategy_mannwhitney.csv'),
                          index=False)

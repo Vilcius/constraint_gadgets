@@ -73,19 +73,6 @@ def compute_comparison_metrics(counts: dict, opt_cost: float,
 # Per-row metric functions
 # ---------------------------------------------------------------------------
 
-def p_feasible_vcg(row) -> float:
-    """Fraction of counts where the flag bit(s) are all '0' (feasible).
-
-    VCG convention: last n_c bits are flag bits; flag=0 means satisfied.
-    """
-    counts = row['counts']
-    n_c = int(row.get('n_c', 1))
-    total = sum(counts.values())
-    if total == 0:
-        return float('nan')
-    feasible = sum(v for k, v in counts.items() if k[-n_c:] == '0' * n_c)
-    return feasible / total
-
 
 def p_feasible_hybrid(row) -> float:
     """Fraction of counts (first n_x bits) satisfying all constraints.
@@ -149,20 +136,6 @@ def p_optimal_hybrid(row) -> float:
 # ---------------------------------------------------------------------------
 # DataFrame augmentation helpers
 # ---------------------------------------------------------------------------
-
-def add_vcg_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """Add p_feasible, depth, num_gates columns to a VCG DataFrame."""
-    df = df.copy()
-    df['p_feasible'] = df.apply(p_feasible_vcg, axis=1)
-    if 'resources' in df.columns:
-        df['depth'] = df['resources'].apply(
-            lambda r: r.depth if r is not None else float('nan')
-        )
-        df['num_gates'] = df['resources'].apply(
-            lambda r: r.num_gates if r is not None else float('nan')
-        )
-    df['AR'] = pd.to_numeric(df['AR'], errors='coerce')
-    return df
 
 
 def add_hybrid_metrics(df: pd.DataFrame) -> pd.DataFrame:
@@ -251,8 +224,10 @@ def ar_feasibility_conditioned(counts: dict, qubo: np.ndarray,
     p_feas = sum(prob for _, prob in feasible_items)
 
     if not feasible_items:
-        return dict(AR_feas=float('nan'), E_feas=float('nan'),
-                    f_max_F=float('nan'), p_feasible=0.0)
+        # AR_feas = 0 (worst possible value) when P(feas) = 0; raw NaN preserved
+        # in AR_feas_raw for reference.
+        return dict(AR_feas=0.0, AR_feas_raw=float('nan'),
+                    E_feas=float('nan'), f_max_F=float('nan'), p_feasible=0.0)
 
     if f_max_F is None:
         f_max_F = max(fv for fv, _ in feasible_items)
@@ -262,8 +237,8 @@ def ar_feasibility_conditioned(counts: dict, qubo: np.ndarray,
     denom = f_max_F - f_star
     AR_feas = (f_max_F - E_feas) / denom if abs(denom) > 1e-10 else float('nan')
 
-    return dict(AR_feas=AR_feas, E_feas=E_feas,
-                f_max_F=f_max_F, p_feasible=p_feas)
+    return dict(AR_feas=AR_feas, AR_feas_raw=AR_feas,
+                E_feas=E_feas, f_max_F=f_max_F, p_feasible=p_feas)
 
 
 def summary_stats(df: pd.DataFrame, groupby: list, metrics: list) -> pd.DataFrame:

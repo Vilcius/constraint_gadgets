@@ -312,6 +312,17 @@ def plot_train_time(df: pd.DataFrame, out_dir: str) -> None:
 
 
 def print_summary(df: pd.DataFrame) -> None:
+    """Print count/mean/min/max statistics for the VCG database.
+
+    Prints two tables to stdout: one grouped by ``constraint_type`` and one
+    grouped by ``n_x``, covering the ``ar``, ``entropy``, and ``n_layers``
+    columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame returned by :func:`load_db_as_df`.
+    """
     print('\n=== VCG Gadget DB Summary ===')
     print(f'Total gadgets: {len(df)}')
     print(f'\nBy constraint type:')
@@ -327,6 +338,10 @@ def print_summary(df: pd.DataFrame) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
+    """CLI entry point.  Load the VCG database, print a summary, and generate
+    all standard plots via :func:`plot_ar_by_type`, :func:`plot_entropy_by_type`,
+    :func:`plot_layers_by_type`, :func:`plot_layers_vs_nx`,
+    :func:`plot_entropy_vs_layers`, and :func:`plot_train_time`."""
     parser = argparse.ArgumentParser(description='Plot VCG gadget creation summary.')
     parser.add_argument('--db',         default='gadgets/vcg_db.pkl')
     parser.add_argument('--output-dir', default='analysis_output/figures/vcg_db/')

@@ -18,10 +18,27 @@ import re
 import pandas as pd
 import pennylane as qml
 from pennylane import numpy as np
+import scipy.sparse.linalg as spla
 
 from core import vcg as vcg_module
 from core import hybrid_qaoa as hq
 from core import penalty_qaoa as pq
+
+
+def _extremal_eigvals(ham):
+    """Return (max_eigval, min_eigval) without allocating a dense 2^n x 2^n matrix.
+
+    Uses qml.eigvals for small Hamiltonians (≤ 14 qubits) and
+    scipy.sparse.linalg.eigsh for larger ones to avoid OOM failures.
+    """
+    n_wires = len(ham.wires)
+    if n_wires <= 14:
+        evals = qml.eigvals(ham)
+        return float(max(evals)), float(min(evals))
+    mat = ham.sparse_matrix()
+    c_max = float(spla.eigsh(mat, k=1, which='LA', return_eigenvectors=False)[0])
+    c_min = float(spla.eigsh(mat, k=1, which='SA', return_eigenvectors=False)[0])
+    return c_max, c_min
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -258,8 +275,7 @@ def collect_vcg_data(vcg: vcg_module.VCG, combined: bool = False,
 
     Returns a single-row dict suitable for pd.DataFrame() or ResultsCollector.
     """
-    C_max = float(max(qml.eigvals(vcg.constraint_Ham)))
-    C_min = float(min(qml.eigvals(vcg.constraint_Ham)))
+    C_max, C_min = _extremal_eigvals(vcg.constraint_Ham)
     # train() must be called before collect_vcg_data.
     # skip_optimize=True: read ar/opt_angles already set by train().
     # skip_optimize=False (legacy): re-run a single optimize step.
@@ -318,8 +334,7 @@ def collect_hybrid_data(constraints: list, hybrid: hq.HybridQAOA,
 
     Returns a single-row dict suitable for pd.DataFrame() or ResultsCollector.
     """
-    C_max = float(max(qml.eigvals(hybrid.problem_ham)))
-    C_min = float(min(qml.eigvals(hybrid.problem_ham)))
+    C_max, C_min = _extremal_eigvals(hybrid.problem_ham)
     if previous_angles is not None:
         opt_cost, opt_angles = hybrid.optimize_angles(
             hybrid.do_evolution_circuit, prev_layer_angles=previous_angles
@@ -370,8 +385,7 @@ def collect_penalty_data(constraints: list, penalty: pq.PenaltyQAOA,
 
     Returns a single-row dict suitable for pd.DataFrame() or ResultsCollector.
     """
-    C_max = float(max(qml.eigvals(penalty.full_Ham)))
-    C_min = float(min(qml.eigvals(penalty.full_Ham)))
+    C_max, C_min = _extremal_eigvals(penalty.full_Ham)
     opt_cost, opt_angles = penalty.optimize_angles(penalty.do_evolution_circuit)
     _, est_shots, est_error, group_est_shots, group_est_error = penalty.get_circuit_resources()
     counts = penalty.do_counts_circuit(shots=10_000)

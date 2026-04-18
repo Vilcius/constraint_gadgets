@@ -34,8 +34,10 @@ import re
 import numpy as np
 import pandas as pd
 
+import itertools
+
 from analyze_results.metrics import (
-    p_feasible_vcg, p_feasible_hybrid, p_optimal_hybrid,
+    p_feasible_hybrid, p_optimal_hybrid,
     ar_feasibility_conditioned,
 )
 
@@ -44,35 +46,22 @@ from analyze_results.metrics import (
 # Column definitions
 # ---------------------------------------------------------------------------
 
-_ALWAYS_DROP = ['Hamiltonian', 'opt_angles', 'qubo_string', 'task']
+_ALWAYS_DROP = ['Hamiltonian', 'opt_angles', 'task']
 
 _SHARED_META = [
-    'method', 'constraint_type', 'n_x', 'n_c',
+    'method', 'qubo_string', 'constraint_type', 'n_x', 'n_c',
     'angle_strategy', 'n_layers', 'layer',
-]
-
-# VCG splits
-VCG_AR_COLS = [
-    'constraint_type', 'constraints', 'n_x', 'n_c',
-    'angle_strategy', 'n_layers', 'num_gamma', 'num_beta',
-    'AR', 'p_feasible', 'opt_cost', 'C_max', 'C_min',
-]
-VCG_RESOURCES_COLS = [
-    'constraint_type', 'n_x', 'n_c',
-    'angle_strategy', 'n_layers', 'num_gamma', 'num_beta',
-    'est_shots', 'est_error', 'group_est_shots', 'group_est_error',
-    'depth', 'num_gates',
-    'hamiltonian_time', 'optimize_time', 'counts_time',
 ]
 
 # Hybrid vs Penalty splits
 COMPARISON_AR_COLS = _SHARED_META + [
-    'mixer', 'penalty',
+    'constraints_hash', 'mixer', 'penalty',
     'AR', 'AR_feas', 'p_feasible', 'p_optimal',
     'min_val', 'C_max', 'C_min', 'opt_cost',
+    'has_feasible_solution',
 ]
 COMPARISON_RESOURCES_COLS = _SHARED_META + [
-    'mixer', 'num_gamma', 'num_beta',
+    'constraints_hash', 'mixer', 'num_gamma', 'num_beta',
     'est_shots', 'est_error', 'group_est_shots', 'group_est_error',
     'hamiltonian_time', 'optimize_time', 'counts_time',
 ]
@@ -91,12 +80,38 @@ def _select(df: pd.DataFrame, cols: list) -> pd.DataFrame:
 
 
 def _save(df: pd.DataFrame, path: str, label: str) -> None:
+    """Pickle *df* to *path* and print a one-line summary (row count, file size).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame to persist.
+    path : str
+        Destination file path (parent directory must already exist).
+    label : str
+        Short description printed in the summary line, e.g. ``'VCG AR'``.
+    """
     df.to_pickle(path)
     mb = os.path.getsize(path) / 1e6
     print(f"  {label:30s} → {os.path.basename(path)}  ({len(df):,} rows, {mb:.1f} MB)")
 
 
 def _load_glob(pattern: str) -> pd.DataFrame:
+    """Load all pickle files matching *pattern* and concatenate into one DataFrame.
+
+    Files that cannot be read (corrupt, wrong type) are skipped with a warning.
+
+    Parameters
+    ----------
+    pattern : str
+        Shell glob pattern, e.g. ``'gadgets/pending/task_*.pkl'``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Concatenated DataFrame, or an empty DataFrame if no files matched or
+        all files failed to load.
+    """
     files = sorted(glob.glob(pattern))
     if not files:
         return pd.DataFrame()
@@ -138,48 +153,61 @@ def _extract_resources(df: pd.DataFrame) -> pd.DataFrame:
 # VCG processing
 # ---------------------------------------------------------------------------
 
-def _infer_vcg_constraint_type(row) -> str:
-    """Infer constraint family from constraint strings when constraint_type is blank."""
-    ct = row.get('constraint_type', '')
-    if isinstance(ct, list):
-        ct = ct[0] if ct else ''
-    if ct and ct != '':
-        return ct
-    constraints = row.get('constraints', [])
-    if isinstance(constraints, list) and constraints:
-        c = constraints[0] if isinstance(constraints[0], list) else constraints[0]
-        if isinstance(c, list):
-            c = c[0] if c else ''
-        if re.search(r'x_\d+\*x_\d+', str(c)):
-            return 'quadratic_knapsack'
-        return 'knapsack'
-    return 'unknown'
+def process_vcg(noflag_db_path: str, output_dir: str) -> None:
+    """Load noflag_db.pkl (the curated gadget database) and save split files.
 
+    noflag_db is a dict keyed by constraint string whose values contain
+    n_layers, ar, entropy, n_x, and train_time.  It is the authoritative
+    source for VCG statistics: it includes both trained gadgets (n_layers >= 1)
+    and exact-prep gadgets (n_layers == 0, Dicke-structure feasible sets).
 
-def process_vcg(vcg_dir: str, output_dir: str) -> None:
+    Writes two pickles to *output_dir*:
+
+    * ``vcg_ar.pkl``        — AR, feasibility, entropy columns (small)
+    * ``vcg_resources.pkl`` — n_layers, train_time columns (small)
+
+    Parameters
+    ----------
+    noflag_db_path : str
+        Path to the noflag gadget database pickle (e.g. ``gadgets/noflag_db.pkl``).
+    output_dir : str
+        Destination directory for the split pickles.
+    """
     print(f"\n{'='*60}")
-    print("  VCG results")
+    print("  VCG results (noflag_db)")
     print(f"{'='*60}")
 
-    df = _load_glob(os.path.join(vcg_dir, 'task_*.pkl'))
-    if df.empty:
-        print("  No VCG task pickles found.")
+    if not os.path.exists(noflag_db_path):
+        print(f"  File not found: {noflag_db_path}")
         return
 
-    df = _unpack_list_cols(df)
-    print(f"  {len(df):,} rows loaded")
+    import pickle as _pickle
+    with open(noflag_db_path, 'rb') as f:
+        db = _pickle.load(f)
 
-    # Infer constraint_type when missing (legacy data from before family was stored)
-    df['constraint_type'] = df.apply(_infer_vcg_constraint_type, axis=1)
+    rows = []
+    for constraint_str, v in db.items():
+        fam = ('quadratic_knapsack'
+               if re.search(r'x_\d+\*x_\d+', constraint_str)
+               else 'knapsack')
+        rows.append({
+            'constraint_type': fam,
+            'constraints':     v.get('constraints', [constraint_str]),
+            'n_x':             v.get('n_x'),
+            'n_layers':        v.get('n_layers'),
+            'AR':              v.get('ar'),
+            'entropy':         v.get('entropy'),
+            'train_time':      v.get('train_time'),
+        })
 
-    # Compute derived metrics
-    df['p_feasible'] = df.apply(p_feasible_vcg, axis=1)
-    df = _extract_resources(df)
+    df = pd.DataFrame(rows)
+    print(f"  {len(df):,} gadgets loaded")
+    print(f"  n_layers dist: {df['n_layers'].value_counts().sort_index().to_dict()}")
 
-    _save(_select(df, VCG_AR_COLS),
-          os.path.join(output_dir, 'vcg_ar.pkl'), 'VCG AR')
-    _save(_select(df, VCG_RESOURCES_COLS),
-          os.path.join(output_dir, 'vcg_resources.pkl'), 'VCG Resources')
+    ar_cols   = ['constraint_type', 'constraints', 'n_x', 'n_layers', 'AR', 'entropy']
+    res_cols  = ['constraint_type', 'n_x', 'n_layers', 'train_time']
+    _save(_select(df, ar_cols),  os.path.join(output_dir, 'vcg_ar.pkl'),        'VCG AR')
+    _save(_select(df, res_cols), os.path.join(output_dir, 'vcg_resources.pkl'), 'VCG Resources')
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +273,49 @@ def _compute_ar_feas_column(df: pd.DataFrame) -> pd.Series:
     return pd.Series(results, index=df.index)
 
 
+def _check_has_feasible(row) -> bool:
+    """Brute-force check whether any bitstring of length n_x satisfies all constraints."""
+    constraints = row['constraints']
+    if isinstance(constraints, list) and constraints and isinstance(constraints[0], list):
+        constraints = constraints[0]
+    n_x = int(row['n_x'][0] if isinstance(row['n_x'], list) else row['n_x'])
+    for bits in itertools.product([0, 1], repeat=n_x):
+        var_dict = {f'x_{i}': b for i, b in enumerate(bits)}
+        if all(eval(c, {"__builtins__": {}}, var_dict) for c in constraints):
+            return True
+    return False
+
+
 def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None:
+    """Load the merged hybrid vs penalty results pickle, compute metrics, and save splits.
+
+    Steps performed:
+
+    1. Load *hybrid_path* and unpack any length-1 list columns.
+    2. Dedup step 1: drop exact duplicate saves at the same layer on
+       ``(method, qubo_string, constraints_hash, n_x, layer, angle_strategy)``.
+    3. Compute ``p_feasible``, ``p_optimal``, and ``AR_feas`` (the last requires
+       the QUBO matrix loaded from ``data/qubos.csv``).
+    4. Dedup step 2 (AR only): keep the **final layer** per experiment
+       (group by experiment identity, take max-layer row).  Each experiment
+       iteratively adds QAOA layers, saving a row after each; only the last row
+       reflects the completed experiment state.  Resources keeps all rows so
+       that per-layer times can be summed for total-time calculations.
+    5. Write up to three split pickles to *output_dir*:
+
+       * ``comparison_ar.pkl``        — one row per experiment (final layer)
+       * ``comparison_resources.pkl`` — all layer rows (for time aggregation)
+       * ``comparison_counts.pkl``    — raw measurement counts (large; optional)
+
+    Parameters
+    ----------
+    hybrid_path : str
+        Path to the merged ``hybrid_vs_penalty.pkl`` produced by the run scripts.
+    output_dir : str
+        Destination directory for the split pickles.
+    save_counts : bool
+        If ``False``, skip writing ``comparison_counts.pkl`` (saves disk space).
+    """
     print(f"\n{'='*60}")
     print("  Hybrid vs Penalty results")
     print(f"{'='*60}")
@@ -262,13 +332,16 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
     df = _unpack_list_cols(df)
     print(f"  {len(df):,} rows loaded ({df['method'].value_counts().to_dict() if 'method' in df.columns else ''})")
 
-    # Dedup: drop exact duplicates on identifying columns
-    dedup_keys = [c for c in ['method', 'constraint_type', 'n_x', 'layer', 'angle_strategy']
+    # Dedup step 1: drop exact duplicate saves at the same layer.
+    # constraints_hash distinguishes instances with same qubo_string but different coefficients.
+    if 'constraints' in df.columns:
+        df['constraints_hash'] = df['constraints'].apply(lambda c: str(c))
+    dedup_keys = [c for c in ['method', 'constraint_type', 'qubo_string', 'constraints_hash', 'n_x', 'layer', 'angle_strategy']
                   if c in df.columns]
     before = len(df)
     df = df.drop_duplicates(subset=dedup_keys, keep='first').reset_index(drop=True)
     if len(df) < before:
-        print(f"  Removed {before - len(df):,} duplicate rows")
+        print(f"  Removed {before - len(df):,} duplicate saves at the same layer")
 
     # Compute derived metrics (requires counts)
     df['p_feasible'] = df.apply(p_feasible_hybrid, axis=1)
@@ -278,7 +351,43 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
     # not stored directly — load it from data/qubos.csv keyed by qubo_string.
     df['AR_feas'] = _compute_ar_feas_column(df)
 
-    _save(_select(df, COMPARISON_AR_COLS),
+    # has_feasible_solution: brute-force check; True iff at least one bitstring
+    # satisfies all constraints.  n_x <= 10 so at most 1024 evaluations per row.
+    # Computed once per unique constraint_hash then broadcast to all rows.
+    if 'constraints' in df.columns and 'constraints_hash' in df.columns:
+        unique = df.drop_duplicates(subset=['constraints_hash'])[
+            ['constraints_hash', 'constraints', 'n_x']
+        ]
+        feas_map = {
+            row['constraints_hash']: _check_has_feasible(row)
+            for _, row in unique.iterrows()
+        }
+        df['has_feasible_solution'] = df['constraints_hash'].map(feas_map)
+        n_infeasible = int((~df['has_feasible_solution']).sum())
+        unique_counts = (unique['constraints_hash']
+                         .map(feas_map).value_counts().to_dict())
+        print(f"  Instances with no feasible solution: "
+              f"{n_infeasible}/{len(df)} rows "
+              f"(unique constraint sets — {unique_counts})")
+    else:
+        df['has_feasible_solution'] = True
+
+    # Dedup step 2 (AR only): keep the final layer per experiment.
+    # Each experiment iteratively adds QAOA layers until convergence or p_max,
+    # saving a row after each layer.  For AR/feasibility analysis only the final
+    # row (highest layer) matters; resources keeps all rows for time aggregation.
+    exp_keys = [c for c in ['method', 'qubo_string', 'constraints_hash', 'n_x', 'angle_strategy']
+                if c in df.columns]
+    layer_col = 'layer' if 'layer' in df.columns else 'n_layers'
+    df_ar = (df.sort_values(layer_col)
+               .groupby(exp_keys, sort=False)
+               .last()
+               .reset_index())
+    n_experiments = len(df_ar)
+    print(f"  Experiments (final-layer rows): {n_experiments} "
+          f"({df_ar.groupby('method').size().to_dict() if 'method' in df_ar.columns else ''})")
+
+    _save(_select(df_ar, COMPARISON_AR_COLS),
           os.path.join(output_dir, 'comparison_ar.pkl'), 'Comparison AR')
     _save(_select(df, COMPARISON_RESOURCES_COLS),
           os.path.join(output_dir, 'comparison_resources.pkl'), 'Comparison Resources')
@@ -295,11 +404,13 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    """CLI entry point.  Parse arguments and run :func:`process_vcg` and
+    :func:`process_hybrid`."""
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--vcg-dir',    default='gadgets/pending/',
-                        help='Directory of per-task VCG pickles (default: gadgets/pending/)')
-    parser.add_argument('--hybrid',     default='results/hybrid_vs_penalty.pkl',
+    parser.add_argument('--noflag-db',  default='gadgets/noflag_db.pkl',
+                        help='No-flag VCG gadget database pickle (default: gadgets/noflag_db.pkl)')
+    parser.add_argument('--hybrid',     default='results/overlapping/hybrid_vs_penalty.pkl',
                         help='Merged hybrid vs penalty results pickle')
     parser.add_argument('--output-dir', default='results/',
                         help='Output directory for split pickles (default: results/)')
@@ -309,7 +420,7 @@ def main() -> None:
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    process_vcg(args.vcg_dir, args.output_dir)
+    process_vcg(args.noflag_db, args.output_dir)
     process_hybrid(args.hybrid, args.output_dir, save_counts=not args.no_counts)
 
     print(f"\n{'='*60}")

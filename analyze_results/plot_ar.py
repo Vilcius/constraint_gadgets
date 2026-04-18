@@ -151,16 +151,16 @@ def plot_ar_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
 def plot_ar_feas_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     """Line plot: mean AR_feas vs QAOA layer, one line per method.
 
-    Rows with NaN AR_feas (P(feas)=0) are excluded before aggregating.
+    P(feas)=0 instances contribute AR_feas=0 (worst case) rather than being
+    excluded, so means reflect all experiments.
     """
     pu.setup_style()
     fig, ax = plt.subplots(figsize=(8, 5))
 
     for method, grp in df.groupby('method'):
         color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
-        valid = grp.dropna(subset=['AR_feas'])
-        means = valid.groupby('layer')['AR_feas'].mean()
-        stds  = valid.groupby('layer')['AR_feas'].std().fillna(0)
+        means = grp.groupby('layer')['AR_feas'].mean()
+        stds  = grp.groupby('layer')['AR_feas'].std().fillna(0)
         ax.plot(means.index, means.values, marker='o', label=method, color=color)
         ax.fill_between(means.index,
                         np.clip(means.values - stds.values, 0, None),
@@ -180,14 +180,14 @@ def plot_ar_feas_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figur
 def plot_ar_feas_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     """Side-by-side box + strip: AR_feas for HybridQAOA vs PenaltyQAOA.
 
-    Undefined (NaN) rows are silently excluded (P(feas)=0 cases).
+    P(feas)=0 instances contribute AR_feas=0 (worst case) and are included.
     """
     pu.setup_style()
     fig, ax = plt.subplots(figsize=(6, 4.5))
 
     methods = [m for m in ['HybridQAOA', 'PenaltyQAOA'] if m in df['method'].values]
     colors  = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
-    data    = [df[df['method'] == m]['AR_feas'].dropna().values for m in methods]
+    data    = [df[df['method'] == m]['AR_feas'].values for m in methods]
 
     positions = list(range(len(methods)))
     rng = np.random.default_rng(42)
@@ -212,7 +212,7 @@ def plot_ar_feas_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figu
     ax.set_xticklabels(methods)
     ax.set_ylabel('AR$_\\mathrm{feas}$')
     ax.set_title('AR$_\\mathrm{feas}$: HybridQAOA vs PenaltyQAOA\n'
-                 '(undefined when $P(\\mathrm{feas})=0$)')
+                 '($P(\\mathrm{feas})=0$ instances assigned AR$_\\mathrm{feas}=0$)')
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
 
     if save_path:
@@ -236,9 +236,9 @@ def plot_layers_to_threshold(df: pd.DataFrame, save_path: str = None) -> plt.Fig
     colors     = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
     max_layers = int(last['n_layers'].max())
 
-    # x positions: 1..max_layers for converged, then a gap, then "Did not meet"
+    # x positions: 1..max_layers for converged, then immediately "Did not meet"
     x_converged = np.arange(1, max_layers + 1)
-    x_dnm       = max_layers + 2          # extra tick with a gap
+    x_dnm       = max_layers + 1          # adjacent, separator drawn manually
     bar_width   = 0.35
 
     for i, (method, color) in enumerate(zip(methods, colors)):
@@ -249,17 +249,25 @@ def plot_layers_to_threshold(df: pd.DataFrame, save_path: str = None) -> plt.Fig
         counts = (sub[sub['converged']]['n_layers']
                   .value_counts()
                   .reindex(range(1, max_layers + 1), fill_value=0))
-        ax.bar(x_converged + offset, counts.values,
-               width=bar_width, color=color, edgecolor='white',
-               linewidth=0.7, alpha=0.85, zorder=3,
-               label=method)
+        bars = ax.bar(x_converged + offset, counts.values,
+                      width=bar_width, color=color, edgecolor='white',
+                      linewidth=0.7, alpha=0.85, zorder=3,
+                      label=method)
+        for bar, cnt in zip(bars, counts.values):
+            if cnt > 0:
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
+                        str(cnt), ha='center', va='bottom', fontsize=7, zorder=4)
 
         # Did-not-meet bar: only tasks that ran to p_max and still didn't converge
         # (tasks with n_layers < p_max are still running — exclude them)
         dnm_count = ((~sub['converged']) & (sub['n_layers'] == max_layers)).sum()
-        ax.bar(x_dnm + offset, dnm_count,
-               width=bar_width, color=color, edgecolor='white',
-               linewidth=0.7, alpha=0.45, hatch='//', zorder=3)
+        dnm_bar = ax.bar(x_dnm + offset, dnm_count,
+                         width=bar_width, color=color, edgecolor='white',
+                         linewidth=0.7, alpha=0.45, hatch='//', zorder=3)
+        if dnm_count > 0:
+            ax.text(dnm_bar[0].get_x() + dnm_bar[0].get_width() / 2,
+                    dnm_count + 0.5, str(dnm_count),
+                    ha='center', va='bottom', fontsize=7, zorder=4)
 
     # x-axis ticks
     all_x      = list(x_converged) + [x_dnm]
@@ -267,8 +275,8 @@ def plot_layers_to_threshold(df: pd.DataFrame, save_path: str = None) -> plt.Fig
     ax.set_xticks(all_x)
     ax.set_xticklabels(all_labels)
 
-    # Vertical separator before "Did not meet"
-    ax.axvline(x=max_layers + 1, color=pu._ROSE_PINE['muted'],
+    # Vertical separator between layer bars and "Did not meet"
+    ax.axvline(x=max_layers + 0.5, color=pu._ROSE_PINE['muted'],
                linewidth=0.8, linestyle='--', alpha=0.6)
 
     ax.set_xlabel('QAOA layers $p$ at convergence')
