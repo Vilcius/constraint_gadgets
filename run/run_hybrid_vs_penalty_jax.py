@@ -290,10 +290,34 @@ def _merge(pending_dir: str, output: str, data_dir: str = 'data/') -> None:
         print(f'No pending files found in {pending_dir}')
         return
 
+    def _read_pkl_compat(path):
+        """Read a task pkl, converting StringDtype columns to object dtype."""
+        import pickle, io
+        with open(path, 'rb') as f:
+            raw = f.read()
+        try:
+            df = pd.read_pickle(io.BytesIO(raw))
+        except Exception:
+            # Pandas version mismatch: StringDtype(na_value=nan) not supported.
+            # Patch by replacing the problematic dtype string before unpickling.
+            import re
+            # Replace StringDtype repr in raw bytes then re-read
+            raw2 = raw.replace(b'StringDtype(storage=\'python\', na_value=nan)',
+                               b'StringDtype()')
+            try:
+                df = pd.read_pickle(io.BytesIO(raw2))
+            except Exception:
+                df = pickle.loads(raw2)
+        # Normalise any remaining StringDtype columns to object
+        for col in df.columns:
+            if hasattr(df[col], 'dtype') and hasattr(df[col].dtype, 'name') and 'string' in str(df[col].dtype).lower():
+                df[col] = df[col].astype(object)
+        return df
+
     collector = ResultsCollector()
     for fpath in files:
         try:
-            df = pd.read_pickle(fpath)
+            df = _read_pkl_compat(fpath)
             for _, row in df.iterrows():
                 collector.add(row.to_dict())
         except Exception as e:

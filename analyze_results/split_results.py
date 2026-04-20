@@ -330,6 +330,12 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
         return
 
     df = _unpack_list_cols(df)
+
+    # Normalise JAX class names to canonical names used by plot scripts
+    _METHOD_REMAP = {'HybridQAOACatalyst': 'HybridQAOA', 'PenaltyQAOACatalyst': 'PenaltyQAOA'}
+    if 'method' in df.columns:
+        df['method'] = df['method'].map(lambda m: _METHOD_REMAP.get(m, m))
+
     print(f"  {len(df):,} rows loaded ({df['method'].value_counts().to_dict() if 'method' in df.columns else ''})")
 
     # Dedup step 1: drop exact duplicate saves at the same layer.
