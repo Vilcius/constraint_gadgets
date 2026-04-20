@@ -436,6 +436,38 @@ def analyse(
         # All-instances plots (includes infeasible problems)
         _run_comparison_plots(comp_ar, comp_ar_raw, comp_res, dirs)
 
+        # Matched-pairs plots: only instances where both methods completed
+        if 'constraints_hash' in comp_ar.columns:
+            both_methods = (
+                comp_ar.groupby('constraints_hash')['method'].nunique() == 2
+            )
+            matched_hashes = both_methods[both_methods].index
+            comp_ar_matched = comp_ar[comp_ar['constraints_hash'].isin(matched_hashes)].copy()
+            if not comp_ar_matched.empty:
+                matched_dirs = _makedirs(os.path.join(output_dir, 'matched'))
+                _run_comparison_plots(comp_ar_matched, comp_ar_raw, comp_res, matched_dirs)
+                # Resource plot for matched
+                if not comp_res.empty and 'constraints_hash' in comp_res.columns:
+                    comp_res_m = comp_res[comp_res['constraints_hash'].isin(matched_hashes)].copy()
+                    if not comp_res_m.empty:
+                        plot_resources.plot_total_time_vs_nx(
+                            comp_res_m, comp_ar_matched,
+                            save_path=os.path.join(matched_dirs['resources'],
+                                                   'comparison_total_time.png'))
+                if 'has_feasible_solution' in comp_ar_matched.columns:
+                    comp_ar_matched_feas = comp_ar_matched[comp_ar_matched['has_feasible_solution']].copy()
+                    if not comp_ar_matched_feas.empty:
+                        matched_feas_dirs = _makedirs(os.path.join(output_dir, 'matched_feasible_only'))
+                        _run_comparison_plots(comp_ar_matched_feas, comp_ar_raw, comp_res, matched_feas_dirs)
+                        if not comp_res.empty and 'constraints_hash' in comp_res.columns:
+                            comp_res_mf = comp_res[comp_res['constraints_hash'].isin(
+                                set(comp_ar_matched_feas['constraints_hash']))].copy()
+                            if not comp_res_mf.empty:
+                                plot_resources.plot_total_time_vs_nx(
+                                    comp_res_mf, comp_ar_matched_feas,
+                                    save_path=os.path.join(matched_feas_dirs['resources'],
+                                                           'comparison_total_time.png'))
+
         # Feasible-instances-only plots (separate subdirectory)
         if 'has_feasible_solution' in comp_ar.columns:
             comp_ar_feas_only = comp_ar[comp_ar['has_feasible_solution']].copy()
