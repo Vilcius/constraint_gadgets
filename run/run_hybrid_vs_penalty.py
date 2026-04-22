@@ -442,8 +442,7 @@ if __name__ == '__main__':
     collector = ResultsCollector()
 
     for i, cop in enumerate(cops):
-        print(f'
-[{i+1}/{len(cops)}]')
+        print(f'\n[{i+1}/{len(cops)}]')
         result = run_cop(cop, qubos, args.db)
         for row in result['hybrid_rows']:
             r = dict(row); r['method'] = ['HybridQAOA']; collector.add(r)
