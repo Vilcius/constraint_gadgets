@@ -150,67 +150,6 @@ def _extract_resources(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# VCG processing
-# ---------------------------------------------------------------------------
-
-def process_vcg(noflag_db_path: str, output_dir: str) -> None:
-    """Load noflag_db.pkl (the curated gadget database) and save split files.
-
-    noflag_db is a dict keyed by constraint string whose values contain
-    n_layers, ar, entropy, n_x, and train_time.  It is the authoritative
-    source for VCG statistics: it includes both trained gadgets (n_layers >= 1)
-    and exact-prep gadgets (n_layers == 0, Dicke-structure feasible sets).
-
-    Writes two pickles to *output_dir*:
-
-    * ``vcg_ar.pkl``        — AR, feasibility, entropy columns (small)
-    * ``vcg_resources.pkl`` — n_layers, train_time columns (small)
-
-    Parameters
-    ----------
-    noflag_db_path : str
-        Path to the noflag gadget database pickle (e.g. ``gadgets/noflag_db.pkl``).
-    output_dir : str
-        Destination directory for the split pickles.
-    """
-    print(f"\n{'='*60}")
-    print("  VCG results (noflag_db)")
-    print(f"{'='*60}")
-
-    if not os.path.exists(noflag_db_path):
-        print(f"  File not found: {noflag_db_path}")
-        return
-
-    import pickle as _pickle
-    with open(noflag_db_path, 'rb') as f:
-        db = _pickle.load(f)
-
-    rows = []
-    for constraint_str, v in db.items():
-        fam = ('quadratic_knapsack'
-               if re.search(r'x_\d+\*x_\d+', constraint_str)
-               else 'knapsack')
-        rows.append({
-            'constraint_type': fam,
-            'constraints':     v.get('constraints', [constraint_str]),
-            'n_x':             v.get('n_x'),
-            'n_layers':        v.get('n_layers'),
-            'AR':              v.get('ar'),
-            'entropy':         v.get('entropy'),
-            'train_time':      v.get('train_time'),
-        })
-
-    df = pd.DataFrame(rows)
-    print(f"  {len(df):,} gadgets loaded")
-    print(f"  n_layers dist: {df['n_layers'].value_counts().sort_index().to_dict()}")
-
-    ar_cols   = ['constraint_type', 'constraints', 'n_x', 'n_layers', 'AR', 'entropy']
-    res_cols  = ['constraint_type', 'n_x', 'n_layers', 'train_time']
-    _save(_select(df, ar_cols),  os.path.join(output_dir, 'vcg_ar.pkl'),        'VCG AR')
-    _save(_select(df, res_cols), os.path.join(output_dir, 'vcg_resources.pkl'), 'VCG Resources')
-
-
-# ---------------------------------------------------------------------------
 # Hybrid vs Penalty processing
 # ---------------------------------------------------------------------------
 
@@ -332,7 +271,7 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
     df = _unpack_list_cols(df)
 
     # Normalise JAX class names to canonical names used by plot scripts
-    _METHOD_REMAP = {'HybridQAOACatalyst': 'HybridQAOA', 'PenaltyQAOACatalyst': 'PenaltyQAOA'}
+    _METHOD_REMAP = {'HybridQAOA': 'HybridQAOA', 'PenaltyQAOA': 'PenaltyQAOA'}
     if 'method' in df.columns:
         df['method'] = df['method'].map(lambda m: _METHOD_REMAP.get(m, m))
 
@@ -410,12 +349,8 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """CLI entry point.  Parse arguments and run :func:`process_vcg` and
-    :func:`process_hybrid`."""
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--noflag-db',  default='gadgets/noflag_db.pkl',
-                        help='No-flag VCG gadget database pickle (default: gadgets/noflag_db.pkl)')
     parser.add_argument('--hybrid',     default='results/overlapping/hybrid_vs_penalty.pkl',
                         help='Merged hybrid vs penalty results pickle')
     parser.add_argument('--output-dir', default='results/',
@@ -426,19 +361,11 @@ def main() -> None:
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    process_vcg(args.noflag_db, args.output_dir)
     process_hybrid(args.hybrid, args.output_dir, save_counts=not args.no_counts)
 
     print(f"\n{'='*60}")
     print(f"  Done. Split files written to: {args.output_dir}")
     print(f"{'='*60}")
-    print("  Run analysis with:")
-    print(f"    python analyze_results/main_analysis.py \\")
-    print(f"        --vcg-ar    {args.output_dir}/vcg_ar.pkl \\")
-    print(f"        --vcg-res   {args.output_dir}/vcg_resources.pkl \\")
-    print(f"        --comp-ar   {args.output_dir}/comparison_ar.pkl \\")
-    print(f"        --comp-res  {args.output_dir}/comparison_resources.pkl \\")
-    print(f"        --output-dir ./analysis_output/")
 
 
 if __name__ == '__main__':

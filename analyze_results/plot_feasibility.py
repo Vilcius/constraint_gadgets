@@ -284,3 +284,36 @@ def plot_outcome_distributions(counts: dict, constraints: list, n_x: int,
     if save_path:
         pu.save_fig(fig, save_path)
     return fig
+
+
+def plot_layer_sweep(df: pd.DataFrame, title: str = 'Layer sweep',
+                     save_path: str = None) -> plt.Figure:
+    """Three-panel plot: AR, P(feasible), P(optimal) vs QAOA layers.
+
+    Parameters
+    ----------
+    df : DataFrame with columns method, layer, AR, p_feasible, p_optimal
+    """
+    pu.setup_style()
+    metrics = [('AR', 'AR'), ('p_feasible', '$P(\\mathrm{feas})$'), ('p_optimal', '$P(\\mathrm{opt})$')]
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4), sharey=False)
+
+    for ax, (col, label) in zip(axes, metrics):
+        for method, grp in df.groupby('method'):
+            color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
+            grp = grp.sort_values('layer')
+            ax.plot(grp['layer'], grp[col], marker='o', label=method, color=color)
+        if col == 'p_feasible':
+            ax.axhline(0.75, color=pu._ROSE_PINE['muted'], linestyle='--',
+                       linewidth=1, label='threshold')
+        ax.set_xlabel('QAOA layers ($p$)')
+        ax.set_ylabel(label)
+        ax.set_xticks(sorted(df['layer'].unique()))
+
+    axes[0].legend()
+    fig.suptitle(title)
+    fig.tight_layout()
+
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig

@@ -18,7 +18,7 @@ This module provides:
     (XY does not preserve the feasible subspace for inequalities).
 
 The key advantage over the general constraint gadget (VCG) is that
-no flag qubits or truth-table Hamiltonian are needed -- the circuit *exactly*
+no truth-table Hamiltonian is needed -- the circuit *exactly*
 prepares the feasible subspace, and the structural mixer *exactly* preserves it.
 
 References
@@ -373,10 +373,8 @@ class DickeStatePrep:
     ----------
     n_qubits : int
         Number of qubits (len(var_wires)).
-    flag_wires : list[int]
-        Always empty -- Dicke state prep needs no flags.
     all_wires : list[int]
-        Same as var_wires (no ancillae needed).
+        Same as var_wires.
     """
     var_wires: List[int]
     hamming_weight: int
@@ -385,12 +383,10 @@ class DickeStatePrep:
 
     # Derived (set in __post_init__)
     n_qubits: int = field(init=False)
-    flag_wires: List[int] = field(init=False, default_factory=list)
     all_wires: List[int] = field(init=False)
 
     def __post_init__(self):
         self.n_qubits = len(self.var_wires)
-        self.flag_wires = []  # No flag qubits needed
         self.all_wires = list(self.var_wires)
 
         if self.hamming_weight < 0 or self.hamming_weight > self.n_qubits:
@@ -469,15 +465,7 @@ class DickeStatePrep:
         """
         return 1
 
-    @property
-    def needs_flag_penalty(self) -> bool:
-        """Dicke state prep does not need flag-qubit penalties."""
-        return False
-
     def get_info(self) -> dict:
-        """
-        Return a summary dict for bookkeeping / display.
-        """
         return {
             "constraint": self.constraint_str,
             "type": "DickeStatePrep",
@@ -485,8 +473,6 @@ class DickeStatePrep:
             "hamming_weight": self.hamming_weight,
             "n_qubits": self.n_qubits,
             "mixer_type": self.mixer_type.name,
-            "needs_flag": False,
-            "flag_wires": [],
         }
 
 
@@ -552,7 +538,7 @@ class CardinalityLeqStatePrep:
 
     Prepares a uniform superposition of Dicke states |D^n_0>, |D^n_1>, ...,
     |D^n_k> — i.e. a uniform superposition over all n-bit strings with
-    Hamming weight <= k (no flag qubits, no training required):
+    Hamming weight <= k (no training required):
 
         |S_n^{<=k}> = (1/sqrt(M)) * sum_{w=0}^{k} sum_{|x|=w} |x>
 
@@ -573,22 +559,16 @@ class CardinalityLeqStatePrep:
     constraint_str : str
         Original constraint string (for bookkeeping).
 
-    Attributes
-    ----------
-    flag_wires : list[int]
-        Always empty -- no ancilla qubits needed.
     """
     var_wires: List[int]
     max_hamming_weight: int
     constraint_str: str = ""
 
     n_qubits: int = field(init=False)
-    flag_wires: List[int] = field(init=False, default_factory=list)
     all_wires: List[int] = field(init=False)
 
     def __post_init__(self):
         self.n_qubits = len(self.var_wires)
-        self.flag_wires = []
         self.all_wires = list(self.var_wires)
         if self.max_hamming_weight < 0 or self.max_hamming_weight > self.n_qubits:
             raise ValueError(
@@ -611,10 +591,6 @@ class CardinalityLeqStatePrep:
             return
         prepare_cardinality_leq_state(self.var_wires, self.max_hamming_weight)
 
-    @property
-    def needs_flag_penalty(self) -> bool:
-        return False
-
     def get_info(self) -> dict:
         return {
             "constraint": self.constraint_str,
@@ -622,8 +598,6 @@ class CardinalityLeqStatePrep:
             "var_wires": self.var_wires,
             "max_hamming_weight": self.max_hamming_weight,
             "n_qubits": self.n_qubits,
-            "needs_flag": False,
-            "flag_wires": [],
         }
 
 
@@ -682,7 +656,7 @@ class CardinalityGeqSingleStatePrep:
     bitstring.  Preparation is a PauliX gate on every variable qubit.
 
     This is the GEQ analogue of ``CardinalityLeqStatePrep`` with
-    ``max_hamming_weight == 0``.  No flag qubits or training are required.
+    ``max_hamming_weight == 0``.  No training is required.
 
     Parameters
     ----------
@@ -691,21 +665,15 @@ class CardinalityGeqSingleStatePrep:
     constraint_str : str
         Original constraint string (for bookkeeping only).
 
-    Attributes
-    ----------
-    flag_wires : list[int]
-        Always empty — no ancilla qubits needed.
     """
     var_wires: List[int]
     constraint_str: str = ""
 
     n_qubits: int = field(init=False)
-    flag_wires: List[int] = field(init=False, default_factory=list)
     all_wires: List[int] = field(init=False)
 
     def __post_init__(self):
         self.n_qubits = len(self.var_wires)
-        self.flag_wires = []
         self.all_wires = list(self.var_wires)
 
     def opt_circuit(self) -> None:
@@ -713,18 +681,12 @@ class CardinalityGeqSingleStatePrep:
         for wire in self.var_wires:
             qml.PauliX(wires=wire)
 
-    @property
-    def needs_flag_penalty(self) -> bool:
-        return False
-
     def get_info(self) -> dict:
         return {
             "constraint": self.constraint_str,
             "type": "CardinalityGeqSingleStatePrep",
             "var_wires": self.var_wires,
             "n_qubits": self.n_qubits,
-            "needs_flag": False,
-            "flag_wires": [],
         }
 
 
@@ -793,8 +755,6 @@ class FlowStatePrep:
         After ≥1 QAOA layer the mixer connects all feasible states
         (every sector HW = k is fully mixed within each register).
 
-    No flag qubits are needed.
-
     Parameters
     ----------
     in_wires : list[int]
@@ -815,14 +775,12 @@ class FlowStatePrep:
     # Derived (set in __post_init__)
     n_in: int = field(init=False)
     n_out: int = field(init=False)
-    flag_wires: List[int] = field(init=False, default_factory=list)
     var_wires: List[int] = field(init=False)
     all_wires: List[int] = field(init=False)
 
     def __post_init__(self):
         self.n_in = len(self.in_wires)
         self.n_out = len(self.out_wires)
-        self.flag_wires = []
         self.var_wires = list(self.in_wires) + list(self.out_wires)
         self.all_wires = self.var_wires
 
@@ -876,11 +834,6 @@ class FlowStatePrep:
         """One shared beta for both in and out Ring-XY."""
         return 1
 
-    @property
-    def needs_flag_penalty(self) -> bool:
-        """Flow state prep does not need flag-qubit penalties."""
-        return False
-
     def get_info(self) -> dict:
         return {
             "constraint": self.constraint_str,
@@ -890,8 +843,6 @@ class FlowStatePrep:
             "n_in": self.n_in,
             "n_out": self.n_out,
             "mixer_type": self.mixer_type.name,
-            "needs_flag": False,
-            "flag_wires": [],
         }
 
 
@@ -977,7 +928,7 @@ class DickeMultiweightStatePrep:
     - ``x_0 * x_1 == 0``  →  W = {0, 1}  (product-zero, n=2)
     - ``x_0 + x_1 + x_2 <= 2``  →  W = {0, 1, 2}  (same as CardinalityLeq)
 
-    No flag qubits, no QAOA training required.  Requires the Grover mixer
+    No QAOA training required.  Requires the Grover mixer
     (the XY mixer preserves a *single* Hamming weight, not a set).
 
     Parameters
@@ -994,12 +945,10 @@ class DickeMultiweightStatePrep:
     constraint_str: str = ""
 
     n_qubits: int = field(init=False)
-    flag_wires: List[int] = field(init=False, default_factory=list)
     all_wires: List[int] = field(init=False)
 
     def __post_init__(self):
         self.n_qubits = len(self.var_wires)
-        self.flag_wires = []
         self.all_wires = list(self.var_wires)
         n = self.n_qubits
         for w in self.weights:
@@ -1012,10 +961,6 @@ class DickeMultiweightStatePrep:
         """Apply the multi-weight Dicke state preparation circuit."""
         prepare_dicke_multiweight_state(self.var_wires, self.weights)
 
-    @property
-    def needs_flag_penalty(self) -> bool:
-        return False
-
     def get_info(self) -> dict:
         return {
             "constraint": self.constraint_str,
@@ -1023,8 +968,6 @@ class DickeMultiweightStatePrep:
             "var_wires": self.var_wires,
             "weights": self.weights,
             "n_qubits": self.n_qubits,
-            "needs_flag": False,
-            "flag_wires": [],
         }
 
 

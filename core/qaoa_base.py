@@ -5,7 +5,7 @@ Consolidates functionality duplicated across VCG, ProblemQAOA,
 PenaltyQAOA, and HybridQAOA:
 
   - QUBO <-> Ising conversion
-  - Hamiltonian construction (QUBO, flag-penalty, overlap)
+  - Hamiltonian construction (QUBO, overlap)
   - Cost unitary and mixer application
   - Angle initialisation (QAOA / ma-QAOA, warm-start)
   - Optimisation loop (Adam with random restarts, convergence)
@@ -20,6 +20,7 @@ import time
 import itertools as it
 from typing import Tuple, List, Optional
 
+import jax.numpy as jnp
 import pennylane as qml
 from pennylane import numpy as np
 
@@ -107,29 +108,6 @@ def build_qubo_hamiltonian(
         obs.append(qml.Identity(wires[0]))
 
     return qml.Hamiltonian(np.array(coeffs), obs)
-
-
-def build_flag_penalty_hamiltonian(
-    flag_wires: List[int],
-    penalties: List[float],
-) -> Optional[qml.Hamiltonian]:
-    """
-    Build  sum_k (pen_k / 2)(I - Z_{flag_k})  for structural flag qubits.
-
-    A flag qubit in |1> (Z eigenvalue -1) adds cost pen_k, biasing the
-    optimiser toward |0> (feasible).
-
-    Returns
-    -------
-    qml.Hamiltonian or None (if flag_wires is empty).
-    """
-    if not flag_wires:
-        return None
-    coeffs, obs = [], []
-    for fw, pen in zip(flag_wires, penalties):
-        coeffs += [pen / 2, -pen / 2]
-        obs += [qml.Identity(fw), qml.PauliZ(fw)]
-    return qml.Hamiltonian(coeffs, obs)
 
 
 
@@ -326,8 +304,8 @@ def split_angles(
     if angle_strategy == "ma-QAOA":
         return angles[:, :num_gamma], angles[:, num_gamma:]
     else:
-        gammas = np.array([angles[:, 0]] * num_gamma).T
-        betas = np.array([angles[:, 1]] * num_beta).T
+        gammas = jnp.stack([angles[:, 0]] * num_gamma, axis=1)
+        betas = jnp.stack([angles[:, 1]] * num_beta, axis=1)
         return gammas, betas
 
 

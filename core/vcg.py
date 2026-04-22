@@ -1,10 +1,9 @@
 """
-vcg.py -- Flag-free Variational Constraint Gadget (VCG).
+vcg.py -- Variational Constraint Gadget (VCG).
 
 Uses QAOA to prepare a superposition of states satisfying a constraint.
-There is no flag qubit: the Hamiltonian is defined directly on the n_x
-decision-variable qubits, assigning eigenvalue -1 to feasible assignments
-and +1 to infeasible ones.
+The Hamiltonian is defined directly on the n_x decision-variable qubits,
+assigning eigenvalue -1 to feasible assignments and +1 to infeasible ones.
 
 Training procedure:
 1. Single QAOA p=1 run to get warm-start angles.
@@ -13,17 +12,6 @@ Training procedure:
 
 The only public training entry point is train().  Raw angle optimisation
 is intentionally not exposed.
-
-Advantages (vs old flag-based VCG):
-  - One fewer qubit (no ancilla).
-  - P(feasible) is measured by directly evaluating the constraint on
-    output bitstrings -- no ambiguity between flag-bit and actual
-    constraint satisfaction.
-
-Notes:
-  - Cannot use the HybridQAOA flag-penalty mechanism (no flag wire).
-    Use with the Grover mixer by passing as a state-prep component
-    whose opt_circuit() prepares the approximate feasible subspace.
 """
 
 import itertools as it
@@ -31,6 +19,9 @@ import math
 import time
 from math import comb
 
+import jax
+import jax.numpy as jnp
+import optax
 import pennylane as qml
 from pennylane import numpy as np
 
@@ -83,8 +74,6 @@ class VCG:
         Decision-variable qubit indices (sorted).
     all_wires : list[int]
         Same as var_wires -- no ancilla qubits.
-    flag_wires : list[int]
-        Always empty (for HybridQAOA interface compatibility).
     n_x : int
         Number of decision variables.
     constraint_Ham : qml.Hamiltonian
@@ -126,8 +115,7 @@ class VCG:
         self.parsed_constraints = ch.parse_constraints(self.constraints)
         all_vars = sorted(set().union(*(pc.variables for pc in self.parsed_constraints)))
         self.var_wires = all_vars
-        self.all_wires = all_vars    # no flag qubits
-        self.flag_wires = []         # HybridQAOA interface compatibility
+        self.all_wires = all_vars
         self.n_x = len(all_vars)
         self._wire_to_idx = {w: i for i, w in enumerate(self.var_wires)}
 
@@ -340,10 +328,7 @@ class VCG:
 
     def p_feasible(self, shots: int = None) -> float:
         """
-        Fraction of shots that satisfy all constraints (direct check).
-
-        Unlike flag-based VCG, this evaluates the constraints directly
-        on measured bitstrings -- no flag qubit involved.
+        Fraction of shots that satisfy all constraints.
         """
         counts = self.do_counts_circuit(shots=shots)
         total = sum(counts.values())
@@ -351,10 +336,6 @@ class VCG:
             return float('nan')
         feasible = sum(v for bs, v in counts.items() if self._is_feasible(bs))
         return feasible / total
-
-    @property
-    def needs_flag_penalty(self) -> bool:
-        return False
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -383,32 +364,63 @@ class VCG:
         n_layers: int,
         steps: int,
         num_restarts: int,
-        prev_layer_angles: np.ndarray = None,
-        starting_angles: np.ndarray = None,
+        prev_layer_angles=None,
+        starting_angles=None,
     ) -> tuple:
-        """Run optimisation for a given strategy/depth (internal use only)."""
+        """Run JAX-jitted Adam optimisation for a given strategy/depth."""
         num_gamma = len(self.constraint_Ham.ops) if self.decompose else 1
         num_beta = self.n_x
+        total_params = 2 if angle_strategy == "QAOA" else (num_gamma + num_beta)
+        shape = (n_layers, total_params)
 
-        def cost_fn(angles):
-            @qml.qnode(qml.device("default.qubit", wires=self.var_wires))
-            def circuit(angles):
-                self._circuit(angles, angle_strategy, n_layers)
-                return qml.expval(self.constraint_Ham)
-            return circuit(angles)
+        dev = qml.device("default.qubit", wires=self.var_wires)
+        constraint_ham = self.constraint_Ham
 
-        best_cost, best_angles, wall_time = base.run_optimization(
-            cost_fn=cost_fn,
-            n_layers=n_layers,
-            num_gamma=num_gamma,
-            num_beta=num_beta,
-            angle_strategy=angle_strategy,
-            steps=steps,
-            num_restarts=num_restarts,
-            learning_rate=self.lr,
-            prev_layer_angles=prev_layer_angles,
-            starting_angles=starting_angles,
-        )
+        @qml.qnode(dev, interface="jax")
+        def cost_circuit(angles):
+            self._circuit(angles, angle_strategy, n_layers)
+            return qml.expval(constraint_ham)
+
+        optimizer = optax.adam(self.lr)
+
+        @jax.jit
+        def step_fn(angles, opt_state):
+            cost, grads = jax.value_and_grad(lambda a: jnp.real(cost_circuit(a)))(angles)
+            updates, new_opt_state = optimizer.update(grads, opt_state)
+            new_angles = optax.apply_updates(angles, updates)
+            return new_angles, new_opt_state, cost
+
+        best_cost = float("inf")
+        best_angles = None
+        key = jax.random.PRNGKey(int(time.time() * 1e6) % (2 ** 32))
+
+        for restart_idx in range(num_restarts):
+            key, subkey = jax.random.split(key)
+
+            if starting_angles is not None and restart_idx == 0:
+                angles = jnp.array(starting_angles).reshape(shape)
+            elif prev_layer_angles is not None:
+                prev_flat = jnp.array(prev_layer_angles).flatten()
+                new_vals = jax.random.uniform(
+                    subkey,
+                    (n_layers * total_params - prev_flat.size,),
+                    minval=-2 * jnp.pi, maxval=2 * jnp.pi,
+                )
+                angles = jnp.concatenate([prev_flat, new_vals]).reshape(shape)
+            else:
+                angles = jax.random.uniform(
+                    subkey, shape, minval=-2 * jnp.pi, maxval=2 * jnp.pi
+                )
+
+            opt_state = optimizer.init(angles)
+            for _ in range(steps):
+                angles, opt_state, cost = step_fn(angles, opt_state)
+
+            cost_val = float(cost)
+            if cost_val < best_cost:
+                best_cost = cost_val
+                best_angles = angles
+
         return best_cost, best_angles
 
     def _compute_entropy_norm(self, angles: np.ndarray, n_layers: int) -> float:

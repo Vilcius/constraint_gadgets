@@ -1,40 +1,20 @@
 """
-hybrid_qaoa.py -- Hybrid QAOA for constrained binary optimisation (refactored).
+hybrid_qaoa.py -- HybridQAOA with JAX-jitted optimisation.
 
-Orchestrates components from qaoa_base, constraint_handler, and dicke_state_prep
-rather than building circuits from scratch.
+Combines structural state preparation (Dicke, Flow, VCG gadgets) with
+penalty-based terms for the remaining constraints.  The cost circuit and
+Adam optimisation step are JIT-compiled via JAX.
 
-The constraint set C is partitioned into:
-  - C_str (structural):  enforced via ConstraintQAOA gadgets or DickeStatePrep
-    circuits. The feasible subspace is prepared directly in the initial state.
-  - C_pen (penalised):   enforced via quadratic penalty terms in the cost
-    Hamiltonian, with slack variables for inequalities.
+Implementation notes:
+  - Device: ``default.qubit`` with JAX interface for autodiff.
+  - Grover mixer: ctrl(RZ)+PhaseShift decomposition (compatible with lightning.qubit sampling).
+  - Gradient: ``jax.value_and_grad`` (adjoint).
+  - Optimizer: ``optax.adam``.
+  - Layer loop: Python ``for q in range(n_layers)`` — unrolled at trace time.
+  - do_counts_circuit uses lightning.qubit directly (no jit needed for sampling).
 
-The full cost Hamiltonian is:
-
-    H_hyb = H_qubo
-            + sum_{k in C_str, gadget} (pen_k/2)(I - Z_{flag_k})
-            + sum_{k in C_pen} delta_k * (c_k(x) - b_k)^2
-
-The ansatz applies structural state preparation first, then alternating
-cost-unitary and mixer layers.
-
-Usage
------
-    from constraint_handler import parse_constraints, partition_constraints
-    from hybrid_qaoa import HybridQAOA
-
-    constraints = ["x_0 + x_1 + x_2 == 2", "x_3 + x_4 <= 1"]
-    parsed = parse_constraints(constraints)
-    str_idx, pen_idx = partition_constraints(parsed, strategy="auto")
-
-    solver = HybridQAOA(
-        qubo=Q,
-        all_constraints=parsed,
-        structural_indices=str_idx,
-        penalty_indices=pen_idx,
-    )
-    cost, counts, angles = solver.solve()
+Requirements:
+  pip install jax optax pennylane
 """
 
 from __future__ import annotations
@@ -42,8 +22,10 @@ from __future__ import annotations
 import time
 from typing import List, Tuple, Optional
 
+import jax
+import jax.numpy as jnp
+import optax
 import pennylane as qml
-from pennylane import numpy as np
 
 # Project modules
 from . import qaoa_base as base
@@ -54,58 +36,18 @@ from . import vcg as vcgmod
 
 class HybridQAOA:
     """
-    Hybrid QAOA: pieces together structural and penalty components.
+    Hybrid QAOA: structural state preparation + penalty Hamiltonian components.
 
-    Rather than building circuits and Hamiltonians internally, this class
-    delegates to:
-      - ``qaoa_base``          for Hamiltonian construction, cost unitaries,
-                                mixers, optimisation, and resource estimation.
-      - ``constraint_handler``  for parsing, classification, slack variables,
-                                and feasibility checking.
-      - ``dicke_state_prep``    for Dicke-compatible constraints (exact
-                                subspace preparation + XY mixer).
-      - ``vcg``                 for general structural constraints (flag-free
-                                gadgets loaded from vcg_db.pkl).
-
-    Parameters
-    ----------
-    qubo : np.ndarray
-        QUBO matrix (n_x x n_x).
-    all_constraints : list[ParsedConstraint]
-        All constraints, already parsed via constraint_handler.parse_constraints.
-    structural_indices : list[int]
-        Indices into all_constraints to enforce structurally.
-    penalty_indices : list[int]
-        Indices into all_constraints to enforce via penalty.
-    penalty_str : list[float] or None
-        Flag-qubit penalty weights for structural (gadget) constraints.
-        Broadcast from a single value if needed. Not used for Dicke constraints.
-    penalty_pen : float
-        Penalty weight delta for energetic penalty terms.
-    angle_strategy, mixer, n_layers, steps, num_restarts, learning_rate, samples :
-        Standard QAOA hyperparameters (see qaoa_base).
-    single_flag, decompose : bool
-        Passed to VCG gadgets.
-    cqaoa_n_layers, cqaoa_angle_strategy, cqaoa_steps, cqaoa_num_restarts :
-        Hyperparameters for training VCG gadgets from scratch (used when no
-        matching entry is found in ``gadget_db_path``).
-    dicke_mixer_type : DickeMixerType
-        Mixer for Dicke-enforced constraints (default: Ring-XY).
-    gadget_db_path : str or None
-        Path to the VCG database pickle (produced by
-        run/create_vcg_database.py).  For each non-Dicke structural
-        constraint, HybridQAOA looks up the pre-trained VCG gadget
-        by constraint string.  If not found the gadget is trained from
-        scratch.  Pass None (default) to always train from scratch.
+    Parameters match HybridQAOA exactly so the two are interchangeable in
+    run scripts.  See hybrid_qaoa.py for full parameter documentation.
     """
 
     def __init__(
         self,
-        qubo: np.ndarray,
+        qubo,
         all_constraints: List[ch.ParsedConstraint],
         structural_indices: List[int],
         penalty_indices: List[int],
-        penalty_str: Optional[List[float]] = None,
         penalty_pen: float = 10.0,
         angle_strategy: str = "ma-QAOA",
         mixer: str = "Grover",
@@ -114,7 +56,6 @@ class HybridQAOA:
         learning_rate: float = 0.01,
         steps: int = 50,
         num_restarts: int = 10,
-        single_flag: bool = False,
         decompose: bool = True,
         cqaoa_n_layers: int = 1,
         cqaoa_angle_strategy: str = "ma-QAOA",
@@ -151,7 +92,6 @@ class HybridQAOA:
         self.geq_preps: List[dsp.CardinalityGeqSingleStatePrep] = []
         self.flow_preps: List[dsp.FlowStatePrep] = []
         self.gadget_preps: List[vcgmod.VCG] = []
-        self.flag_wires: List[int] = []
 
         # Partition structural indices by type
         dicke_idxs = [i for i in structural_indices
@@ -168,33 +108,26 @@ class HybridQAOA:
                        and not ch.is_cardinality_geq_single_compatible(all_constraints[i])
                        and not ch.is_flow_compatible(all_constraints[i])]
 
-        # Dicke state preps (no flags, exact)
         for idx in dicke_idxs:
             pc = all_constraints[idx]
             prep = dsp.from_parsed_constraint(pc, mixer_type=dicke_mixer_type)
             self.dicke_preps.append(prep)
 
-        # Cardinality LEQ state preps (no flags, exact, Grover mixer required)
         for idx in leq_idxs:
             pc = all_constraints[idx]
             prep = dsp.from_cardinality_leq_constraint(pc)
             self.leq_preps.append(prep)
 
-        # Cardinality GEQ single-feasible state preps (X on all wires; Grover mixer)
         for idx in geq_idxs:
             pc = all_constraints[idx]
             prep = dsp.from_cardinality_geq_single_constraint(pc)
             self.geq_preps.append(prep)
 
-        # Flow state preps (no flags, Bell-pair + Ring-XY mixer)
         for idx in flow_idxs:
             pc = all_constraints[idx]
             prep = dsp.from_flow_constraint(pc, mixer_type=dicke_mixer_type)
             self.flow_preps.append(prep)
 
-        # One VCG gadget per structural non-Dicke/non-Flow constraint.
-        # Load pre-trained gadget from vcg_db.pkl if available; otherwise
-        # train from scratch using the cqaoa_* budget parameters.
         for idx in gadget_idxs:
             pc = all_constraints[idx]
             gadget = _load_vcg_gadget(
@@ -204,28 +137,15 @@ class HybridQAOA:
                 ma_restarts=cqaoa_num_restarts,
             )
             self.gadget_preps.append(gadget)
-            # VCG has no flag qubit — self.flag_wires stays empty
 
-        # Unified state_prep list (all objects with opt_circuit())
         self.state_prep = (self.dicke_preps + self.leq_preps + self.geq_preps
                            + self.flow_preps + self.gadget_preps)
-
-        # --- flag penalty weights ---
-        if self.flag_wires:
-            if penalty_str is None:
-                self.penalty_str = [20.0] * len(self.flag_wires)
-            elif len(penalty_str) == 1:
-                self.penalty_str = penalty_str * len(self.flag_wires)
-            else:
-                self.penalty_str = penalty_str
-        else:
-            self.penalty_str = []
 
         # ============================================================
         # 2. Build penalty components (slack variables)
         # ============================================================
         pen_constraints = [all_constraints[i] for i in penalty_indices]
-        slack_wire_offset = self.n_x + len(self.flag_wires)
+        slack_wire_offset = self.n_x
 
         if pen_constraints:
             self._slack_infos, self.n_slack = ch.determine_slack_variables(
@@ -244,14 +164,10 @@ class HybridQAOA:
         # ============================================================
         # 3. Wire layout & Hamiltonians
         # ============================================================
-        self.all_wires = self.x_wires + self.flag_wires + self.slack_wires
+        self.all_wires = self.x_wires + self.slack_wires
         self.n_total = len(self.all_wires)
 
-        # Delegate Hamiltonian building to qaoa_base
         self.qubo_ham = base.build_qubo_hamiltonian(self.qubo, self.x_wires)
-        self.flag_penalty_ham = base.build_flag_penalty_hamiltonian(
-            self.flag_wires, self.penalty_str
-        )
         self.penalty_ham = (
             self._build_energetic_penalty_hamiltonian() if pen_constraints else None
         )
@@ -260,21 +176,9 @@ class HybridQAOA:
         # --- QAOA parameter counts ---
         self.num_gamma = base.count_gamma_terms(self.problem_ham)
 
-        # Cache qnode once so it is not recompiled on every gradient call
-        _dev_exact = qml.device("lightning.qubit", wires=self.all_wires)
-        @qml.qnode(_dev_exact)
-        def _cost_circuit(angles):
-            self.hybrid_circuit(angles)
-            return qml.expval(self.problem_ham)
-        self._cost_circuit = _cost_circuit
-
         if self.mixer == "X-Mixer":
             self.num_beta = len(self.all_wires)
         elif self.mixer in ("XY", "Ring-XY"):
-            # One beta per Dicke group + one per Flow group + one per remaining wire.
-            # Note: leq_preps and geq_preps require the Grover mixer; using XY with
-            # them will apply individual RX gates to their wires instead, which is
-            # incorrect.  Use mixer='Grover' when leq_preps or geq_preps are present.
             if self.leq_preps or self.geq_preps:
                 raise ValueError(
                     "XY/Ring-XY mixer is incompatible with CardinalityLeqStatePrep "
@@ -291,35 +195,171 @@ class HybridQAOA:
         else:  # Grover
             self.num_beta = 1
 
+        # Compile cost circuit + single Adam step via JAX jit
+        self._compiled_cost, self._compiled_step = self._build_compiled_fns()
+
     # ==================================================================
-    # Public interface
+    # Circuit
     # ==================================================================
 
-    def solve(self) -> Tuple[float, dict, np.ndarray]:
-        """
-        Run the full hybrid QAOA: optimise angles, then sample.
+    def hybrid_circuit(self, angles) -> None:
+        """Full hybrid QAOA circuit."""
+        gammas, betas = base.split_angles(
+            angles, self.num_gamma, self.num_beta, self.angle_strategy
+        )
 
-        Returns
-        -------
-        opt_cost : float
-        counts : dict
-        opt_angles : np.ndarray
+        # --- structural state preparation (unrolled at trace time) ---
+        for prep in self.state_prep:
+            prep.opt_circuit()
+
+        # --- initialise slack qubits in |+> ---
+        for wire in self.slack_wires:
+            qml.Hadamard(wires=wire)
+
+        # --- QAOA layers ---
+        problem_ham = self.problem_ham
+        mixer = self.mixer
+        all_wires = self.all_wires
+        state_prep = self.state_prep
+
+        if mixer == "Grover":
+            for q in range(self.n_layers):
+                base.apply_cost_unitary(problem_ham, gammas, q)
+                base.apply_grover_mixer(betas[q][0], all_wires, state_prep)
+        elif mixer == "X-Mixer":
+            for q in range(self.n_layers):
+                base.apply_cost_unitary(problem_ham, gammas, q)
+                base.apply_x_mixer(betas, q, all_wires)
+        else:  # XY / Ring-XY
+            for q in range(self.n_layers):
+                base.apply_cost_unitary(problem_ham, gammas, q)
+                self._apply_hybrid_xy_mixer(betas[q])
+
+    # ==================================================================
+    # Compiled functions
+    # ==================================================================
+
+    def _build_compiled_fns(self):
         """
-        opt_cost, opt_angles = self.optimize_angles(self.do_evolution_circuit)
-        counts = self.do_counts_circuit(shots=self.samples)
+        Build JAX-jitted cost and step functions.
+
+        cost(angles)             -> scalar <H>
+        step(angles, opt_state)  -> (new_angles, new_opt_state, cost)
+        """
+        dev = qml.device("default.qubit", wires=self.all_wires)
+        problem_ham = self.problem_ham
+
+        @qml.qnode(dev, interface="jax")
+        def cost_circuit(angles):
+            self.hybrid_circuit(angles)
+            return qml.expval(problem_ham)
+
+        optimizer = optax.adam(self.learning_rate)
+
+        @jax.jit
+        def step(angles, opt_state):
+            cost, grads = jax.value_and_grad(lambda a: jnp.real(cost_circuit(a)))(angles)
+            updates, new_opt_state = optimizer.update(grads, opt_state)
+            new_angles = optax.apply_updates(angles, updates)
+            return new_angles, new_opt_state, cost
+
+        compiled_cost = jax.jit(lambda a: jnp.real(cost_circuit(a)))
+
+        return compiled_cost, step
+
+    # ==================================================================
+    # Optimisation
+    # ==================================================================
+
+    def optimize_angles(
+        self,
+        cost_fn=None,           # ignored — kept for API compatibility
+        maximize: bool = False,
+        prev_layer_angles=None,
+    ) -> Tuple[float, any]:
+        """
+        Optimise angles using compiled Adam + optax, with random restarts.
+
+        Optimise angles using Adam (optax) with random restarts.
+        Each restart runs the full ``steps`` budget.
+        """
+        optimizer = optax.adam(self.learning_rate)
+        best_cost = float("inf")
+        best_angles = None
+        sign = -1.0 if maximize else 1.0
+
+        total_params = (self.num_gamma + self.num_beta
+                        if self.angle_strategy == "ma-QAOA" else 2)
+
+        # Warm-start: inherit prev layer angles, zero-pad new layer
+        if prev_layer_angles is not None:
+            new_size = self.n_layers * total_params - prev_layer_angles.size
+            starting_angles = jnp.concatenate([
+                prev_layer_angles.flatten(),
+                jnp.zeros(new_size),
+            ]).reshape(self.n_layers, total_params)
+        else:
+            starting_angles = None
+
+        start_wall = time.time()
+        key = jax.random.PRNGKey(int(time.time() * 1e6) % (2 ** 32))
+
+        for restart_idx in range(self.num_restarts):
+            key, subkey = jax.random.split(key)
+            shape = (self.n_layers, total_params)
+
+            if starting_angles is not None and restart_idx == 0:
+                angles = starting_angles
+            elif prev_layer_angles is not None:
+                new_vals = jax.random.uniform(
+                    subkey,
+                    (self.n_layers * total_params - prev_layer_angles.size,),
+                    minval=-2 * jnp.pi, maxval=2 * jnp.pi,
+                )
+                angles = jnp.concatenate(
+                    [prev_layer_angles.flatten(), new_vals]
+                ).reshape(shape)
+            else:
+                angles = jax.random.uniform(
+                    subkey, shape, minval=-2 * jnp.pi, maxval=2 * jnp.pi
+                )
+
+            opt_state = optimizer.init(angles)
+
+            # Fixed-length optimisation loop
+            for _ in range(self.steps):
+                angles, opt_state, _ = self._compiled_step(angles, opt_state)
+
+            final_cost = float(sign * self._compiled_cost(angles))
+            if final_cost < best_cost:
+                best_cost = final_cost
+                best_angles = angles
+
+        self.optimize_time = time.time() - start_wall
+        self.opt_angles = best_angles
+        return sign * best_cost, best_angles
+
+    def solve(self) -> Tuple[float, dict, any]:
+        """Run the full hybrid QAOA: optimise angles, then sample."""
+        opt_cost, opt_angles = self.optimize_angles()
+        counts = self.do_counts_circuit()
         return opt_cost, counts, opt_angles
 
-    def do_evolution_circuit(self, angles: np.ndarray) -> float:
-        """Compute <psi| H_hyb |psi> for gradient-based optimisation."""
-        return self._cost_circuit(angles)
+    # ==================================================================
+    # Sampling (not jitted — shots-based, called once)
+    # ==================================================================
 
-    def do_counts_circuit(
-        self, angles: Optional[np.ndarray] = None, shots: int = 1000
-    ) -> dict:
-        """Sample bitstrings from the optimised circuit."""
+    def do_counts_circuit(self, angles=None, shots: int = 1000) -> dict:
+        """
+        Sample bitstrings from the optimised circuit.
+
+        Sample bitstrings from the optimised circuit using lightning.qubit.
+        """
+        _angles = self.opt_angles if angles is None else angles
+
         @qml.qnode(qml.device("lightning.qubit", wires=self.all_wires, shots=shots))
         def circuit():
-            self.hybrid_circuit(self.opt_angles if angles is None else angles)
+            self.hybrid_circuit(_angles)
             return qml.counts(all_outcomes=True)
 
         start = time.time()
@@ -331,87 +371,16 @@ class HybridQAOA:
         """Apply the optimised circuit (for use as a subroutine)."""
         self.hybrid_circuit(self.opt_angles)
 
-    def hybrid_circuit(self, angles: np.ndarray) -> None:
-        """
-        Full hybrid QAOA circuit, assembled from components:
-
-        1. Dicke state preps       (exact feasible subspace, no flags)
-        2. Constraint gadget preps (approximate, with flags)
-        3. Hadamards on slack wires
-        4. QAOA layers: cost unitary + mixer
-        """
-        gammas, betas = base.split_angles(
-            angles, self.num_gamma, self.num_beta, self.angle_strategy
-        )
-
-        # --- 1 & 2: structural state preparation ---
-        for prep in self.state_prep:
-            prep.opt_circuit()
-
-        # --- 3: initialise slack qubits in |+> ---
-        for wire in self.slack_wires:
-            qml.Hadamard(wires=wire)
-
-        # --- 4: QAOA layers ---
-        for q in range(self.n_layers):
-            # Cost unitary (delegates to qaoa_base)
-            base.apply_cost_unitary(self.problem_ham, gammas, q)
-
-            # Mixer (delegates to qaoa_base or local hybrid method)
-            if self.mixer == "Grover":
-                base.apply_grover_mixer(
-                    betas[q][0], self.all_wires, self.state_prep
-                )
-            elif self.mixer == "X-Mixer":
-                base.apply_x_mixer(betas, q, self.all_wires)
-            elif self.mixer in ("XY", "Ring-XY"):
-                self._apply_hybrid_xy_mixer(betas[q])
-
-    def optimize_angles(
-        self,
-        cost_fn,
-        maximize: bool = False,
-        prev_layer_angles: Optional[np.ndarray] = None,
-    ) -> Tuple[float, np.ndarray]:
-        """Optimise QAOA angles using Adam with random restarts."""
-        best_cost, best_angles, wall_time = base.run_optimization(
-            cost_fn=cost_fn,
-            n_layers=self.n_layers,
-            num_gamma=self.num_gamma,
-            num_beta=self.num_beta,
-            angle_strategy=self.angle_strategy,
-            steps=self.steps,
-            num_restarts=self.num_restarts,
-            learning_rate=self.learning_rate,
-            maximize=maximize,
-            prev_layer_angles=prev_layer_angles,
-        )
-        self.optimize_time = wall_time
-        self.opt_angles = best_angles
-        return best_cost, best_angles
-
-    def check_feasibility(self, bitstring: str) -> bool:
-        """Check whether a bitstring satisfies ALL constraints."""
-        return ch.check_feasibility(bitstring, self.all_constraints, self.n_x)
-
-    def get_circuit_resources(self) -> Tuple:
-        """Estimate shot budget and error for the cost Hamiltonian."""
-        est_shots, est_error, group_shots, group_error = (
-            base.estimate_hamiltonian_resources(self.problem_ham)
-        )
-        return None, est_shots, est_error, group_shots, group_error
-
     # ==================================================================
     # Hybrid XY mixer (Dicke groups get XY, others get RX)
     # ==================================================================
 
-    def _apply_hybrid_xy_mixer(self, beta_row: np.ndarray) -> None:
+    def _apply_hybrid_xy_mixer(self, beta_row) -> None:
         """
         Apply a hybrid mixer: XY on structured wires, RX on the rest.
 
-        - Dicke groups: Ring-XY on var_wires (preserves Hamming weight).
-        - Flow groups: Ring-XY on in_wires + Ring-XY on out_wires (preserves balance).
-        - Flag, slack, and remaining wires: RX rotations.
+        Wire counts and prep list lengths are static so Python loops
+        are unrolled at trace time.
         """
         structured_wire_set = set()
         beta_idx = 0
@@ -426,21 +395,33 @@ class HybridQAOA:
             structured_wire_set.update(prep.var_wires)
             beta_idx += 1
 
-        # RX on remaining wires (flags, slacks, non-structured vars)
         remaining_wires = [w for w in self.all_wires if w not in structured_wire_set]
         for wire in remaining_wires:
             qml.RX(beta_row[beta_idx], wires=wire)
             beta_idx += 1
 
     # ==================================================================
+    # Helpers (unchanged from original)
+    # ==================================================================
+
+    def check_feasibility(self, bitstring: str) -> bool:
+        """Check whether a bitstring satisfies ALL constraints."""
+        return ch.check_feasibility(bitstring, self.all_constraints, self.n_x)
+
+    def get_circuit_resources(self) -> Tuple:
+        """Estimate shot budget and error for the cost Hamiltonian."""
+        est_shots, est_error, group_shots, group_error = (
+            base.estimate_hamiltonian_resources(self.problem_ham)
+        )
+        return None, est_shots, est_error, group_shots, group_error
+
+    # ==================================================================
     # Hamiltonian assembly
     # ==================================================================
 
     def _assemble_problem_hamiltonian(self) -> qml.Hamiltonian:
-        """Combine QUBO + flag penalties + energetic penalties."""
+        """Combine QUBO + energetic penalties."""
         ham = self.qubo_ham
-        if self.flag_penalty_ham is not None:
-            ham = ham + self.flag_penalty_ham
         if self.penalty_ham is not None:
             ham = ham + self.penalty_ham
         return ham
@@ -459,7 +440,7 @@ class HybridQAOA:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Module-level helper
+# Module-level helper (unchanged from hybrid_qaoa.py)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _load_vcg_gadget(
@@ -471,21 +452,23 @@ def _load_vcg_gadget(
     """
     Return a ready-to-use VCG for *constraints*.
 
-    If *db_path* points to a vcg_db.pkl that contains a matching entry
-    (keyed by constraints[0].strip()), the pre-trained angles are restored
-    and train() is skipped.  Otherwise the gadget is trained from scratch
-    using *ma_steps* / *ma_restarts*.
+    If *db_path* points to a vcg_db.pkl that contains a matching entry,
+    the pre-trained angles are restored and train() is skipped.  Otherwise
+    the gadget is trained from scratch.
+
+    DB lookup uses the normalized form of the constraint (variables remapped
+    to x_0, x_1, ... in sorted order) so remapped experiment constraints
+    match the pre-trained entries keyed by their canonical form.
     """
     import os
     import pickle
 
     gadget = vcgmod.VCG(constraints=constraints)
 
-    # Try to load from DB
     if db_path and os.path.exists(db_path):
         with open(db_path, 'rb') as f:
             db = pickle.load(f)
-        key = constraints[0].strip()
+        key = ch.normalize_constraint(constraints[0])
         if key in db:
             entry = db[key]
             gadget.opt_angles = entry['opt_angles']
@@ -500,7 +483,6 @@ def _load_vcg_gadget(
                 gadget.num_beta  = gadget.n_x
             return gadget
 
-    # Fallback: train from scratch
     gadget.ma_steps    = ma_steps
     gadget.ma_restarts = ma_restarts
     gadget.train(verbose=False)

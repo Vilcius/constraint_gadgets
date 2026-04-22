@@ -7,7 +7,7 @@ Trains a Variational Constraint Gadget (VCG) for
   Stage 2 -- ma-QAOA layer sweep until AR >= ar_threshold or entropy threshold.
 
 P(feasible) is measured by directly evaluating the constraint on output
-bitstrings -- no flag qubit is involved.
+bitstrings.
 
 Run from the project root:
     python examples/example_vcg.py
@@ -26,8 +26,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import warnings
 warnings.filterwarnings('ignore')
 
+import jax
+jax.config.update('jax_enable_x64', True)
+
 from core.vcg import VCG
-from analyze_results.results_helper import ResultsCollector, collect_vcg_data
+from analyze_results.results_helper import ResultsCollector
 from analyze_results.plot_feasibility import plot_vcg_counts
 
 os.makedirs('examples/figures', exist_ok=True)
@@ -64,9 +67,10 @@ print(f"  Train time  = {gadget.train_time:.1f} s")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. P(feasible): constraint check on measured bitstrings (no flag qubit)
+# 2. P(feasible): constraint check on measured bitstrings
 # ══════════════════════════════════════════════════════════════════════════════
 
+counts = gadget.do_counts_circuit(shots=10_000)
 p_feas = gadget.p_feasible(shots=10_000)
 print(f"  P(feasible) = {p_feas:.4f}  (constraint check on 10 000 shots)")
 
@@ -75,12 +79,20 @@ print(f"  P(feasible) = {p_feas:.4f}  (constraint check on 10 000 shots)")
 # 3. Collect results and save
 # ══════════════════════════════════════════════════════════════════════════════
 
+row = {
+    'constraint_type': ['knapsack'],
+    'constraints':     [[CONSTRAINT]],
+    'n_x':             [gadget.n_x],
+    'n_layers':        [gadget.n_layers],
+    'angle_strategy':  ['ma-QAOA'],
+    'AR':              [gadget.ar],
+    'counts':          [counts],
+    'train_time':      [gadget.train_time],
+}
+
 collector = ResultsCollector()
 collector.load('examples/results/example_vcg_results.pkl')
-
-row = collect_vcg_data(gadget, constraint_type='knapsack', skip_optimize=True)
 collector.add(row)
-
 collector.save('examples/results/example_vcg_results.pkl')
 print("\nSaved results to examples/results/example_vcg_results.pkl")
 

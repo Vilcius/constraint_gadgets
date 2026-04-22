@@ -188,13 +188,13 @@ def ar_feasibility_conditioned(counts: dict, qubo: np.ndarray,
                                 constraints: list, n_x: int,
                                 f_star: float,
                                 f_max_F: float = None) -> dict:
-    """Coauthor's feasibility-conditioned AR metric.
+    """Feasibility-conditioned AR metric.
 
-    AR_feas = (f_max_F - E[f(x) : x in F]) / (f_max_F - f*)
+    AR_feas = P(feas) * (f_max_F - E[f(x) | x in F]) / (f_max_F - f*)
 
     where F is the feasible set, f* is the true optimum, f_max_F is the
-    worst feasible QUBO value, and the expectation is over feasible shots
-    only (weighted by their measurement probability).
+    worst feasible QUBO value. The conditional expectation is over feasible
+    shots only; infeasible shots contribute 0 via the P(feas) factor.
 
     Parameters
     ----------
@@ -209,8 +209,8 @@ def ar_feasibility_conditioned(counts: dict, qubo: np.ndarray,
     Returns
     -------
     dict with keys:
-        AR_feas   : feasibility-conditioned AR (nan if no feasible shots)
-        E_feas    : conditional expectation E[f(x) : x in F]
+        AR_feas   : feasibility-conditioned AR (0 if no feasible shots)
+        E_feas    : E[f(x) * 1_{x in F}] over all shots
         f_max_F   : worst feasible value used in denominator
         p_feasible: fraction of shots that are feasible
     """
@@ -235,7 +235,8 @@ def ar_feasibility_conditioned(counts: dict, qubo: np.ndarray,
     E_feas = sum(fv * prob for fv, prob in feasible_items) / p_feas
 
     denom = f_max_F - f_star
-    AR_feas = (f_max_F - E_feas) / denom if abs(denom) > 1e-10 else float('nan')
+    AR_feas_cond = (f_max_F - E_feas) / denom if abs(denom) > 1e-10 else float('nan')
+    AR_feas = p_feas * AR_feas_cond  # infeasible shots contribute 0
 
     return dict(AR_feas=AR_feas, AR_feas_raw=AR_feas,
                 E_feas=E_feas, f_max_F=f_max_F, p_feasible=p_feas)

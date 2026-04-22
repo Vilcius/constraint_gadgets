@@ -592,7 +592,7 @@ def check_feasibility(
     """
     Check whether a bitstring satisfies all constraints.
 
-    Only the first n_x bits (decision variables) are used; flag/slack bits
+    Only the first n_x bits (decision variables) are used; slack bits
     are ignored.
 
     Parameters
@@ -729,6 +729,22 @@ def compute_tight_lambda(
 # ======================================================================
 # Constraint normalisation and matching (for pre-computed lookup)
 # ======================================================================
+
+def normalize_constraint(c: str) -> str:
+    """Remap a constraint's variable indices to x_0, x_1, ... (sorted order).
+
+    Example: "6*x_2 + 2*x_0 + 2*x_3 <= 3"  →  "6*x_1 + 2*x_0 + 2*x_2 <= 3"
+
+    This canonical form is used as the VCG database lookup key so that
+    structurally identical constraints with different variable assignments
+    match the same pre-trained gadget.
+    """
+    var_ids = sorted(set(int(m) for m in re.findall(r'x_(\d+)', c)))
+    if not var_ids:
+        return c.strip()
+    remap = {old: new for new, old in enumerate(var_ids)}
+    return re.sub(r'x_(\d+)', lambda m: f'x_{remap[int(m.group(1))]}', c).strip()
+
 
 class ConstraintMapper:
     """

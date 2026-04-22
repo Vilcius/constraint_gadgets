@@ -37,7 +37,7 @@ Training stops when AR ≥ 0.999 **and** normalised entropy ≥ 0.9 (amplitude s
 | AR | **1.0000** |
 | P(feasible) | **1.0000** |
 | Layers (p) | 3 |
-| Train time | ~66 s |
+| Train time | ~12 s |
 
 ---
 
@@ -56,13 +56,20 @@ The full end-to-end workflow shown in `example_vcg.py`:
 
 ```python
 from core.vcg import VCG
-from analyze_results.results_helper import ResultsCollector, collect_vcg_data
+from analyze_results.results_helper import ResultsCollector
 from analyze_results.plot_feasibility import plot_vcg_counts
 
 gadget = VCG(constraints=["3*x_0 + 2*x_1 + x_2 <= 3"], ...)
 gadget.train()
 
-row = collect_vcg_data(gadget, constraint_type="knapsack", skip_optimize=True)
+counts = gadget.do_counts_circuit(shots=10_000)
+row = {
+    'constraints': [[CONSTRAINT]],
+    'angle_strategy': ['ma-QAOA'],
+    'AR': [gadget.ar],
+    'counts': [counts],
+    ...
+}
 
 collector = ResultsCollector()
 collector.add(row)

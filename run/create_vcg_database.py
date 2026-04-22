@@ -77,8 +77,9 @@ def _save_db(db: dict, db_path: str) -> None:
 
 
 def _db_key(constraints: list) -> str:
-    """Canonical key: first constraint string (already zero-indexed)."""
-    return constraints[0].strip()
+    """Canonical key: first constraint normalized to x_0, x_1, ... form."""
+    from core.constraint_handler import normalize_constraint
+    return normalize_constraint(constraints[0])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -141,7 +142,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument('--params', default='run/params/vcg_params.jsonl',
+    parser.add_argument('--params', default='run/params/vcg_params_experiments.jsonl',
                         help='JSON-lines task file (from create_vcg_database.py --generate-params)')
     parser.add_argument('--db', default='gadgets/vcg_db.pkl',
                         help='Output database pickle path')

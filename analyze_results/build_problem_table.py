@@ -9,7 +9,7 @@ Two entry points:
 
 2. build_problem_table_from_raw(raw_pkl_path, data_dir, output_prefix)
    New entry point: reads the raw merged pkl produced by
-   run_hybrid_vs_penalty_jax.py, computes all metrics (p_feas, p_opt,
+   run_hybrid_vs_penalty.py, computes all metrics (p_feas, p_opt,
    AR_feas, final-layer selection) inline, and saves both the processed
    comparison_ar pkl and the wide problem_table.
 
@@ -44,8 +44,8 @@ Usage
 
     # directly from raw jax merged pkl:
     python analyze_results/build_problem_table.py \\
-        --raw results/overlapping/hybrid_vs_penalty_jax.pkl \\
-        --output results/overlapping/problem_table_jax.csv
+        --raw results/overlapping/hybrid_vs_penalty.pkl \\
+        --output results/overlapping/problem_table.csv
 """
 
 from __future__ import annotations
@@ -229,9 +229,9 @@ P_FEAS_THRESHOLD = 0.75  # convergence threshold (mirrors run script)
 # Maps full class name -> suffix used in problem_table columns
 _METHOD_SUFFIX = {
     'HybridQAOA':          'h',
-    'HybridQAOACatalyst':  'h',
+    'HybridQAOA':  'h',
     'PenaltyQAOA':         'p',
-    'PenaltyQAOACatalyst': 'p',
+    'PenaltyQAOA': 'p',
 }
 
 
@@ -247,7 +247,7 @@ def build_problem_table_from_raw(
 ) -> pd.DataFrame:
     """Build a per-problem summary table directly from a raw merged pkl.
 
-    Works with the pkl produced by run_hybrid_vs_penalty_jax.py (one row per
+    Works with the pkl produced by run_hybrid_vs_penalty.py (one row per
     layer per method per problem).  Computes all metrics inline:
 
       - p_feasible, p_optimal  — from counts + constraints (no QUBO needed)
@@ -259,7 +259,7 @@ def build_problem_table_from_raw(
     Parameters
     ----------
     raw_pkl_path : str
-        Path to the raw merged pkl (e.g. results/overlapping/hybrid_vs_penalty_jax.pkl).
+        Path to the raw merged pkl (e.g. results/overlapping/hybrid_vs_penalty.pkl).
     data_dir : str
         Directory containing qubos.csv (needed for AR_feas computation).
     output_prefix : str or None
@@ -437,7 +437,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--raw',      default=None,
-                        help='Raw merged pkl from run_hybrid_vs_penalty_jax.py '
+                        help='Raw merged pkl from run_hybrid_vs_penalty.py '
                              '(skips --comp-ar / --comp-res if given)')
     parser.add_argument('--data-dir', default='data/')
     parser.add_argument('--comp-ar',  default='results/overlapping/comparison_ar.pkl')

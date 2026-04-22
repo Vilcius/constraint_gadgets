@@ -149,7 +149,7 @@ def plot_ar_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
 
 
 def plot_ar_feas_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
-    """Line plot: mean AR_feas vs QAOA layer, one line per method.
+    """Line plot: mean AR_feas vs problem size (n_x), one line per method.
 
     P(feas)=0 instances contribute AR_feas=0 (worst case) rather than being
     excluded, so means reflect all experiments.
@@ -159,17 +159,18 @@ def plot_ar_feas_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figur
 
     for method, grp in df.groupby('method'):
         color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
-        means = grp.groupby('layer')['AR_feas'].mean()
-        stds  = grp.groupby('layer')['AR_feas'].std().fillna(0)
+        means = grp.groupby('n_x')['AR_feas'].mean()
+        stds  = grp.groupby('n_x')['AR_feas'].std().fillna(0)
         ax.plot(means.index, means.values, marker='o', label=method, color=color)
         ax.fill_between(means.index,
                         np.clip(means.values - stds.values, 0, None),
                         np.clip(means.values + stds.values, 0, 1),
                         alpha=0.2, color=color)
 
-    ax.set_xlabel('QAOA layers ($p$)')
+    ax.set_xlabel('Problem size ($n_x$)')
     ax.set_ylabel(r'Mean $\mathrm{AR}_{\mathrm{feas}}$')
-    ax.set_title(r'$\mathrm{AR}_{\mathrm{feas}}$ vs QAOA layers')
+    ax.set_title(r'$\mathrm{AR}_{\mathrm{feas}}$ vs problem size')
+    ax.set_xticks(sorted(df['n_x'].unique()))
     ax.legend()
 
     if save_path:

@@ -28,7 +28,7 @@ if [[ "$MODE" == "vcg" ]]; then
 elif [[ "$MODE" == "exp" ]]; then
     PENDING_DIR="$PROJECT_ROOT/results/pending"
     ARRAY_SCRIPT="slurm/experiment_array.sh"
-    PARAMS_FILE="run/params/experiment_params.jsonl"
+    PARAMS_FILE="run/params/experiment_params_overlapping.jsonl"
     MERGE_CMD="python run/run_hybrid_vs_penalty.py --merge --pending-dir results/pending/ --output results/hybrid_vs_penalty.pkl"
 else
     echo "Unknown mode '$MODE'. Use 'vcg' or 'exp'."

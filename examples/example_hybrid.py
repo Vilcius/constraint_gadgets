@@ -13,10 +13,9 @@ Problem structure (7 decision variables, x_0 .. x_6)
   Constraint B  (structural -- VCG gadget)
       6*x_3 + 2*x_4 + 2*x_5 <= 3   vars {3, 4, 5}
       Weighted capacity constraint.  Non-unit coefficients and an inequality
-      make it NOT Dicke-compatible.  HybridQAOA trains a flag-free VCG
-      gadget whose ground state is the uniform superposition over feasible
-      assignments, then uses it as the initial state and Grover mixer.
-      P(feasible) is measured directly on bitstrings -- no flag qubit.
+      make it NOT Dicke-compatible.  HybridQAOA trains a VCG gadget whose
+      ground state is the uniform superposition over feasible assignments,
+      then uses it as the initial state and Grover mixer.
 
   Constraint C  (penalized)
       x_1 + x_4 + x_6 <= 1          vars {1, 4, 6}
@@ -35,17 +34,18 @@ Comparison
 ----------
   HybridQAOA: A and B structural (exact/gadget), C penalized.
   PenaltyQAOA: all three constraints fully penalized (baseline).
+  Both methods run a warm-started layer sweep p = 1 .. MAX_LAYERS.
 
 Run from the project root:
     python examples/example_hybrid.py
 
 Output
 ------
-  Prints metrics table (AR, P(feasible), P(optimal)) to stdout.
+  Prints per-layer metrics table (AR, P(feasible), P(optimal)) to stdout.
   Saves collected results to examples/results/example_hybrid_results.pkl.
-  Saves two figures to examples/figures/:
-    hybrid_example_metrics.png  --  side-by-side metric comparison
-    hybrid_example_counts.png   --  measurement distributions (top outcomes)
+  Saves figures to examples/figures/:
+    hybrid_example_layer_sweep.png  --  AR / P(feas) / P(opt) vs layers
+    hybrid_example_counts.png       --  measurement distributions at final layer
 """
 
 import sys
@@ -55,23 +55,29 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import warnings
 warnings.filterwarnings('ignore')
 
+import jax
+jax.config.update('jax_enable_x64', True)
+import jax.numpy as jnp
+import pandas as pd
+
 from core import constraint_handler as ch
 from core import hybrid_qaoa as hq
 from core import penalty_qaoa as pq
+from core.qaoa_base import ising_hamiltonian_extremes
 from data.make_data import read_qubos_from_file, get_optimal_x
 from analyze_results.results_helper import (
     ResultsCollector,
     read_typed_csv, remap_constraint_to_vars,
-    collect_hybrid_data, collect_penalty_data,
 )
 from analyze_results.metrics import compute_comparison_metrics
-from analyze_results.plot_feasibility import plot_method_comparison, plot_outcome_distributions
+from analyze_results.plot_feasibility import plot_layer_sweep, plot_outcome_distributions
 
 os.makedirs('examples/figures', exist_ok=True)
 os.makedirs('examples/results', exist_ok=True)
 
-N_X = 7          # QUBO / decision-variable count
-SHOTS = 10_000   # measurement shots
+N_X        = 7
+SHOTS      = 10_000
+MAX_LAYERS = 5
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -129,120 +135,110 @@ print(f"Optimal feasible QUBO value : {min_val:.4f}")
 print(f"Optimal bitstring(s)         : {optimal_x}")
 print(f"Penalty weight (delta)       : {penalty_weight:.2f}\n")
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 4. HybridQAOA
-#    -- A enforced via Dicke state prep (exact, no ancilla qubit)
-#    -- B enforced via VCG gadget (trained from scratch, no flag qubit)
-#    -- C penalized (slack variable added automatically)
-#    -- Grover mixer reflects about the composed A+B state-prep circuit
-# ══════════════════════════════════════════════════════════════════════════════
-
-print("Running HybridQAOA ...")
 parsed = ch.parse_constraints(all_constraints)
-hybrid = hq.HybridQAOA(
-    qubo=Q,
-    all_constraints=parsed,
-    structural_indices=[0, 1],   # A (Dicke) + B (VCG)
-    penalty_indices=[2],         # C penalized
-    penalty_str=[penalty_weight],
-    penalty_pen=penalty_weight,
-    angle_strategy='ma-QAOA',
-    mixer='Grover',
-    n_layers=1,
-    steps=50,
-    num_restarts=10,
-    cqaoa_steps=30,
-    cqaoa_num_restarts=10,
-)
+structural_indices, penalty_indices = ch.partition_constraints(parsed, strategy='auto')
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. Layer sweep p = 1 .. MAX_LAYERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+print(f"Running layer sweep p=1..{MAX_LAYERS} ...\n")
+print(f"  {'p':>2}  {'Method':<14} {'AR':>8} {'P(feas)':>10} {'P(opt)':>9}")
+print("  " + "-" * 48)
+
+rows = []
+prev_h_angles = None
+prev_p_angles = None
+
+for p in range(1, MAX_LAYERS + 1):
+
+    # ── HybridQAOA ────────────────────────────────────────────────
+    hybrid = hq.HybridQAOA(
+        qubo=Q,
+        all_constraints=parsed,
+        structural_indices=structural_indices,
+        penalty_indices=penalty_indices,
+        penalty_pen=penalty_weight,
+        angle_strategy='ma-QAOA',
+        mixer='Grover',
+        n_layers=p,
+        steps=50,
+        num_restarts=10,
+        learning_rate=0.01,
+        cqaoa_steps=30,
+        cqaoa_num_restarts=10,
+        gadget_db_path='gadgets/vcg_db.pkl',
+    )
+    opt_cost_h, opt_angles_h = hybrid.optimize_angles(prev_layer_angles=prev_h_angles)
+    counts_h = hybrid.do_counts_circuit(shots=SHOTS)
+    C_min_h, C_max_h = ising_hamiltonian_extremes(hybrid.problem_ham, hybrid.all_wires)
+    m_h = compute_comparison_metrics(counts_h, float(opt_cost_h), C_max_h, C_min_h,
+                                     all_constraints, N_X, optimal_x)
+    rows.append({'method': 'HybridQAOA', 'layer': p, **m_h, 'counts': counts_h})
+    prev_h_angles = jnp.array(opt_angles_h)
+    print(f"  {p:>2}  {'HybridQAOA':<14} {m_h['AR']:>8.4f} {m_h['p_feasible']:>10.4f} {m_h['p_optimal']:>9.4f}")
+
+    # ── PenaltyQAOA ───────────────────────────────────────────────
+    pen_solver = pq.PenaltyQAOA(
+        qubo=Q,
+        constraints=all_constraints,
+        penalty=penalty_weight,
+        angle_strategy='ma-QAOA',
+        n_layers=p,
+        steps=50,
+        num_restarts=10,
+        learning_rate=0.01,
+    )
+    opt_cost_p, opt_angles_p = pen_solver.optimize_angles(prev_layer_angles=prev_p_angles)
+    counts_p = pen_solver.do_counts_circuit(shots=SHOTS)
+    C_min_p, C_max_p = ising_hamiltonian_extremes(pen_solver.full_Ham, pen_solver.all_wires)
+    m_p = compute_comparison_metrics(counts_p, float(opt_cost_p), C_max_p, C_min_p,
+                                     all_constraints, N_X, optimal_x)
+    rows.append({'method': 'PenaltyQAOA', 'layer': p, **m_p, 'counts': counts_p})
+    prev_p_angles = jnp.array(opt_angles_p)
+    print(f"  {p:>2}  {'PenaltyQAOA':<14} {m_p['AR']:>8.4f} {m_p['p_feasible']:>10.4f} {m_p['p_optimal']:>9.4f}")
+
+print()
+
+# Save all layer rows
+df = pd.DataFrame([{k: v for k, v in r.items() if k != 'counts'} for r in rows])
 collector = ResultsCollector()
 collector.load('examples/results/example_hybrid_results.pkl')
-
-row_h = collect_hybrid_data(
-    all_constraints, hybrid, qubo_string,
-    min_val=min_val, constraint_type='mixed',
-)
-collector.add(row_h)
-print(f"  Done. AR = {row_h['AR'][0]:.4f}\n")
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 5. PenaltyQAOA (full-penalization baseline)
-#    All three constraints converted to quadratic penalty terms.
-#    No structured state prep; starts from |+>^n on all qubits.
-# ══════════════════════════════════════════════════════════════════════════════
-
-print("Running PenaltyQAOA (full penalization baseline) ...")
-penalty_solver = pq.PenaltyQAOA(
-    qubo=Q,
-    constraints=all_constraints,
-    penalty=penalty_weight,
-    angle_strategy='ma-QAOA',
-    n_layers=1,
-    steps=50,
-    num_restarts=10,
-)
-
-row_p = collect_penalty_data(
-    all_constraints, penalty_solver, qubo_string,
-    min_val=min_val, constraint_type='mixed',
-)
-collector.add(row_p)
-print(f"  Done. AR = {row_p['AR'][0]:.4f}\n")
-
+for r in rows:
+    collector.add(r)
 collector.save('examples/results/example_hybrid_results.pkl')
 print("Saved results to examples/results/example_hybrid_results.pkl\n")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 6. Metrics
+# 5. Plot 1 -- Layer sweep: AR / P(feas) / P(opt) vs p
 # ══════════════════════════════════════════════════════════════════════════════
 
-m_hybrid  = compute_comparison_metrics(
-    row_h['counts'][0], row_h['opt_cost'][0],
-    row_h['C_max'][0], row_h['C_min'][0],
-    all_constraints, N_X, optimal_x,
+plot_layer_sweep(
+    df,
+    title='HybridQAOA vs PenaltyQAOA — 3-constraint COP, layer sweep',
+    save_path='examples/figures/hybrid_example_layer_sweep.png',
 )
-m_penalty = compute_comparison_metrics(
-    row_p['counts'][0], row_p['opt_cost'][0],
-    row_p['C_max'][0], row_p['C_min'][0],
-    all_constraints, N_X, optimal_x,
-)
-
-print("Results:")
-print(f"  {'Method':<16} {'AR':>8} {'P(feasible)':>12} {'P(optimal)':>11}")
-print("  " + "-" * 52)
-for name, m in [("HybridQAOA", m_hybrid), ("PenaltyQAOA", m_penalty)]:
-    print(f"  {name:<16} {m['AR']:>8.4f} {m['p_feasible']:>12.4f} {m['p_optimal']:>11.4f}")
-print()
+print("Saved: examples/figures/hybrid_example_layer_sweep.png")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 7. Plot 1 -- Metric comparison bar chart
+# 6. Plot 2 -- Measurement distributions at final layer
 # ══════════════════════════════════════════════════════════════════════════════
 
-plot_method_comparison(
-    {'HybridQAOA': m_hybrid, 'PenaltyQAOA': m_penalty},
-    title='HybridQAOA vs PenaltyQAOA -- 3-constraint COP',
-    save_path='examples/figures/hybrid_example_metrics.png',
-)
-print("Saved: examples/figures/hybrid_example_metrics.png")
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 8. Plot 2 -- Measurement distributions (top outcomes)
-# ══════════════════════════════════════════════════════════════════════════════
+final_h = next(r for r in reversed(rows) if r['method'] == 'HybridQAOA')
+final_p = next(r for r in reversed(rows) if r['method'] == 'PenaltyQAOA')
 
 plot_outcome_distributions(
-    counts={'HybridQAOA': row_h['counts'][0], 'PenaltyQAOA': row_p['counts'][0]},
+    counts={'HybridQAOA': final_h['counts'], 'PenaltyQAOA': final_p['counts']},
     constraints=all_constraints,
     n_x=N_X,
     optimal_x=optimal_x,
     top_n=20,
-    structural_constraints=[c_a, c_b],
-    penalty_constraints=[c_c],
-    title='Measurement distributions: decision variables only',
+    structural_constraints=[all_constraints[i] for i in structural_indices],
+    penalty_constraints=[all_constraints[i] for i in penalty_indices],
+    title=f'Measurement distributions at p={MAX_LAYERS}: decision variables only',
     save_path='examples/figures/hybrid_example_counts.png',
 )
 print("Saved: examples/figures/hybrid_example_counts.png")
