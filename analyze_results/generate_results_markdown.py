@@ -5,6 +5,9 @@ Produces:
     results/disjoint/README.md
     results/overlapping/README.md
 
+Each file has one table: problem definition + circuit resources + results
+for both methods at p=1..5.
+
 Usage
 -----
     cd /home/vilcius/Papers/constraint_gadget/code
@@ -20,91 +23,84 @@ from core import constraint_handler as ch
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LaTeX helpers
+# Unicode math helpers (no LaTeX — renders reliably in GitHub table cells)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _to_latex(c: str) -> str:
-    """Convert a raw constraint string to clean GitHub-renderable LaTeX."""
+_SUB = str.maketrans('0123456789', '₀₁₂₃₄₅₆₇₈₉')
+
+def _to_unicode(c: str) -> str:
+    """Convert a constraint string to Unicode math for GitHub table display."""
     s = c.strip()
 
-    # x_N  →  x_{N}
-    s = re.sub(r'x_(\d+)', lambda m: f'x_{{{m.group(1)}}}', s)
+    # x_N  →  xₙ
+    s = re.sub(r'x_(\d+)', lambda m: 'x' + m.group(1).translate(_SUB), s)
 
-    # coefficient * x_{i}  →  coeff x_{i}  (no cdot for scalar-variable)
-    s = re.sub(r'(\d+)\s*\*\s*(x_\{)', r'\1\2', s)
-    # drop leading coefficient of 1 before variable (1x_i → x_i)
-    s = re.sub(r'(?<![0-9])1(x_\{)', r'\1', s)
+    # drop coefficient 1 before variable: 1xᵢ → xᵢ  (not preceded by another digit)
+    s = re.sub(r'(?<!\d)1(x[₀₁₂₃₄₅₆₇₈₉])', r'\1', s)
 
-    # x_{i}*x_{i}  →  x_{i}^2  (squared term)
-    def _square(m):
-        v = m.group(1)
-        return f'{v}^2'
-    s = re.sub(r'(x_\{\d+\})\*\1', _square, s)
+    # xᵢ*xᵢ  →  xᵢ²  (squared)
+    s = re.sub(r'(x[₀-₉]+)\*(x[₀-₉]+)',
+               lambda m: m.group(1) + '²' if m.group(1) == m.group(2)
+               else m.group(1) + m.group(2), s)
 
-    # x_{i}*x_{j}  →  x_{i}x_{j}  (product, no cdot needed)
+    # remaining *  →  nothing (implicit multiplication)
     s = s.replace('*', '')
 
     # operators
-    s = s.replace('<=', r'\leq').replace('>=', r'\geq')
-    s = s.replace('==', '=')
+    s = s.replace('<=', '≤').replace('>=', '≥').replace('==', '=')
 
     return s
 
 
-def _wrap_latex(c: str, wrap: int = 35) -> str:
-    """
-    Render constraint as LaTeX, splitting into multiple $...$ chunks at
-    '+'/'-' boundaries so no chunk exceeds ~wrap characters.
-    Chunks are joined with <br> for use in markdown table cells.
-    """
-    expr = _to_latex(c)
+def _wrap(c: str, wrap: int = 32) -> str:
+    """Wrap a constraint at + / - boundaries after ~wrap chars using <br>."""
+    expr = _to_unicode(c)
 
-    # Split on inequality/equality to separate LHS from RHS
-    for op in (r'\leq', r'\geq', '='):
+    # Split LHS from operator+RHS
+    rhs = ''
+    for op in ('≤', '≥', '='):
         if op in expr:
             idx = expr.index(op)
-            lhs = expr[:idx].strip()
-            rhs = expr[idx:].strip()
+            rhs  = expr[idx:].strip()
+            expr = expr[:idx].strip()
             break
-    else:
-        lhs, rhs = expr, ''
 
-    # Tokenise LHS at top-level '+' and '-' (keep the sign with the term)
+    # Tokenise at top-level + and -
     tokens: list[str] = []
-    current = ''
-    for ch_c in lhs:
-        if ch_c in '+-' and current.strip():
-            tokens.append(current)
-            current = ch_c
+    cur = ''
+    for ch_c in expr:
+        if ch_c in '+-' and cur.strip():
+            tokens.append(cur)
+            cur = ch_c
         else:
-            current += ch_c
-    if current.strip():
-        tokens.append(current)
+            cur += ch_c
+    if cur.strip():
+        tokens.append(cur)
 
-    # Group tokens into lines of ≤ wrap chars
+    # Group into lines ≤ wrap chars
     lines: list[str] = []
     line = ''
     for tok in tokens:
-        candidate = (line + tok).strip()
-        if len(candidate) > wrap and line:
+        cand = (line + tok).strip()
+        if len(cand) > wrap and line:
             lines.append(line.strip())
             line = tok
         else:
-            line = candidate
+            line = cand
     if line.strip():
         lines.append(line.strip())
 
-    # Attach RHS to final line
+    # Attach RHS to last line
     if rhs and lines:
-        lines[-1] = lines[-1] + ' ' + rhs
+        lines[-1] += ' ' + rhs
     elif rhs:
         lines.append(rhs)
 
-    return '<br>'.join(f'${ln}$' for ln in lines if ln.strip())
+    return '<br>'.join(lines)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Partition helper
+# Misc helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _partition(constraints: list[str]):
@@ -113,14 +109,14 @@ def _partition(constraints: list[str]):
     return si, pi
 
 
-def _fmt(val, decimals: int = 3) -> str:
+def _fmt(val, d: int = 3) -> str:
     if val is None or (isinstance(val, float) and val != val):
         return ''
-    return f'{val:.{decimals}f}'
+    return f'{val:.{d}f}'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Main generator
+# Generator
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate(problem_set: str) -> None:
@@ -135,99 +131,70 @@ def generate(problem_set: str) -> None:
     ar_df = pd.read_pickle(ar_path) if os.path.exists(ar_path) else pd.DataFrame()
     cr_df = pd.read_pickle(cr_path) if os.path.exists(cr_path) else pd.DataFrame()
 
-    # Lookup by constraints_hash (stored as str(constraints_list), original order)
+    # results lookup: key = str(constraints) — original order, matches split_results
     results_by_hash: dict[str, pd.DataFrame] = {}
     if not ar_df.empty:
         for h, grp in ar_df.groupby('constraints_hash'):
             results_by_hash[h] = grp
 
+    # circuit resources lookup: key = str(sorted(constraints))
     cr_by_hash: dict[str, dict] = {}
     if not cr_df.empty:
         for _, row in cr_df.iterrows():
             cr_by_hash[row['constraints_hash']] = row.to_dict()
 
-    methods = ['HybridQAOA', 'PenaltyQAOA']
     layers  = [1, 2, 3, 4, 5]
+    methods = [('H', 'HybridQAOA'), ('P', 'PenaltyQAOA')]
 
     lines: list[str] = []
     title = problem_set.capitalize()
     lines += [
         f'# {title} Problem Set — Raw Results',
         '',
-        f'**{len(tasks)} problem instances** ({problem_set} constraint variable supports).',
-        'Empty cells indicate runs that did not complete (transient cluster errors).',
+        f'**{len(tasks)} problem instances.** '
+        'Empty metric cells = run did not complete (transient cluster errors).',
         '',
-        '---',
+        'Column key: **Q** = qubits, **SP** = state-prep gates, '
+        '**L** = gates per layer, **AR** = AR_feas, **Pf** = P(feas), **Po** = P(opt).',
         '',
     ]
 
-    # ── Table 1: Problem definitions ──────────────────────────────────────────
+    # ── Build header ──────────────────────────────────────────────────────────
+    p_headers = ' | '.join(
+        f'p={p} AR | p={p} Pf | p={p} Po' for p in layers
+    )
+    p_sep = ' | '.join(':---: | :---: | :---:' for _ in layers)
+
     lines += [
-        '## Problem Definitions',
-        '',
-        '| COP | $n_x$ | Families | Structural constraints | Penalized constraints'
-        ' | Qubits (H/P) | SP gates (H/P) | Layer gates (H/P) |',
-        '|-----|-------|----------|------------------------|----------------------'
-        '-|-------------|---------------|------------------|',
+        f'| COP | nx | Method | Structural constraints | Penalized constraints'
+        f' | Q | SP | L | {p_headers} |',
+        f'|:---:|:--:|:------:|------------------------|---------------------'
+        f'-|:-:|:--:|:-:|{p_sep}|',
     ]
 
+    # ── One row per (cop, method) ─────────────────────────────────────────────
     for cop_id, task in enumerate(tasks):
-        constraints = task['constraints']
-        families    = task.get('families', [])
-        n_x         = task['n_x']
-        h_str       = str(constraints)          # split_results hash (original order)
-        h_str_sorted = str(sorted(constraints)) # circuit_resources hash (sorted)
+        constraints  = task['constraints']
+        families     = task.get('families', [])
+        n_x          = task['n_x']
+        h_str        = str(constraints)
+        h_str_sorted = str(sorted(constraints))
 
         si, pi = _partition(constraints)
         struct  = '<br>'.join(
-            _wrap_latex(constraints[i]) + f' *({families[i]})*' for i in si)
+            _wrap(constraints[i]) + f' *({families[i]})*' for i in si)
         penalty = '<br>'.join(
-            _wrap_latex(constraints[i]) + f' *({families[i]})*' for i in pi) or '—'
-
-        fam_str = ', '.join(families)
-
-        cr = cr_by_hash.get(h_str_sorted, {})
-        nq_h  = cr.get('n_qubits_h', '')
-        nq_p  = cr.get('n_qubits_p', '')
-        sp_h  = cr.get('sp_total_h', '')
-        sp_p  = cr.get('sp_total_p', '')
-        lay_h = cr.get('layer_total_h', '')
-        lay_p = cr.get('layer_total_p', '')
-
-        lines.append(
-            f'| {cop_id} | {n_x} | {fam_str} | {struct} | {penalty}'
-            f' | {nq_h}/{nq_p} | {sp_h}/{sp_p} | {lay_h}/{lay_p} |'
-        )
-
-    lines += ['', '---', '']
-
-    # ── Table 2: Results per layer ────────────────────────────────────────────
-    lines += [
-        '## Results',
-        '',
-        '`H` = HybridQAOA, `P` = PenaltyQAOA. '
-        'Columns: AR$_f$ = AR$_{\\text{feas}}$, $P_f$ = $P(\\text{feas})$, '
-        '$P_o$ = $P(\\text{opt})$.',
-        '',
-    ]
-
-    p_headers = ' | '.join(
-        f'$p={p}$ AR$_f$ | $p={p}$ $P_f$ | $p={p}$ $P_o$' for p in layers)
-    p_sep = ' | '.join('--- | --- | ---' for _ in layers)
-    lines += [
-        f'| COP | $n_x$ | Method | {p_headers} |',
-        f'|-----|-------|--------|{p_sep}|',
-    ]
-
-    for cop_id, task in enumerate(tasks):
-        constraints = task['constraints']
-        n_x         = task['n_x']
-        h_str       = str(constraints)
+            _wrap(constraints[i]) + f' *({families[i]})*' for i in pi) or '—'
 
         res_grp = results_by_hash.get(h_str)
+        cr = cr_by_hash.get(h_str_sorted, {})
 
-        for method_short, method_full in [('H', 'HybridQAOA'), ('P', 'PenaltyQAOA')]:
-            cells: list[str] = []
+        for method_short, method_full in methods:
+            nq  = cr.get(f'n_qubits_{"h" if method_short == "H" else "p"}', '')
+            sp  = cr.get(f'sp_total_{"h" if method_short == "H" else "p"}', '')
+            lay = cr.get(f'layer_total_{"h" if method_short == "H" else "p"}', '')
+
+            metric_cells: list[str] = []
             for p in layers:
                 if res_grp is not None:
                     row = res_grp[
@@ -236,17 +203,29 @@ def generate(problem_set: str) -> None:
                     ]
                     if len(row) > 0:
                         r = row.iloc[0]
-                        cells.append(
+                        metric_cells.append(
                             f'{_fmt(r.get("AR_feas"))} | '
                             f'{_fmt(r.get("p_feasible"))} | '
                             f'{_fmt(r.get("p_optimal"))}'
                         )
                         continue
-                cells.append(' |  | ')
+                metric_cells.append(' | | ')
+
+            metrics_str = ' | '.join(metric_cells)
+
+            # Only print constraint columns on first method row; blank for second
+            if method_short == 'H':
+                struct_cell  = struct
+                penalty_cell = penalty
+            else:
+                struct_cell  = '↑'
+                penalty_cell = '↑'
 
             lines.append(
-                f'| {cop_id} | {n_x} | `{method_short}` | ' +
-                ' | '.join(cells) + ' |'
+                f'| {cop_id} | {n_x} | `{method_short}` '
+                f'| {struct_cell} | {penalty_cell} '
+                f'| {nq} | {sp} | {lay} '
+                f'| {metrics_str} |'
             )
 
     lines += ['', '---', '']
