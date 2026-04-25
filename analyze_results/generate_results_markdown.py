@@ -1,16 +1,9 @@
 """
-generate_results_markdown.py — Generate GitHub-readable markdown tables of raw
-experimental results for the disjoint and overlapping problem sets.
+generate_results_markdown.py — GitHub-readable markdown tables of raw results.
 
 Produces:
     results/disjoint/README.md
     results/overlapping/README.md
-
-Each file contains:
-  1. Problem definitions table  — cop_id, n_x, constraints (LaTeX math),
-     structural constraints, penalized constraints, circuit resources
-  2. Results table — one row per (cop_id, method, QAOA layer) with
-     AR_feas, P(feas), P(opt); empty cells for non-completed runs
 
 Usage
 -----
@@ -18,7 +11,7 @@ Usage
     python analyze_results/generate_results_markdown.py
 """
 from __future__ import annotations
-import ast, json, os, re, sys
+import json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -27,21 +20,92 @@ from core import constraint_handler as ch
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers
+# LaTeX helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _to_latex(c: str) -> str:
-    """Convert a constraint string to GitHub-renderable LaTeX math."""
+    """Convert a raw constraint string to clean GitHub-renderable LaTeX."""
     s = c.strip()
-    # Replace x_N with x_{N} for multi-digit indices
+
+    # x_N  →  x_{N}
     s = re.sub(r'x_(\d+)', lambda m: f'x_{{{m.group(1)}}}', s)
-    # Replace multiplication x_{i}*x_{j} -> x_{{i}} x_{{j}}
-    s = re.sub(r'\*', r' \\cdot ', s)
-    # Operators
+
+    # coefficient * x_{i}  →  coeff x_{i}  (no cdot for scalar-variable)
+    s = re.sub(r'(\d+)\s*\*\s*(x_\{)', r'\1\2', s)
+    # drop leading coefficient of 1 before variable (1x_i → x_i)
+    s = re.sub(r'(?<![0-9])1(x_\{)', r'\1', s)
+
+    # x_{i}*x_{i}  →  x_{i}^2  (squared term)
+    def _square(m):
+        v = m.group(1)
+        return f'{v}^2'
+    s = re.sub(r'(x_\{\d+\})\*\1', _square, s)
+
+    # x_{i}*x_{j}  →  x_{i}x_{j}  (product, no cdot needed)
+    s = s.replace('*', '')
+
+    # operators
     s = s.replace('<=', r'\leq').replace('>=', r'\geq')
     s = s.replace('==', '=')
-    return f'${s}$'
 
+    return s
+
+
+def _wrap_latex(c: str, wrap: int = 35) -> str:
+    """
+    Render constraint as LaTeX, splitting into multiple $...$ chunks at
+    '+'/'-' boundaries so no chunk exceeds ~wrap characters.
+    Chunks are joined with <br> for use in markdown table cells.
+    """
+    expr = _to_latex(c)
+
+    # Split on inequality/equality to separate LHS from RHS
+    for op in (r'\leq', r'\geq', '='):
+        if op in expr:
+            idx = expr.index(op)
+            lhs = expr[:idx].strip()
+            rhs = expr[idx:].strip()
+            break
+    else:
+        lhs, rhs = expr, ''
+
+    # Tokenise LHS at top-level '+' and '-' (keep the sign with the term)
+    tokens: list[str] = []
+    current = ''
+    for ch_c in lhs:
+        if ch_c in '+-' and current.strip():
+            tokens.append(current)
+            current = ch_c
+        else:
+            current += ch_c
+    if current.strip():
+        tokens.append(current)
+
+    # Group tokens into lines of ≤ wrap chars
+    lines: list[str] = []
+    line = ''
+    for tok in tokens:
+        candidate = (line + tok).strip()
+        if len(candidate) > wrap and line:
+            lines.append(line.strip())
+            line = tok
+        else:
+            line = candidate
+    if line.strip():
+        lines.append(line.strip())
+
+    # Attach RHS to final line
+    if rhs and lines:
+        lines[-1] = lines[-1] + ' ' + rhs
+    elif rhs:
+        lines.append(rhs)
+
+    return '<br>'.join(f'${ln}$' for ln in lines if ln.strip())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Partition helper
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _partition(constraints: list[str]):
     parsed = ch.parse_constraints(constraints)
@@ -60,30 +124,23 @@ def _fmt(val, decimals: int = 3) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate(problem_set: str) -> None:
-    """
-    problem_set : 'disjoint' or 'overlapping'
-    """
-    params_path  = f'run/params/experiment_params_{problem_set}.jsonl'
-    ar_path      = f'results/{problem_set}/comparison_ar_all_layers.pkl'
-    cr_path      = f'results/{problem_set}/circuit_resources.pkl'
-    out_path     = f'results/{problem_set}/README.md'
+    params_path = f'run/params/experiment_params_{problem_set}.jsonl'
+    ar_path     = f'results/{problem_set}/comparison_ar_all_layers.pkl'
+    cr_path     = f'results/{problem_set}/circuit_resources.pkl'
+    out_path    = f'results/{problem_set}/README.md'
 
-    # ── Load params ──────────────────────────────────────────────────────────
     with open(params_path) as f:
         tasks = [json.loads(l) for l in f]
 
-    # ── Load results (may be missing for non-completed cops) ─────────────────
     ar_df = pd.read_pickle(ar_path) if os.path.exists(ar_path) else pd.DataFrame()
     cr_df = pd.read_pickle(cr_path) if os.path.exists(cr_path) else pd.DataFrame()
 
-    # Build lookup: constraints_hash -> results rows
+    # Lookup by constraints_hash (stored as str(constraints_list), original order)
     results_by_hash: dict[str, pd.DataFrame] = {}
     if not ar_df.empty:
-        ar_df['_hash'] = ar_df['constraints_hash']
-        for h, grp in ar_df.groupby('_hash'):
+        for h, grp in ar_df.groupby('constraints_hash'):
             results_by_hash[h] = grp
 
-    # Build lookup: constraints_hash -> circuit resources row
     cr_by_hash: dict[str, dict] = {}
     if not cr_df.empty:
         for _, row in cr_df.iterrows():
@@ -93,8 +150,6 @@ def generate(problem_set: str) -> None:
     layers  = [1, 2, 3, 4, 5]
 
     lines: list[str] = []
-
-    # ── Title ────────────────────────────────────────────────────────────────
     title = problem_set.capitalize()
     lines += [
         f'# {title} Problem Set — Raw Results',
@@ -106,42 +161,42 @@ def generate(problem_set: str) -> None:
         '',
     ]
 
-    # ── Table 1: Problem definitions ─────────────────────────────────────────
+    # ── Table 1: Problem definitions ──────────────────────────────────────────
     lines += [
         '## Problem Definitions',
         '',
         '| COP | $n_x$ | Families | Structural constraints | Penalized constraints'
-        ' | $n_\\text{qubits}$ (H) | SP gates (H) | Layer gates (H)'
-        ' | $n_\\text{qubits}$ (P) | SP gates (P) | Layer gates (P) |',
+        ' | Qubits (H/P) | SP gates (H/P) | Layer gates (H/P) |',
         '|-----|-------|----------|------------------------|----------------------'
-        '-|----------------------|--------------|----------------|'
-        '----------------------|--------------|----------------|',
+        '-|-------------|---------------|------------------|',
     ]
 
     for cop_id, task in enumerate(tasks):
         constraints = task['constraints']
         families    = task.get('families', [])
         n_x         = task['n_x']
-        h_str       = str(sorted(constraints))  # constraints_hash
+        h_str       = str(constraints)          # split_results hash (original order)
+        h_str_sorted = str(sorted(constraints)) # circuit_resources hash (sorted)
 
         si, pi = _partition(constraints)
-        struct_latex  = '<br>'.join(_to_latex(constraints[i]) + f' ({families[i]})' for i in si)
-        penalty_latex = '<br>'.join(_to_latex(constraints[i]) + f' ({families[i]})' for i in pi) or '—'
+        struct  = '<br>'.join(
+            _wrap_latex(constraints[i]) + f' *({families[i]})*' for i in si)
+        penalty = '<br>'.join(
+            _wrap_latex(constraints[i]) + f' *({families[i]})*' for i in pi) or '—'
 
         fam_str = ', '.join(families)
 
-        cr = cr_by_hash.get(h_str, {})
+        cr = cr_by_hash.get(h_str_sorted, {})
         nq_h  = cr.get('n_qubits_h', '')
-        sp_h  = cr.get('sp_total_h', '')
-        lay_h = cr.get('layer_total_h', '')
         nq_p  = cr.get('n_qubits_p', '')
+        sp_h  = cr.get('sp_total_h', '')
         sp_p  = cr.get('sp_total_p', '')
+        lay_h = cr.get('layer_total_h', '')
         lay_p = cr.get('layer_total_p', '')
 
         lines.append(
-            f'| {cop_id} | {n_x} | {fam_str} | {struct_latex} | {penalty_latex}'
-            f' | {nq_h} | {sp_h} | {lay_h}'
-            f' | {nq_p} | {sp_p} | {lay_p} |'
+            f'| {cop_id} | {n_x} | {fam_str} | {struct} | {penalty}'
+            f' | {nq_h}/{nq_p} | {sp_h}/{sp_p} | {lay_h}/{lay_p} |'
         )
 
     lines += ['', '---', '']
@@ -150,25 +205,24 @@ def generate(problem_set: str) -> None:
     lines += [
         '## Results',
         '',
-        '`H` = HybridQAOA, `P` = PenaltyQAOA.',
+        '`H` = HybridQAOA, `P` = PenaltyQAOA. '
+        'Columns: AR$_f$ = AR$_{\\text{feas}}$, $P_f$ = $P(\\text{feas})$, '
+        '$P_o$ = $P(\\text{opt})$.',
         '',
     ]
 
-    # Header: COP | n_x | method | p=1 AR | p=1 Pfeas | p=1 Popt | p=2 ... | p=5 ...
-    layer_headers = ' | '.join(
-        f'$p={p}$ AR$_f$ | $p={p}$ $P_f$ | $p={p}$ $P_o$'
-        for p in layers
-    )
-    sep = ' | '.join('--- | --- | ---' for _ in layers)
+    p_headers = ' | '.join(
+        f'$p={p}$ AR$_f$ | $p={p}$ $P_f$ | $p={p}$ $P_o$' for p in layers)
+    p_sep = ' | '.join('--- | --- | ---' for _ in layers)
     lines += [
-        f'| COP | $n_x$ | Method | {layer_headers} |',
-        f'|-----|-------|--------|{sep}|',
+        f'| COP | $n_x$ | Method | {p_headers} |',
+        f'|-----|-------|--------|{p_sep}|',
     ]
 
     for cop_id, task in enumerate(tasks):
         constraints = task['constraints']
         n_x         = task['n_x']
-        h_str       = str(sorted(constraints))
+        h_str       = str(constraints)
 
         res_grp = results_by_hash.get(h_str)
 
@@ -196,14 +250,14 @@ def generate(problem_set: str) -> None:
             )
 
     lines += ['', '---', '']
-    lines.append(
-        '*Generated by `analyze_results/generate_results_markdown.py`.*'
-    )
+    lines.append('*Generated by `analyze_results/generate_results_markdown.py`.*')
 
     os.makedirs(f'results/{problem_set}', exist_ok=True)
     with open(out_path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
-    print(f'Wrote {out_path}  ({len(tasks)} problems, {sum(1 for _ in results_by_hash)} with results)')
+
+    n_with = sum(1 for t in tasks if str(t['constraints']) in results_by_hash)
+    print(f'Wrote {out_path}  ({len(tasks)} problems, {n_with} with results)')
 
 
 if __name__ == '__main__':
