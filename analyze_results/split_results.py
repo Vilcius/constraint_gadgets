@@ -295,6 +295,10 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
     # AR_feas: feasibility-conditioned AR.  Requires the QUBO matrix, which is
     # not stored directly — load it from data/qubos.csv keyed by qubo_string.
     df['AR_feas'] = _compute_ar_feas_column(df)
+    # Paper convention: P(feas)=0 instances are assigned AR_feas=0.
+    # _compute_ar_feas_column leaves these as NaN; fill them now.
+    pf0_mask = (df['p_feasible'] == 0) & df['AR_feas'].isna()
+    df.loc[pf0_mask, 'AR_feas'] = 0.0
 
     # has_feasible_solution: brute-force check; True iff at least one bitstring
     # satisfies all constraints.  n_x <= 10 so at most 1024 evaluations per row.
@@ -334,6 +338,9 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
 
     _save(_select(df_ar, COMPARISON_AR_COLS),
           os.path.join(output_dir, 'comparison_ar.pkl'), 'Comparison AR')
+    # All-layers AR: needed for convergence/layers-to-threshold analysis.
+    _save(_select(df, COMPARISON_AR_COLS),
+          os.path.join(output_dir, 'comparison_ar_all_layers.pkl'), 'Comparison AR (all layers)')
     _save(_select(df, COMPARISON_RESOURCES_COLS),
           os.path.join(output_dir, 'comparison_resources.pkl'), 'Comparison Resources')
 
