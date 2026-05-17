@@ -1,0 +1,67 @@
+circuit_resource_stats.txt — generated 2026-05-12 15:13
+======================================================================
+
+### Qubit counts ###
+  (PC-QAOA uses no slack qubits for structurally enforced constraints)
+    n    PC-QAOA qubits   slack    Penalty qubits   slack
+    3               4.2     1.2               6.2     3.2
+    4               7.0     3.0               8.0     4.0
+    5               8.7     3.7              10.9     5.9
+    6               8.2     2.2              11.1     5.1
+    7               9.0     2.0              12.3     5.3
+    8               9.6     1.6              13.5     5.5
+
+  Overall (all n):
+    PC-QAOA:     mean=8.8  median=8.0  min=3  max=18  (slack: mean=2.3  median=0.0  min=0  max=10)
+    PenaltyQAOA: mean=11.8  median=12.0  min=3  max=22  (slack: mean=5.3  median=5.0  min=0  max=14)
+
+### State-preparation gate counts ###
+  PC-QAOA = VCG/Dicke state prep circuit; PenaltyQAOA = H^n (product state).
+    n    PC total     PC 2q   Pen total    Pen 2q
+    3         1.2       0.0         3.2       0.0
+    4         8.3       4.2         4.0       0.0
+    5        13.2       5.9         5.9       0.0
+    6        31.4      16.8         5.1       0.0
+    7        63.4      40.4         5.3       0.0
+    8       104.2      68.0         5.5       0.0
+
+  Overall:
+    PC-QAOA sp:     total mean=56.5  median=17.0  min=0  max=1180  2q mean=35.3  median=10.0  min=0  max=834
+    PenaltyQAOA sp: total mean=5.3  median=5.0  min=0  max=14  2q mean=0.0  median=0.0  min=0  max=0
+
+### Per-QAOA-layer gate counts (cost + mixer, ×1 layer) ###
+    n    PC total     PC 2q   Pen total    Pen 2q
+    3       156.0      72.2       198.2     180.5
+    4       457.2     234.2       283.1     287.1
+    5       920.3     503.3       576.4     676.6
+    6       641.2     349.2       432.8     475.8
+    7       570.7     317.8       482.7     541.5
+    8       655.0     379.4       509.3     575.5
+
+  Overall:
+    PC-QAOA layer:     total mean=653.4  median=220.0  min=24  max=6224  2q mean=363.6  median=106.0  min=8  max=3612
+    PenaltyQAOA layer: total mean=478.1  median=247.5  min=26  max=3124  2q mean=537.6  median=169.0  min=16  max=4224
+
+### Total 2-qubit gates (state prep + p × layer) ###
+    n      PC p=1     Pen p=1      PC p=5     Pen p=5
+    3        72.2       180.5       361.2       902.5
+    4       238.4       287.1      1175.3      1435.6
+    5       509.2       676.6      2522.5      3383.1
+    6       366.1       475.8      1763.0      2379.2
+    7       358.3       541.5      1629.6      2707.5
+    8       447.4       575.5      1965.2      2877.5
+
+  Overall:
+    p=1:  PC-QAOA mean=398.9  median=126.0  min=8  max=3622  PenaltyQAOA mean=537.6  median=169.0  min=16  max=4224
+      PenaltyQAOA/PC-QAOA ratio (mean): 1.35x
+    p=5:  PC-QAOA mean=1853.4  median=558.5  min=40  max=18066  PenaltyQAOA mean=2688.1  median=845.0  min=80  max=21120
+      PenaltyQAOA/PC-QAOA ratio (mean): 1.45x
+
+### PC-QAOA state-prep: VCG vs exact, by n ###
+    n   VCG instances   exact instances   VCG sp_2q mean   exact sp_2q mean
+    3               3                 1              0.0                0.0
+    4               6                26              0.3                5.1
+    5              39                36              4.8                7.1
+    6              73                41             20.8                9.7
+    7              72                56             62.6               12.0
+    8             107                40             87.9               14.7

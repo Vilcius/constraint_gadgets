@@ -1,0 +1,81 @@
+vcg_paper_stats.txt — generated 2026-05-12 16:10
+======================================================================
+
+### Gadget database overview ###
+  Total gadgets:           60
+  Exact-prep (p=0):        14  (23.3%)
+  QAOA-trained:            46  (76.7%)
+
+  By family (all):
+    knapsack: total=30  exact=1  QAOA=29
+    quadratic_knapsack: total=30  exact=13  QAOA=17
+
+### Convergence (QAOA gadgets only) ###
+  Criteria: AR >= 0.999 AND S_norm >= 0.9999
+  Converged early:         5/46  (10.9%)
+  Ran to p_max=8:          41/46  (89.1%)
+
+  By family:
+    knapsack: converged=5/29
+    quadratic_knapsack: converged=0/17
+
+### Normalized feasible entropy S_norm (QAOA only) ###
+  knapsack:  n=29  mean=0.9204  std=0.0734  min=0.7769  max=1.0000
+    >= 0.9999: 5/29  (17.2%)
+    >= 0.9990: 5/29  (17.2%)
+    >= 0.9900: 8/29  (27.6%)
+    >= 0.9000: 18/29  (62.1%)
+    >= 0.7500: 29/29  (100.0%)
+  quadratic_knapsack:  n=17  mean=0.9155  std=0.0674  min=0.7813  max=0.9990
+    >= 0.9999: 0/17  (0.0%)
+    >= 0.9990: 0/17  (0.0%)
+    >= 0.9900: 3/17  (17.6%)
+    >= 0.9000: 11/17  (64.7%)
+    >= 0.7500: 17/17  (100.0%)
+
+  By family and |S_k|:
+    knapsack |S_k|=3: n=9  mean=0.9853  std=0.0323  converged=5/9
+    knapsack |S_k|=4: n=10  mean=0.9027  std=0.0695  converged=0/10
+    knapsack |S_k|=5: n=10  mean=0.8797  std=0.0677  converged=0/10
+    quadratic_knapsack |S_k|=3: n=6  mean=0.9697  std=0.0318  converged=0/6
+    quadratic_knapsack |S_k|=4: n=6  mean=0.9095  std=0.0646  converged=0/6
+    quadratic_knapsack |S_k|=5: n=5  mean=0.8578  std=0.0554  converged=0/5
+
+### Approximation ratio AR (QAOA only) ###
+  knapsack:  mean=1.0000  min=1.0000
+    >= 0.999: 29/29  (100.0%)
+    >= 0.99: 29/29  (100.0%)
+    >= 0.9: 29/29  (100.0%)
+  quadratic_knapsack:  mean=1.0000  min=1.0000
+    >= 0.999: 17/17  (100.0%)
+    >= 0.99: 17/17  (100.0%)
+    >= 0.9: 17/17  (100.0%)
+
+### QAOA depth at best-entropy layer (QAOA only) ###
+  knapsack:  mean=2.38  median=1.0  min=1  max=8
+  quadratic_knapsack:  mean=4.35  median=4.0  min=1  max=8
+
+  By family and |S_k|:
+    knapsack |S_k|=3: mean_layers=1.7  min=1  max=5
+    knapsack |S_k|=4: mean_layers=2.6  min=1  max=8
+    knapsack |S_k|=5: mean_layers=2.8  min=1  max=6
+    quadratic_knapsack |S_k|=3: mean_layers=3.2  min=1  max=6
+    quadratic_knapsack |S_k|=4: mean_layers=5.7  min=1  max=8
+    quadratic_knapsack |S_k|=5: mean_layers=4.2  min=2  max=8
+
+### Feasible set size n_feasible (QAOA only) ###
+  knapsack:  mean=9.6  min=2  max=24
+  quadratic_knapsack:  mean=12.5  min=5  max=29
+
+  By family and |S_k|:
+    knapsack |S_k|=3: mean=3.4  min=2  max=6
+    knapsack |S_k|=4: mean=7.8  min=5  max=11
+    knapsack |S_k|=5: mean=16.8  min=11  max=24
+    quadratic_knapsack |S_k|=3: mean=5.7  min=5  max=6
+    quadratic_knapsack |S_k|=4: mean=12.3  min=10  max=14
+    quadratic_knapsack |S_k|=5: mean=21.0  min=17  max=29
+
+### Training time (QAOA only) ###
+  knapsack:  mean=38.5s  total=1117s
+  quadratic_knapsack:  mean=38.0s  total=646s
+  All QAOA gadgets total: 1763s (0.49h)

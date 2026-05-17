@@ -1,0 +1,157 @@
+paper_stats.txt — generated 2026-05-12 16:10
+======================================================================
+
+### Instance counts ###
+  (one instance = one problem solved at all p layers)
+  PC-QAOA: 163 instances, 163 completed, 0 timed out
+  PenaltyQAOA: 131 instances, 131 completed, 0 timed out
+
+### Convergence (P(feas) >= 0.75 OR p_max exhausted) ###
+  PC-QAOA (n=163):
+    converged at p=1:       103 (63.2%)
+    exhausted p_max=5:     39 (23.9%)
+    timed out:                0 (0.0%)
+    total non-convergence:   39 (23.9%)
+  PenaltyQAOA (n=131):
+    converged at p=1:        23 (17.6%)
+    exhausted p_max=5:     92 (70.2%)
+    timed out:                0 (0.0%)
+    total non-convergence:   92 (70.2%)
+
+### AR_feas (approximation ratio over feasible solutions) ###
+  p=1:  PC-QAOA mean=0.424  median=0.394  PenaltyQAOA mean=0.214  median=0.148
+  p=5:  PC-QAOA mean=0.511  median=0.495  PenaltyQAOA mean=0.295  median=0.154
+
+  Per n  (p=1):
+    n=3:  PC-QAOA=0.503  PenaltyQAOA=0.487
+    n=4:  PC-QAOA=0.526  PenaltyQAOA=0.303
+    n=5:  PC-QAOA=0.429  PenaltyQAOA=0.259
+    n=6:  PC-QAOA=0.466  PenaltyQAOA=0.235
+    n=7:  PC-QAOA=0.370  PenaltyQAOA=0.173
+    n=8:  PC-QAOA=0.362  PenaltyQAOA=0.099
+
+  Per n  (p=5):
+    n=3:  PC-QAOA=0.758  PenaltyQAOA=0.986
+    n=4:  PC-QAOA=0.602  PenaltyQAOA=0.437
+    n=5:  PC-QAOA=0.469  PenaltyQAOA=0.290
+    n=6:  PC-QAOA=0.546  PenaltyQAOA=0.287
+    n=7:  PC-QAOA=0.491  PenaltyQAOA=0.285
+    n=8:  PC-QAOA=0.464  PenaltyQAOA=0.169
+
+### P(feas) ###
+  p=1:  PC-QAOA mean=0.776  PenaltyQAOA mean=0.397
+  p=5:  PC-QAOA mean=0.838  PenaltyQAOA mean=0.450
+
+  Per n  (p=1):
+    n=3:  PC-QAOA=0.810  PenaltyQAOA=0.705
+    n=4:  PC-QAOA=0.850  PenaltyQAOA=0.511
+    n=5:  PC-QAOA=0.813  PenaltyQAOA=0.433
+    n=6:  PC-QAOA=0.790  PenaltyQAOA=0.454
+    n=7:  PC-QAOA=0.745  PenaltyQAOA=0.335
+    n=8:  PC-QAOA=0.694  PenaltyQAOA=0.195
+
+  Per n  (p=5):
+    n=3:  PC-QAOA=0.958  PenaltyQAOA=0.680
+    n=4:  PC-QAOA=0.871  PenaltyQAOA=0.576
+    n=5:  PC-QAOA=0.857  PenaltyQAOA=0.441
+    n=6:  PC-QAOA=0.864  PenaltyQAOA=0.454
+    n=7:  PC-QAOA=0.815  PenaltyQAOA=0.456
+    n=8:  PC-QAOA=0.770  PenaltyQAOA=0.295
+
+### P(opt) ###
+  p=1:  PC-QAOA mean=0.201  PenaltyQAOA mean=0.116
+  p=5:  PC-QAOA mean=0.270  PenaltyQAOA mean=0.197
+  Relative improvement PC-QAOA vs PenaltyQAOA at p=1: +73.6%
+
+  Per n  (p=1):
+    n=3:  PC-QAOA=0.556  PenaltyQAOA=0.538
+    n=4:  PC-QAOA=0.439  PenaltyQAOA=0.264
+    n=5:  PC-QAOA=0.253  PenaltyQAOA=0.107
+    n=6:  PC-QAOA=0.209  PenaltyQAOA=0.107
+    n=7:  PC-QAOA=0.064  PenaltyQAOA=0.032
+    n=8:  PC-QAOA=0.053  PenaltyQAOA=0.027
+
+  Per n  (p=5):
+    n=3:  PC-QAOA=0.819  PenaltyQAOA=0.676
+    n=4:  PC-QAOA=0.525  PenaltyQAOA=0.397
+    n=5:  PC-QAOA=0.301  PenaltyQAOA=0.142
+    n=6:  PC-QAOA=0.257  PenaltyQAOA=0.224
+    n=7:  PC-QAOA=0.146  PenaltyQAOA=0.097
+    n=8:  PC-QAOA=0.119  PenaltyQAOA=0.067
+
+### Wall-clock time (optimize_time) ###
+  PC-QAOA: mean=0.05h  median=0.01h  n=815
+  PenaltyQAOA: mean=0.07h  median=0.02h  n=655
+
+  Per n:
+    n=3:  PC-QAOA=0.02h  PenaltyQAOA=0.02h
+    n=4:  PC-QAOA=0.02h  PenaltyQAOA=0.04h
+    n=5:  PC-QAOA=0.05h  PenaltyQAOA=0.05h
+    n=6:  PC-QAOA=0.04h  PenaltyQAOA=0.07h
+    n=7:  PC-QAOA=0.06h  PenaltyQAOA=0.07h
+    n=8:  PC-QAOA=0.06h  PenaltyQAOA=0.11h
+
+### Qubit counts ###
+  (PC-QAOA: no slack for structurally enforced constraints)
+    n    PC-QAOA qubits   slack    Penalty qubits   slack
+    3               4.2     1.2               6.2     3.2
+    4               7.2     3.2               8.2     4.2
+    5               9.8     4.8              11.8     6.8
+    6              10.4     4.4              11.9     5.9
+    7              12.1     5.1              13.5     6.5
+    8              12.8     4.8              14.9     6.9
+
+  Overall:
+    PC-QAOA:     mean=10.6  median=10.0  min=3  max=18  (slack: mean=4.5  median=4.0  min=0  max=10)
+    PenaltyQAOA: mean=12.3  median=12.0  min=3  max=22  (slack: mean=6.2  median=6.0  min=0  max=14)
+
+### State-preparation gate counts ###
+  PC-QAOA = VCG/Dicke circuit; PenaltyQAOA = H^n product state.
+    n    PC total     PC 2q   Pen total    Pen 2q
+    3         1.2       0.0         3.2       0.0
+    4         8.6       4.4         4.2       0.0
+    5        11.3       4.7         6.8       0.0
+    6        12.1       6.0         5.9       0.0
+    7        14.5       7.5         6.5       0.0
+    8        14.3       7.8         6.9       0.0
+
+  Overall:
+    PC-QAOA:     total mean=12.3  median=8.0  min=0  max=86  2q mean=6.1  median=2.0  min=0  max=40
+    PenaltyQAOA: total mean=6.2  median=6.0  min=0  max=14  2q mean=0.0  median=0.0  min=0  max=0
+
+### Per-QAOA-layer gate counts (×1 layer) ###
+    n    PC total     PC 2q   Pen total    Pen 2q
+    3       156.0      72.2       198.2     180.5
+    4       485.3     248.6       299.9     305.1
+    5      1167.2     639.3       710.6     847.8
+    6      1129.3     617.0       601.3     693.9
+    7      1039.0     555.6       617.3     699.8
+    8      1169.2     639.7       688.9     798.0
+
+  Overall:
+    PC-QAOA:     total mean=1034.8  median=366.5  min=24  max=6224  2q mean=561.3  median=155.0  min=8  max=3612
+    PenaltyQAOA: total mean=604.8  median=330.0  min=33  max=3124  2q mean=696.8  median=253.0  min=18  max=4224
+
+### Total 2-qubit gates (state prep + p × layer) ###
+    n      PC p=1     Pen p=1      PC p=5     Pen p=5
+    3        72.2       180.5       361.2       902.5
+    4       253.0       305.1      1247.5      1525.3
+    5       643.9       847.8      3201.1      4238.8
+    6       623.1       693.9      3091.2      3469.6
+    7       563.1       699.8      2785.4      3499.2
+    8       647.4       798.0      3206.1      3989.8
+
+  Overall:
+    p=1:  PC-QAOA mean=567.3  median=173.0  min=8  max=3622  PenaltyQAOA mean=696.8  median=253.0  min=18  max=4224
+      PenaltyQAOA/PC-QAOA ratio (mean): 1.23x
+    p=5:  PC-QAOA mean=2812.4  median=799.5  min=40  max=18066  PenaltyQAOA mean=3483.8  median=1265.0  min=90  max=21120
+      PenaltyQAOA/PC-QAOA ratio (mean): 1.24x
+
+### PC-QAOA state-prep: VCG vs exact, by n ###
+    n   VCG instances   exact instances   VCG sp_2q mean   exact sp_2q mean
+    3               3                 1              0.0                0.0
+    4               5                25              0.0                5.2
+    5              25                33              1.7                6.9
+    6              22                35              0.5                9.5
+    7              13                38              0.0               10.1
+    8              23                27              0.6               13.9
