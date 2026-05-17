@@ -19,6 +19,7 @@ sys.path.insert(0, ROOT)
 from analyze_results.main_analysis import (analyse, _generate_paper_stats,
                                             _build_convergence_df)
 from analyze_results import plot_resources
+from analyze_results.generate_results_markdown import generate as generate_markdown
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 RESULTS_DIS = os.path.join(ROOT, 'results', 'disjoint')
@@ -208,3 +209,9 @@ for src_dir, fname, dest_fname in STATS_SOURCES:
         print(f'  MISSING: {dest_fname}')
 
 print(f'Done. Stats in {os.path.abspath(CODE_NUMERICS)} and {os.path.abspath(PAPER_NUMERICS)}')
+
+# ── generate GitHub results markdown ─────────────────────────────────────────
+print('\n=== Generating results markdown ===')
+for split in ('disjoint', 'overlapping'):
+    generate_markdown(split)
+print('Done.')
