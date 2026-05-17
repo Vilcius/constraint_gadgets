@@ -14,46 +14,57 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 ├── 📁 core/
 │   ├── qaoa_base.py          ← Shared QAOA logic: Hamiltonians, circuits, optimisation, resources
 │   ├── constraint_handler.py ← Parsing, classification, partitioning, feasibility checking
-│   ├── vcg.py        ← Variational Constraint Gadget (VCG) -- no ancilla qubits
-│   ├── hybrid_qaoa.py        ← PC-QAOA: structural (VCG/Dicke) + penalty constraints
+│   ├── vcg.py                ← Variational Constraint Gadget (VCG) -- no ancilla qubits
+│   ├── pc_qaoa.py            ← PC-QAOA: structural (VCG/Dicke) + penalty constraints
 │   ├── penalty_qaoa.py       ← Standard penalty-based QAOA baseline
-│   └── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
-│
+│   ├── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
+│   └── resource_estimation.py ← Analytical gate-count resource estimation
 │
 ├── 📁 run/
-│   ├── add_to_vcg_database.py        ← Train a single VCG and register it in the gadget DB
-│   ├── create_vcg_database.py     ← Populate the full gadget DB (knapsack + quadratic-knapsack)
+│   ├── generate_vcg_params.py        ← Extract unique VCG constraints → vcg_params_experiments.jsonl
 │   ├── generate_experiment_params.py ← Enumerate PC-QAOA vs PenaltyQAOA tasks → JSONL
-│   ├── run_hybrid_vs_penalty.py      ← Run the experiment sweep; stores optimal_x for P(opt)
+│   ├── create_vcg_database.py        ← Train all VCG gadgets; save to gadgets/vcg_db.pkl
+│   ├── run_pc_qaoa_vs_penalty.py     ← Run experiments (single COP or merge pending results)
 │   └── params/
-│       ├── experiment_params.jsonl   ← 500 generated experiment tasks
-│       └── vcg_params.jsonl          ← VCG training task list
+│       ├── vcg_params_experiments.jsonl          ← VCG training task list
+│       ├── experiment_params_overlapping.jsonl   ← 250 overlapping COP tasks
+│       └── experiment_params_disjoint.jsonl      ← 250 disjoint COP tasks
 │
 ├── 📁 analyze_results/       ← Analysis and plotting package
-│   ├── __init__.py
-│   ├── results_helper.py     ← ResultsCollector, GadgetDatabase, remap helpers, collect_vcg/PC-QAOA/penalty_data
-│   ├── data_loader.py        ← Load/filter/clean results DataFrames
-│   ├── metrics.py            ← P(feasible), P(optimal), AR augmentation, summary stats
-│   ├── plot_utils.py         ← Shared matplotlib styling (rose-pine palette)
-│   ├── plot_ar.py            ← Approximation ratio plots
-│   ├── plot_feasibility.py   ← P(feasible) and P(optimal) plots
-│   ├── plot_resources.py     ← Circuit depth, shot budget, time breakdown
-│   ├── statistical_tests.py  ← Mann-Whitney U, Kruskal-Wallis significance tests
-│   ├── main_analysis.py      ← CLI entry point for the full analysis pipeline
+│   ├── split_results.py              ← Split raw merged pkl into typed DataFrames
+│   ├── compute_circuit_resources.py  ← Analytical gate-count table for all experiments
+│   ├── compute_vcg_resources.py      ← Analytical gate-count table for trained VCGs
+│   ├── generate_plots.py             ← Top-level orchestrator: combine splits, run analysis, copy to paper
+│   ├── generate_results_markdown.py  ← GitHub-readable markdown tables of raw results
+│   ├── main_analysis.py              ← Core analysis: plots, stats, paper summaries
+│   ├── build_problem_table.py        ← Problem metadata table from raw results
+│   ├── results_helper.py             ← ResultsCollector, CSV parsing, constraint remapping
+│   ├── metrics.py                    ← P(feasible), P(optimal), AR_feas, summary stats
+│   ├── plot_utils.py                 ← Shared matplotlib styling (rose-pine palette)
+│   ├── plot_ar.py                    ← Approximation ratio plots
+│   ├── plot_feasibility.py           ← P(feasible) and P(optimal) plots
+│   ├── plot_resources.py             ← Circuit depth, shot budget, time breakdown
+│   ├── plot_vcg_db.py                ← VCG database summary plots
+│   ├── statistical_tests.py          ← Mann-Whitney U, Kruskal-Wallis significance tests
 │   └── README.md
 │
 ├── 📁 examples/
 │   ├── example_vcg.py        ← VCG demo: train on a single constraint, plot counts
-│   ├── example_hybrid.py     ← PC-QAOA vs PenaltyQAOA on a three-constraint QUBO
-│   ├── results/              ← Saved result pickles (e.g. vcg_layer_sweep.pkl)
-│   └── figures/              ← Generated plots (AR, timing, distributions)
+│   ├── example_pc_qaoa.py    ← PC-QAOA vs PenaltyQAOA on a three-constraint QUBO
+│   ├── results/              ← Saved result pickles
+│   └── figures/              ← Generated plots
+│
+├── 📁 tests/
+│   ├── test_grover_decomp.py     ← Grover mixer decomposition tests
+│   ├── test_flow_graph.py        ← Flow constraint graph tests
+│   └── test_flow_state_prep.py   ← Flow state preparation tests
 │
 ├── 📁 slurm/  (HPC)
-│   ├── submit_all.sh         ← Full pipeline: generate params + submit all jobs in dependency order
-│   ├── vcg_array.sh          ← SLURM array: train one VCG per task
-│   ├── vcg_merge.sh          ← Single-node: merge VCG pickles → gadgets/gadget_db.pkl
-│   ├── experiment_array.sh   ← SLURM array: run one experiment task per job
-│   └── experiment_merge.sh   ← Single-node: merge results → results/hybrid_vs_penalty.pkl
+│   ├── submit.sh           ← Full pipeline: submit VCG training + all experiments in dependency order
+│   ├── vcg_train.sh        ← Single job: train all VCG gadgets (8 parallel workers)
+│   ├── experiment_array.sh ← SLURM array: run one COP per task
+│   ├── experiment_merge.sh ← Single job: merge pending results → pc_qaoa_vs_penalty.pkl
+│   └── check_failed.sh     ← Utility: report failed tasks and print resubmit commands
 │
 ├── 📁 data/                  ← Constraint CSVs, QUBO instances, and data utilities
 │   ├── make_data.py              ← QUBO generation and optimal-x brute force search
@@ -64,10 +75,13 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 │   ├── flow_constraints.csv
 │   ├── assignment_constraints.csv
 │   ├── subtour_constraints.csv
-│   └── qubos.csv             ← Random QUBOs, sizes 2–10 (10 per size; max = 2 × max constraint support)
+│   └── qubos.csv             ← Random QUBOs, sizes 2–10 (10 per size)
 │
-├── 📁 results/               ← Collected experiment results (.pkl) (gitignored)
-└── 📁 analysis_output/       ← Figures, stats, summaries from analysis pipeline (gitignored)
+├── 📁 gadgets/
+│   └── vcg_db.pkl            ← Trained VCG gadget database
+│
+├── 📁 results/               ← Split result DataFrames and circuit resource tables
+└── 📁 analysis_output/       ← Figures, stats, and summaries from analysis pipeline
 ```
 
 ## Quick Start
@@ -104,46 +118,20 @@ Q = np.array([[1, -2, 0], [-2, 3, -1], [0, -1, 2]], dtype=float)
 constraints = ["x_0 + x_1 + x_2 == 1"]
 parsed = ch.parse_constraints(constraints)
 
-solver = PC-QAOA(
+solver = PCQAOA(
     qubo=Q,
     all_constraints=parsed,
     structural_indices=[0],   # enforce via Dicke state prep
     penalty_indices=[],
     angle_strategy="ma-QAOA",
-    mixer="Grover",
     n_layers=1,
     steps=50,
     num_restarts=10,
+    gadget_db_path="gadgets/vcg_db.pkl",
 )
-opt_cost, counts, opt_angles = solver.solve()
+opt_cost, opt_angles = solver.optimize_angles()
+counts = solver.do_counts_circuit(shots=10_000)
 ```
-
-### Collect results incrementally
-
-```python
-from analyze_results.results_helper import (
-    ResultsCollector, GadgetDatabase,
-    collect_vcg_data, collect_hybrid_data, collect_penalty_data,
-)
-
-# Full results (all metrics) – for analysis
-collector = ResultsCollector()
-collector.load("results/cardinality_constraint_results.pkl")  # resume if exists
-
-# Gadget database (minimal fields only) – for PC-QAOA lookup
-# collect_vcg_data registers the gadget automatically when gadget_db_path is given
-row = collect_vcg_data(gadget, constraint_type="knapsack",
-                       gadget_db_path="gadgets/vcg_db.pkl",
-                       skip_optimize=True)   # train() already ran
-collector.add(row)
-collector.save("results/knapsack_constraint_results.pkl")
-
-df = collector.to_dataframe()
-```
-
-The gadget database stores only the 6 fields required by PC-QAOA
-(`constraints`, `n_layers`, `angle_strategy`, `outcomes`, `Hamiltonian`, `opt_angles`),
-keeping it lean relative to the full results file. Entries are deduplicated automatically.
 
 ### Run the toy examples
 
@@ -152,106 +140,81 @@ keeping it lean relative to the full results file. Entries are deduplicated auto
 python examples/example_vcg.py
 
 # PC-QAOA vs PenaltyQAOA – three-constraint COP on 7 decision variables
-python examples/example_hybrid.py
+python examples/example_pc_qaoa.py
 ```
 
-#### How `example_hybrid.py` works
+## Running Experiments
 
-The example builds a three-constraint combinatorial optimisation problem on 7 binary decision
-variables (`x_0 … x_6`) and compares PC-QAOA against a full-penalisation baseline.
+### 1. Generate parameter files
 
-**Step 1 – Load constraints from data/**
+```bash
+# Extract unique VCG constraints from the experiment params
+python run/generate_vcg_params.py
 
-Two CSV files are read (`data/cardinality_constraints.csv` and `data/knapsack_constraints.csv`).
-Three constraints are selected and embedded onto specific variable subsets using
-`remap_constraint_to_vars`:
-
-| Label | Constraint | Variables | Handling |
-|---|---|---|---|
-| A | `x_0 + x_1 + x_2 == 1` | {0, 1, 2} | Structural – Dicke state prep |
-| B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural – VCG gadget |
-| C | `x_1 + x_4 + x_6 <= 1` | {1, 4, 6} | Penalized (overlaps A and B) |
-
-Constraints A and B are **disjoint** (no shared variables), while C deliberately overlaps both groups
-(x_1 ∈ A, x_4 ∈ B, x_6 is free).
-
-**Qubit layout – 8 qubits total**
-
-| Wires | Count | Role |
-|---|---|---|
-| 0–6 | 7 | Decision variables x_0 … x_6 |
-| 7 | 1 | Slack qubit for constraint C (`x_1+x_4+x_6 + s = 1`, s ∈ {0,1}) |
-
-Constraint A (Dicke) and constraint B (VCG) use no ancilla qubits — both operate directly
-on the decision-variable wires.
-Constraint C's inequality `<= 1` needs one binary slack qubit because the minimum feasible LHS value
-is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
-
-**Step 2 – Route constraints by type**
-
-`constraint_handler.is_dicke_compatible` classifies each parsed constraint:
-
-- **Dicke-compatible** (A): all coefficients are +1, equality operator, integer RHS.
-  PC-QAOA prepares the uniform superposition over feasible assignments exactly using a log-depth
-  W-state circuit and an XY mixer – no flag qubit, zero approximation error.
-
-- **Not Dicke-compatible** (B): non-unit coefficients or inequality operator.
-  PC-QAOA trains a flag-free VCG gadget whose ground state is the uniform
-  superposition over feasible assignments for B, then embeds it as the initial state and uses a
-  Grover mixer.  P(feasible) is measured by directly evaluating the constraint on bitstrings —
-  no ancilla qubit is involved.
-
-- **Penalized** (C): constraint spans variables from both groups, so it cannot be folded into either
-  structural circuit cleanly.  It is instead converted to a quadratic penalty term
-  δ·(x_1 + x_4 + x_6 − 1 + s)² and added to the cost Hamiltonian.
-
-**Step 3 – Solve with PC-QAOA**
-
-```python
-PC-QAOA = PC-QAOA(
-    qubo=Q,                         # 7x7 QUBO loaded from data/qubos.csv
-    all_constraints=parsed,         # [A, B, C]
-    structural_indices=[0, 1],      # A (Dicke) + B (VCG) enforced structurally
-    penalty_indices=[2],            # C penalized
-    penalty_str=[delta],            # penalty weights for penalized constraints
-    penalty_pen=delta,              # cost-Hamiltonian penalty weight
-    angle_strategy='ma-QAOA',
-    mixer='Grover',                 # reflects about the composed A+B state
-    n_layers=1,
-    steps=50,
-    num_restarts=10,
-)
-opt_cost, counts, opt_angles = PC-QAOA.solve()
+# Enumerate 250 overlapping + 250 disjoint COPs
+python run/generate_experiment_params.py
 ```
 
-The Grover mixer reflects about the state prepared by the **composed** A+B circuit, so the search
-stays within the joint feasible subspace of A and B throughout optimisation.
+### 2. Train the VCG gadget database
 
-**Step 4 – Baseline: PenaltyQAOA**
+```bash
+python run/create_vcg_database.py \
+    --params run/params/vcg_params_experiments.jsonl \
+    --db gadgets/vcg_db.pkl \
+    --workers 8
+```
 
-All three constraints are converted to penalty terms and added to the Hamiltonian.  The circuit
-starts from |+⟩^n with no structured state preparation, providing a direct comparison.
+### 3. Run PC-QAOA vs PenaltyQAOA experiments
 
-**Step 5 – Analyse and plot**
+```bash
+# Sequential (local)
+python run/run_pc_qaoa_vs_penalty.py \
+    --params run/params/experiment_params_overlapping.jsonl \
+    --db gadgets/vcg_db.pkl
 
-Metrics are computed over 10 000 measurement shots (auxiliary bits stripped):
+# Merge SLURM results
+python run/run_pc_qaoa_vs_penalty.py \
+    --merge \
+    --pending-dir results/pending_overlapping/ \
+    --output results/overlapping/pc_qaoa_vs_penalty.pkl
+```
 
-- **AR** (Approximation Ratio): `(⟨H⟩ − C_max) / (C_min − C_max)`
-- **P(feasible)**: fraction of samples satisfying all three constraints
-- **P(optimal)**: fraction of samples achieving the brute-force optimal QUBO value
+### 4. Post-process and generate plots
 
-Two figures are saved to `examples/figures/`:
+```bash
+# Split raw results into typed DataFrames (run once per split)
+python analyze_results/split_results.py \
+    --pc-qaoa results/overlapping/pc_qaoa_vs_penalty.pkl \
+    --output-dir results/overlapping/
 
-- `hybrid_example_metrics.png` – side-by-side bar chart of AR, P(feasible), P(optimal)
-- `hybrid_example_counts.png` – top-20 outcome distributions with 5-category colour coding:
+python analyze_results/split_results.py \
+    --pc-qaoa results/disjoint/pc_qaoa_vs_penalty.pkl \
+    --output-dir results/disjoint/
 
-| Colour | Meaning |
-|---|---|
-| foam | Optimal |
-| pine | All feasible |
-| gold | Structural ✓, Penalty ✗ |
-| rose | Structural ✗, Penalty ✓ |
-| love | All infeasible |
+# Compute circuit resources
+python analyze_results/compute_circuit_resources.py
+python analyze_results/compute_vcg_resources.py
+
+# Combine splits, generate all plots, and copy to paper/
+python analyze_results/generate_plots.py
+```
+
+### SLURM (HPC)
+
+```bash
+# Submit VCG training + all 500 experiments in dependency order
+bash slurm/submit.sh
+
+# After merges complete, run post-processing manually
+python analyze_results/split_results.py ...   # once per split
+python analyze_results/compute_circuit_resources.py
+python analyze_results/compute_vcg_resources.py
+python analyze_results/generate_plots.py
+
+# Check for failed tasks
+bash slurm/check_failed.sh overlapping 250
+bash slurm/check_failed.sh disjoint 250
+```
 
 ## How the VCG Works
 
@@ -363,90 +326,13 @@ For a binary VCG, `C_min = −1` (all weight on good states) and
 `C_max = +1` (all weight on bad states), so `AR = (⟨H⟩ − 1) / −2`.
 A gadget is considered well-trained when `AR ≥ 0.95`.
 
-## Running Experiments
-
-### Build the VCG gadget database
-
-```bash
-# Train all knapsack / quadratic-knapsack VCG gadgets sequentially
-python run/create_vcg_database.py --db gadgets/gadget_db.pkl
-
-# Or add a single constraint
-python run/add_to_vcg_database.py \
-    --constraints "6*x_0 + 2*x_1 + 2*x_2 <= 3" \
-    --db gadgets/gadget_db.pkl
-```
-
-### Generate and run PC-QAOA vs PenaltyQAOA experiments
-
-```bash
-# Enumerate experiment parameter combinations
-python run/generate_experiment_params.py \
-    --output run/params/experiment_params.jsonl --max-tasks 500
-
-# Run all experiments sequentially
-python run/run_hybrid_vs_penalty.py \
-    --params run/params/experiment_params.jsonl \
-    --db gadgets/gadget_db.pkl
-```
-
-### Submitting SLURM array jobs
-
-```bash
-# Step 1 – generate task lists
-python slurm/generate_params.py
-
-# Step 2 – submit array jobs (adapt .sh template to your cluster)
-#   VCG training: --array=0-<N_vcg-1>
-#     python run/create_vcg_database.py --task-id $SLURM_ARRAY_TASK_ID
-#   Experiments:  --array=0-<N_exp-1>
-#     python run/run_hybrid_vs_penalty.py --task-id $SLURM_ARRAY_TASK_ID
-
-# Step 3 – merge per-task results
-python run/create_vcg_database.py --merge --db gadgets/gadget_db.pkl
-python run/run_hybrid_vs_penalty.py --merge --output results/hybrid_vs_penalty.pkl
-```
-
-## Core API
-
-### `analyze_results/results_helper.py`
-
-```python
-from analyze_results.results_helper import (
-    ResultsCollector, GadgetDatabase,
-    read_typed_csv, remap_constraint_to_vars, remap_to_zero_indexed,
-    collect_vcg_data, collect_hybrid_data, collect_penalty_data,
-)
-
-# Parse constraint CSV (format: "n_vars; ['constraint_string']")
-rows = read_typed_csv("data/cardinality_constraints.csv")
-
-# Embed a zero-indexed constraint onto arbitrary QUBO variables
-c = remap_constraint_to_vars("x_0 + x_1 == 1", [3, 5])  # → 'x_3 + x_5 == 1'
-
-# Train VCG, collect full metrics, and register the gadget in the database
-row_vcg = collect_vcg_data(gadget, constraint_type="cardinality",
-                           gadget_db_path="gadgets/gadget_db.pkl")
-
-row_hybrid  = collect_hybrid_data(constraints, PC-QAOA, qubo_string, min_val=min_val)
-row_penalty = collect_penalty_data(constraints, penalty_solver, qubo_string, min_val=min_val)
-
-# Accumulate full results and persist to pickle
-collector = ResultsCollector()
-collector.load("results/my_run.pkl")   # resume from existing
-collector.add(row_hybrid)
-collector.add(row_penalty)
-collector.save("results/my_run.pkl")
-df = collector.to_dataframe()
-```
-
-### VCG Parameters
+## VCG Parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `constraints` | list[str] | — | Constraint strings, e.g. `["x_0 + x_1 == 1"]` |
 | `ar_threshold` | float | `0.999` | Stop training when AR >= this value |
-| `entropy_threshold` | float | `0.9` | Stop when normalised entropy >= this value (once AR met) |
+| `entropy_threshold` | float | `0.9999` | Stop when normalised entropy >= this value (once AR met) |
 | `max_layers` | int | `8` | Maximum ma-QAOA layers in the sweep |
 | `qaoa_restarts` | int | `5` | Random restarts for Stage 1 QAOA warm-start |
 | `qaoa_steps` | int | `150` | Optimisation steps for Stage 1 QAOA warm-start |
@@ -454,9 +340,8 @@ df = collector.to_dataframe()
 | `ma_steps` | int | `200` | Optimisation steps per ma-QAOA layer |
 | `lr` | float | `0.05` | Adam learning rate |
 | `samples` | int | `10_000` | Measurement shots for counts / P(feasible) |
-| `decompose` | bool | `True` | Decompose Hamiltonian into Pauli terms (required for ma-QAOA) |
 
-### PC-QAOA Parameters
+## PC-QAOA Parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -465,14 +350,12 @@ df = collector.to_dataframe()
 | `structural_indices` | list[int] | — | Indices enforced via gadget / Dicke prep |
 | `penalty_indices` | list[int] | — | Indices enforced via penalty term |
 | `angle_strategy` | str | `"ma-QAOA"` | `"QAOA"` or `"ma-QAOA"` |
-| `mixer` | str | `"Grover"` | `"Grover"`, `"X-Mixer"`, or `"XY"` |
 | `n_layers` | int | `1` | QAOA circuit depth |
-| `penalty_str` | list[float] | `None` | Penalty weights for penalized constraints |
 | `steps` | int | `50` | Optimisation steps per restart |
 | `num_restarts` | int | `5` | Random restarts per layer |
+| `gadget_db_path` | str | `None` | Path to trained VCG database pickle |
 | `cqaoa_steps` | int | `30` | Steps for inline VCG training when gadget not in DB |
 | `cqaoa_num_restarts` | int | `5` | Restarts for inline VCG training |
-| `pre_made` | bool | `False` | Load pre-trained VCG angles from `gadget_path` |
 
 ## Constraint Families
 
@@ -499,32 +382,6 @@ df = collector.to_dataframe()
 | **X-Mixer** | Standard transverse-field mixer on all qubits |
 | **XY / Ring-XY** | Hamming-weight-preserving mixer for Dicke-enforced constraints |
 
-## Output Format
-
-`collect_vcg_data` and `collect_hybrid_data` return a flat dict that `ResultsCollector` accumulates into a DataFrame. Key columns:
-
-| Column | Description |
-|---|---|
-| `constraint_type` | Constraint family label (e.g. `"cardinality"`) |
-| `constraints` | Constraint strings remapped to their QUBO variable positions |
-| `var_assignment` | List of QUBO variable indices the constraint acts on |
-| `n_x` | Total number of QUBO variables (>= constraint support) |
-| `n_c` | Number of constraints |
-| `angle_strategy` | `"QAOA"` or `"ma-QAOA"` |
-| `n_layers` | Number of QAOA layers |
-| `opt_angles` | Optimised angle array |
-| `opt_cost` | Final expectation value ⟨H⟩ |
-| `AR` | Approximation ratio (opt_cost − C_max) / (C_min − C_max) |
-| `counts` | Measurement outcome distribution dict |
-| `est_shots` | Estimated shot budget from Pauli grouping |
-| `resources` | PennyLane gate resource object (VCG only) |
-| `hamiltonian_time` | Wall time for Hamiltonian construction (s) |
-| `optimize_time` | Wall time for angle optimisation (s) |
-| `counts_time` | Wall time for sampling (s) |
-| `min_val` | Optimal feasible QUBO value (brute force) |
-| `optimal_x` | List of optimal feasible bitstrings (brute force; used to compute P(opt)) |
-| `mixer` | Mixer used (PC-QAOA only) |
-
 ## Dependencies
 
 ```
@@ -535,14 +392,17 @@ pandas
 matplotlib
 seaborn
 scipy
+jax
 ```
 
 Install with:
 
 ```bash
-pip install pennylane pennylane-lightning numpy pandas matplotlib seaborn scipy
+pip install pennylane pennylane-lightning numpy pandas matplotlib seaborn scipy jax
 ```
 
 ## Links
 
 - [Analysis Package](analyze_results/README.md)
+- [Run Scripts](run/README.md)
+- [SLURM Pipeline](slurm/README.md)
