@@ -18,12 +18,11 @@ DIS_PARAMS="$PROJECT_ROOT/run/params/experiment_params_disjoint.jsonl"
 OVL_PENDING="$PROJECT_ROOT/results/pending_overlapping"
 DIS_PENDING="$PROJECT_ROOT/results/pending_disjoint"
 
-OVL_OUTPUT="$PROJECT_ROOT/results/overlapping/hybrid_vs_penalty.pkl"
-DIS_OUTPUT="$PROJECT_ROOT/results/disjoint/hybrid_vs_penalty.pkl"
+OVL_OUTPUT="$PROJECT_ROOT/results/overlapping/pc_qaoa_vs_penalty.pkl"
+DIS_OUTPUT="$PROJECT_ROOT/results/disjoint/pc_qaoa_vs_penalty.pkl"
 
 mkdir -p "$DIR/job_files"
-mkdir -p "$OVL_PENDING"
-mkdir -p "$DIS_PENDING"
+mkdir -p "$OVL_PENDING" "$DIS_PENDING"
 mkdir -p "$PROJECT_ROOT/results/overlapping"
 mkdir -p "$PROJECT_ROOT/results/disjoint"
 

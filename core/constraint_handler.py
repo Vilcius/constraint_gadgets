@@ -33,7 +33,8 @@ class ConstraintType(Enum):
     CARDINALITY_GEQ_SINGLE = auto()    # sum x_i >= n  (all +1 coefficients, GEQ, rhs == n_vars; single feasible)
     FLOW = auto()               # sum_in x_i - sum_out x_j == 0  (±1 coefficients, equality, rhs=0)
     WEIGHTED_SUM = auto()       # sum c_i x_i op b  (linear, possibly inequality)
-    QUADRATIC = auto()          # contains x_i * x_j terms
+    INDEPENDENT_SET_PAIR = auto()  # x_i*x_j == 0  → treated as x_i + x_j <= 1
+    QUADRATIC = auto()          # contains x_i * x_j terms (general)
     GENERAL = auto()            # fallback
 
 
@@ -275,14 +276,21 @@ def _classify(
     - QUADRATIC:    has quadratic terms.
     - GENERAL:      fallback.
     """
+    no_constant = abs(constant) < 1e-12
+    is_equality = (op == ConstraintOp.EQ)
+
     if quadratic:
+        # Independent-set pair: single cross-product x_i*x_j == 0, coeff +1.
+        # Equivalent to x_i + x_j <= 1 → handled by CardinalityLeqStatePrep(k=1).
+        if (len(quadratic) == 1 and not linear and no_constant
+                and is_equality and abs(rhs) < 1e-12):
+            (vi, vj), coeff = next(iter(quadratic.items()))
+            if vi != vj and abs(coeff - 1.0) < 1e-12:
+                return ConstraintType.INDEPENDENT_SET_PAIR
         return ConstraintType.QUADRATIC
 
     if not linear:
         return ConstraintType.GENERAL
-
-    no_constant = abs(constant) < 1e-12
-    is_equality = (op == ConstraintOp.EQ)
 
     # Dicke: all +1 coefficients, equality, no constant
     all_unit_pos = all(abs(c - 1.0) < 1e-12 for c in linear.values())
@@ -337,6 +345,11 @@ def is_cardinality_geq_single_compatible(pc: ParsedConstraint) -> bool:
 
 
 is_cardinality_geq_compatible = is_cardinality_geq_single_compatible
+
+
+def is_independent_set_pair_compatible(pc: ParsedConstraint) -> bool:
+    """Check if constraint is x_i*x_j == 0 (independent set pair → x_i + x_j <= 1)."""
+    return pc.ctype == ConstraintType.INDEPENDENT_SET_PAIR
 
 
 def is_flow_compatible(pc: ParsedConstraint) -> bool:
@@ -476,6 +489,7 @@ def partition_constraints(
     def _is_exact(c: ParsedConstraint) -> bool:
         return (is_dicke_compatible(c)
                 or is_cardinality_leq_compatible(c)
+                or is_independent_set_pair_compatible(c)
                 or is_flow_compatible(c))
 
     # Pass 1: exact preparations — prefer these over VCG when there is a

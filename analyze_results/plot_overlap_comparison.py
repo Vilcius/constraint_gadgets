@@ -1,5 +1,5 @@
 """
-plot_overlap_comparison.py -- Box-and-whisker plot comparing HybridQAOA
+plot_overlap_comparison.py -- Box-and-whisker plot comparing PC-QAOA
 on disjoint (fully structural) vs overlapping constraint tasks.
 
 Usage
@@ -7,7 +7,7 @@ Usage
     python analyze_results/plot_overlap_comparison.py \
         --disjoint  results/archive_disjoint/pending/ \
         --overlap   results/pending/ \
-        --output    analysis_output/figures/feasibility/hybrid_disjoint_vs_overlap.png
+        --output    analysis_output/figures/feasibility/pcqaoa_disjoint_vs_overlap.png
 """
 
 import argparse
@@ -22,7 +22,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from analyze_results import plot_utils as pu
-from analyze_results.metrics import p_feasible_hybrid, p_optimal_hybrid
+from analyze_results.metrics import p_feasible_pcqaoa, p_optimal_pcqaoa
 
 
 def _load_pending(pending_dir: str) -> pd.DataFrame:
@@ -42,7 +42,8 @@ def _load_pending(pending_dir: str) -> pd.DataFrame:
     pd.DataFrame
         Concatenated DataFrame, or an empty DataFrame if no valid files found.
     """
-    files = sorted(glob.glob(os.path.join(pending_dir, 'task_*.pkl')))
+    files = sorted(glob.glob(os.path.join(pending_dir, 'task_*.pkl')) +
+                   glob.glob(os.path.join(pending_dir, 'cop_*.pkl')))
     frames = []
     for f in files:
         try:
@@ -94,19 +95,19 @@ def plot_disjoint_vs_overlap(
     raw_dis = _ensure_constraints_col(raw_dis)
     raw_ov  = _ensure_constraints_col(raw_ov)
 
-    # Keep only HybridQAOA, layer=1
+    # Keep only PC-QAOA, layer=1
     def _filter(df):
         method = df['method'].apply(lambda x: x if isinstance(x, str) else (x[0] if x else ''))
         nl     = df['n_layers'].apply(lambda x: x if not isinstance(x, list) else x[0])
-        return df[(method == 'HybridQAOA') & (nl == 1)].copy()
+        return df[(method == 'PC-QAOA') & (nl == 1)].copy()
 
     dis = _filter(raw_dis)
     ov  = _filter(raw_ov)
 
-    dis['p_feas'] = dis.apply(p_feasible_hybrid, axis=1)
-    dis['p_opt']  = dis.apply(p_optimal_hybrid,  axis=1)
-    ov['p_feas']  = ov.apply(p_feasible_hybrid,  axis=1)
-    ov['p_opt']   = ov.apply(p_optimal_hybrid,   axis=1)
+    dis['p_feas'] = dis.apply(p_feasible_pcqaoa, axis=1)
+    dis['p_opt']  = dis.apply(p_optimal_pcqaoa,  axis=1)
+    ov['p_feas']  = ov.apply(p_feasible_pcqaoa,  axis=1)
+    ov['p_opt']   = ov.apply(p_optimal_pcqaoa,   axis=1)
 
     dis = dis.dropna(subset=['p_feas', 'p_opt'])
     ov  = ov.dropna(subset=['p_feas', 'p_opt'])
@@ -151,9 +152,9 @@ def plot_disjoint_vs_overlap(
         ax.yaxis.grid(True, linestyle='--', alpha=0.7)
 
     _boxplot(axes[0], dis['p_feas'], ov['p_feas'],
-             r'$P(\mathrm{feasible})$', r'$P(\mathrm{feasible})$: HybridQAOA, $p=1$')
+             r'$P(\mathrm{feasible})$', r'$P(\mathrm{feasible})$: PC-QAOA, $p=1$')
     _boxplot(axes[1], dis['p_opt'],  ov['p_opt'],
-             r'$P(\mathrm{optimal})$',  r'$P(\mathrm{optimal})$: HybridQAOA, $p=1$')
+             r'$P(\mathrm{optimal})$',  r'$P(\mathrm{optimal})$: PC-QAOA, $p=1$')
 
     if save_path:
         pu.save_fig(fig, save_path)
@@ -169,7 +170,7 @@ def main() -> None:
     parser.add_argument('--overlap',  default='results/pending/',
                         help='Pending dir for overlapping results')
     parser.add_argument('--output',
-                        default='analysis_output/figures/feasibility/hybrid_disjoint_vs_overlap.png',
+                        default='analysis_output/figures/feasibility/pcqaoa_disjoint_vs_overlap.png',
                         help='Output PNG path')
     args = parser.parse_args()
 

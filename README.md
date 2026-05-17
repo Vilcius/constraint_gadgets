@@ -15,7 +15,7 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 │   ├── qaoa_base.py          ← Shared QAOA logic: Hamiltonians, circuits, optimisation, resources
 │   ├── constraint_handler.py ← Parsing, classification, partitioning, feasibility checking
 │   ├── vcg.py        ← Variational Constraint Gadget (VCG) -- no ancilla qubits
-│   ├── hybrid_qaoa.py        ← Hybrid QAOA: structural (VCG/Dicke) + penalty constraints
+│   ├── hybrid_qaoa.py        ← PC-QAOA: structural (VCG/Dicke) + penalty constraints
 │   ├── penalty_qaoa.py       ← Standard penalty-based QAOA baseline
 │   └── dicke_state_prep.py   ← Log-depth Dicke state prep + XY mixer
 │
@@ -23,7 +23,7 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 ├── 📁 run/
 │   ├── add_to_vcg_database.py        ← Train a single VCG and register it in the gadget DB
 │   ├── create_vcg_database.py     ← Populate the full gadget DB (knapsack + quadratic-knapsack)
-│   ├── generate_experiment_params.py ← Enumerate HybridQAOA vs PenaltyQAOA tasks → JSONL
+│   ├── generate_experiment_params.py ← Enumerate PC-QAOA vs PenaltyQAOA tasks → JSONL
 │   ├── run_hybrid_vs_penalty.py      ← Run the experiment sweep; stores optimal_x for P(opt)
 │   └── params/
 │       ├── experiment_params.jsonl   ← 500 generated experiment tasks
@@ -31,7 +31,7 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 │
 ├── 📁 analyze_results/       ← Analysis and plotting package
 │   ├── __init__.py
-│   ├── results_helper.py     ← ResultsCollector, GadgetDatabase, remap helpers, collect_vcg/hybrid/penalty_data
+│   ├── results_helper.py     ← ResultsCollector, GadgetDatabase, remap helpers, collect_vcg/PC-QAOA/penalty_data
 │   ├── data_loader.py        ← Load/filter/clean results DataFrames
 │   ├── metrics.py            ← P(feasible), P(optimal), AR augmentation, summary stats
 │   ├── plot_utils.py         ← Shared matplotlib styling (rose-pine palette)
@@ -44,7 +44,7 @@ The central idea is a **Variational Constraint Gadget (VCG)**: rather than penal
 │
 ├── 📁 examples/
 │   ├── example_vcg.py        ← VCG demo: train on a single constraint, plot counts
-│   ├── example_hybrid.py     ← HybridQAOA vs PenaltyQAOA on a three-constraint QUBO
+│   ├── example_hybrid.py     ← PC-QAOA vs PenaltyQAOA on a three-constraint QUBO
 │   ├── results/              ← Saved result pickles (e.g. vcg_layer_sweep.pkl)
 │   └── figures/              ← Generated plots (AR, timing, distributions)
 │
@@ -93,18 +93,18 @@ counts = gadget.do_counts_circuit(shots=10_000)
 p_feas = gadget.p_feasible(shots=10_000)
 ```
 
-### Solve a constrained QUBO with HybridQAOA
+### Solve a constrained QUBO with PC-QAOA
 
 ```python
 import numpy as np
 from core import constraint_handler as ch
-from core.hybrid_qaoa import HybridQAOA
+from core.pc_qaoa import PCQAOA
 
 Q = np.array([[1, -2, 0], [-2, 3, -1], [0, -1, 2]], dtype=float)
 constraints = ["x_0 + x_1 + x_2 == 1"]
 parsed = ch.parse_constraints(constraints)
 
-solver = HybridQAOA(
+solver = PC-QAOA(
     qubo=Q,
     all_constraints=parsed,
     structural_indices=[0],   # enforce via Dicke state prep
@@ -130,7 +130,7 @@ from analyze_results.results_helper import (
 collector = ResultsCollector()
 collector.load("results/cardinality_constraint_results.pkl")  # resume if exists
 
-# Gadget database (minimal fields only) – for HybridQAOA lookup
+# Gadget database (minimal fields only) – for PC-QAOA lookup
 # collect_vcg_data registers the gadget automatically when gadget_db_path is given
 row = collect_vcg_data(gadget, constraint_type="knapsack",
                        gadget_db_path="gadgets/vcg_db.pkl",
@@ -141,7 +141,7 @@ collector.save("results/knapsack_constraint_results.pkl")
 df = collector.to_dataframe()
 ```
 
-The gadget database stores only the 6 fields required by HybridQAOA
+The gadget database stores only the 6 fields required by PC-QAOA
 (`constraints`, `n_layers`, `angle_strategy`, `outcomes`, `Hamiltonian`, `opt_angles`),
 keeping it lean relative to the full results file. Entries are deduplicated automatically.
 
@@ -151,14 +151,14 @@ keeping it lean relative to the full results file. Entries are deduplicated auto
 # VCG demo: train on 3*x_0 + 2*x_1 + x_2 <= 3, print AR / P(feasible), plot counts
 python examples/example_vcg.py
 
-# HybridQAOA vs PenaltyQAOA – three-constraint COP on 7 decision variables
+# PC-QAOA vs PenaltyQAOA – three-constraint COP on 7 decision variables
 python examples/example_hybrid.py
 ```
 
 #### How `example_hybrid.py` works
 
 The example builds a three-constraint combinatorial optimisation problem on 7 binary decision
-variables (`x_0 … x_6`) and compares HybridQAOA against a full-penalisation baseline.
+variables (`x_0 … x_6`) and compares PC-QAOA against a full-penalisation baseline.
 
 **Step 1 – Load constraints from data/**
 
@@ -192,11 +192,11 @@ is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
 `constraint_handler.is_dicke_compatible` classifies each parsed constraint:
 
 - **Dicke-compatible** (A): all coefficients are +1, equality operator, integer RHS.
-  HybridQAOA prepares the uniform superposition over feasible assignments exactly using a log-depth
+  PC-QAOA prepares the uniform superposition over feasible assignments exactly using a log-depth
   W-state circuit and an XY mixer – no flag qubit, zero approximation error.
 
 - **Not Dicke-compatible** (B): non-unit coefficients or inequality operator.
-  HybridQAOA trains a flag-free VCG gadget whose ground state is the uniform
+  PC-QAOA trains a flag-free VCG gadget whose ground state is the uniform
   superposition over feasible assignments for B, then embeds it as the initial state and uses a
   Grover mixer.  P(feasible) is measured by directly evaluating the constraint on bitstrings —
   no ancilla qubit is involved.
@@ -205,10 +205,10 @@ is 0 and the RHS is 1, so `n_slack = ceil(1 − 0) = 1`.
   structural circuit cleanly.  It is instead converted to a quadratic penalty term
   δ·(x_1 + x_4 + x_6 − 1 + s)² and added to the cost Hamiltonian.
 
-**Step 3 – Solve with HybridQAOA**
+**Step 3 – Solve with PC-QAOA**
 
 ```python
-hybrid = HybridQAOA(
+PC-QAOA = PC-QAOA(
     qubo=Q,                         # 7x7 QUBO loaded from data/qubos.csv
     all_constraints=parsed,         # [A, B, C]
     structural_indices=[0, 1],      # A (Dicke) + B (VCG) enforced structurally
@@ -221,7 +221,7 @@ hybrid = HybridQAOA(
     steps=50,
     num_restarts=10,
 )
-opt_cost, counts, opt_angles = hybrid.solve()
+opt_cost, counts, opt_angles = PC-QAOA.solve()
 ```
 
 The Grover mixer reflects about the state prepared by the **composed** A+B circuit, so the search
@@ -258,7 +258,7 @@ Two figures are saved to `examples/figures/`:
 A **Variational Constraint Gadget (VCG)** is a small QAOA circuit whose
 ground state is the uniform superposition over all bitstrings that satisfy a
 given constraint.  Once trained, it acts as both the initial state and the
-Grover mixer inside HybridQAOA, keeping the search within the feasible
+Grover mixer inside PC-QAOA, keeping the search within the feasible
 subspace.  The Hamiltonian is defined directly on the decision-variable qubits
 — no ancilla or flag qubit is used.
 
@@ -377,7 +377,7 @@ python run/add_to_vcg_database.py \
     --db gadgets/gadget_db.pkl
 ```
 
-### Generate and run HybridQAOA vs PenaltyQAOA experiments
+### Generate and run PC-QAOA vs PenaltyQAOA experiments
 
 ```bash
 # Enumerate experiment parameter combinations
@@ -428,7 +428,7 @@ c = remap_constraint_to_vars("x_0 + x_1 == 1", [3, 5])  # → 'x_3 + x_5 == 1'
 row_vcg = collect_vcg_data(gadget, constraint_type="cardinality",
                            gadget_db_path="gadgets/gadget_db.pkl")
 
-row_hybrid  = collect_hybrid_data(constraints, hybrid, qubo_string, min_val=min_val)
+row_hybrid  = collect_hybrid_data(constraints, PC-QAOA, qubo_string, min_val=min_val)
 row_penalty = collect_penalty_data(constraints, penalty_solver, qubo_string, min_val=min_val)
 
 # Accumulate full results and persist to pickle
@@ -456,7 +456,7 @@ df = collector.to_dataframe()
 | `samples` | int | `10_000` | Measurement shots for counts / P(feasible) |
 | `decompose` | bool | `True` | Decompose Hamiltonian into Pauli terms (required for ma-QAOA) |
 
-### HybridQAOA Parameters
+### PC-QAOA Parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -523,7 +523,7 @@ df = collector.to_dataframe()
 | `counts_time` | Wall time for sampling (s) |
 | `min_val` | Optimal feasible QUBO value (brute force) |
 | `optimal_x` | List of optimal feasible bitstrings (brute force; used to compute P(opt)) |
-| `mixer` | Mixer used (hybrid only) |
+| `mixer` | Mixer used (PC-QAOA only) |
 
 ## Dependencies
 

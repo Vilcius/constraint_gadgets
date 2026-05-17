@@ -39,18 +39,18 @@ Identity columns
   qubo_string      str      QUBO identifier string
   families         list     constraint family names
 
-Hybrid QAOA columns  (mixer = Grover, structural constraints handled by state prep)
+PC-QAOA columns  (per-gadget mixer: XY for Dicke/flow, Grover for VCG/LEQ, X for free qubits)
 ~~~~~~~~~~~~~~~~~~~~~
-  n_qubits_h       int      total qubits = n_x + n_slack_h
-  n_slack_h        int      slack qubits from penalty constraints
-  n_struct_h       int      number of structural (state-prep) constraints
-  n_pen_h          int      number of penalty constraints going into Hamiltonian
+  n_qubits_pc       int      total qubits = n_x + n_slack_pc
+  n_slack_pc        int      slack qubits from penalty constraints
+  n_struct_pc       int      number of structural (state-prep) constraints
+  n_pen_pc          int      number of penalty constraints going into Hamiltonian
 
-  sp_total_h       int      total gates in state prep (r_sp for Hybrid)
-  sp_gates_h       dict     gate breakdown of r_sp  e.g. {"CNOT": 10, "CRY": 6, ...}
+  sp_total_pc       int      total gates in state prep (r_sp for PC-QAOA)
+  sp_gates_pc       dict     gate breakdown of r_sp  e.g. {"CNOT": 10, "CRY": 6, ...}
 
-  layer_total_h    int      total gates in one QAOA layer (r_layer for Hybrid)
-  layer_gates_h    dict     gate breakdown of r_layer
+  layer_total_pc    int      total gates in one QAOA layer (r_layer for PC-QAOA)
+  layer_gates_pc    dict     gate breakdown of r_layer
 
 Penalty QAOA columns  (X mixer, all constraints penalised into Hamiltonian)
 ~~~~~~~~~~~~~~~~~~~~~
@@ -90,7 +90,22 @@ from core import constraint_handler as ch
 
 
 def _resources_to_dict(res) -> dict:
-    return {gate.name: int(count) for gate, count in res.gate_types.items()}
+    """Convert a plre.Resources object to a plain {gate_name: count} dict.
+
+    MultiRZ(k) is decomposed into its CNOT-equivalent: 2*(k-1) CNOT + 1 RZ,
+    so that penalty-QAOA two-qubit gate counts are correctly tallied.
+    """
+    d: dict = {}
+    for gate, count in res.gate_types.items():
+        if gate.name == "MultiRZ":
+            k = gate.params.get("num_wires", 1)
+            cnots = 2 * (k - 1) * int(count)
+            rzs   = int(count)
+            d["CNOT"] = d.get("CNOT", 0) + cnots
+            d["RZ"]   = d.get("RZ",   0) + rzs
+        else:
+            d[gate.name] = d.get(gate.name, 0) + int(count)
+    return d
 
 
 def _count_1q_2q(gate_dict: dict):
@@ -130,7 +145,6 @@ def build_resource_table(
     params_path: str,
     data_dir: str = "data/",
     output_prefix: str = "results/circuit_resources",
-    mixer: str = "Grover",
     vcg_resources_path: str | None = None,
 ) -> pd.DataFrame:
     """
@@ -144,11 +158,9 @@ def build_resource_table(
         Directory containing qubos.csv.
     output_prefix : str
         Prefix for output files (saved as .pkl and .csv).
-    mixer : str
-        Hybrid mixer type (default "Grover").
     vcg_resources_path : str or None
         Path to vcg_circuit_resources.pkl.  When provided, VCG gate counts
-        are included in hybrid sp/layer totals.
+        are included in PC-QAOA sp/layer totals.
 
     Returns
     -------
@@ -189,18 +201,17 @@ def build_resource_table(
                 task,
                 qubos,
                 n_layers=1,
-                mixer=mixer,
                 penalty_weight=penalty_weight,
                 vcg_db=vcg_db,
             )
 
             # Non-VCG gate dicts from plre.estimate
-            h_sp_plre   = _resources_to_dict(res["hybrid_sp"])
-            h_lay_plre  = _resources_to_dict(res["hybrid_layer"])
+            h_sp_plre   = _resources_to_dict(res["pc_qaoa_sp"])
+            h_lay_plre  = _resources_to_dict(res["pc_qaoa_layer"])
             p_sp_gates  = _resources_to_dict(res["penalty_sp"])
             p_lay_gates = _resources_to_dict(res["penalty_layer"])
 
-            # Merge VCG contributions into hybrid totals
+            # Merge VCG contributions into PC-QAOA totals
             vcg_sp  = res["vcg_sp_gates"]
             vcg_lay = res["vcg_layer_gates"]
             h_sp_gates  = _merge_gate_dicts(h_sp_plre,  vcg_sp)
@@ -224,25 +235,25 @@ def build_resource_table(
                 "n_c":              len(all_constraints),
                 "qubo_string":      qubo_string,
                 "families":         families,
-                # ── Hybrid ────────────────────────────────────────────────
-                "n_qubits_h":       res["n_qubits_h"],
-                "n_slack_h":        res["n_slack_h"],
-                "n_struct_h":       len(si),
-                "n_pen_h":          len(pi),
-                "has_vcg_h":        res["has_vcg_h"],
-                "vcg_missing_h":    res["vcg_missing_h"],
+                # ── PC-QAOA ────────────────────────────────────────────────
+                "n_qubits_pc":       res["n_qubits_pc"],
+                "n_slack_pc":        res["n_slack_pc"],
+                "n_struct_pc":       len(si),
+                "n_pen_pc":          len(pi),
+                "has_vcg_pc":        res["has_vcg_pc"],
+                "vcg_missing_pc":    res["vcg_missing_pc"],
                 # state-prep (r_sp): non-VCG + VCG combined
-                "sp_total_h":       sum(h_sp_gates.values()),
-                "sp_1q_h":          h_sp_1q,
-                "sp_2q_h":          h_sp_2q,
-                "sp_gates_h":       h_sp_gates,
-                "vcg_sp_gates_h":   vcg_sp,
+                "sp_total_pc":       sum(h_sp_gates.values()),
+                "sp_1q_pc":          h_sp_1q,
+                "sp_2q_pc":          h_sp_2q,
+                "sp_gates_pc":       h_sp_gates,
+                "vcg_sp_gates_pc":   vcg_sp,
                 # one layer (r_layer): non-VCG + VCG combined
-                "layer_total_h":    sum(h_lay_gates.values()),
-                "layer_1q_h":       h_lay_1q,
-                "layer_2q_h":       h_lay_2q,
-                "layer_gates_h":    h_lay_gates,
-                "vcg_layer_gates_h": vcg_lay,
+                "layer_total_pc":    sum(h_lay_gates.values()),
+                "layer_1q_pc":       h_lay_1q,
+                "layer_2q_pc":       h_lay_2q,
+                "layer_gates_pc":    h_lay_gates,
+                "vcg_layer_gates_pc": vcg_lay,
                 # ── Penalty ───────────────────────────────────────────────
                 "n_qubits_p":       res["n_qubits_p"],
                 "n_slack_p":        res["n_slack_p"],
@@ -268,10 +279,10 @@ def build_resource_table(
 
     print(f"\nDone. {len(df)} rows, {n_failed} failures.")
     if not df.empty:
-        print(f"  Hybrid   qubits range: {df['n_qubits_h'].min()}–{df['n_qubits_h'].max()}")
+        print(f"  PC-QAOA   qubits range: {df['n_qubits_pc'].min()}–{df['n_qubits_pc'].max()}")
         print(f"  Penalty  qubits range: {df['n_qubits_p'].min()}–{df['n_qubits_p'].max()}")
-        print(f"  Hybrid   sp gates:     {df['sp_total_h'].describe()[['min','mean','max']].to_dict()}")
-        print(f"  Hybrid   layer gates:  {df['layer_total_h'].describe()[['min','mean','max']].to_dict()}")
+        print(f"  PC-QAOA   sp gates:     {df['sp_total_pc'].describe()[['min','mean','max']].to_dict()}")
+        print(f"  PC-QAOA   layer gates:  {df['layer_total_pc'].describe()[['min','mean','max']].to_dict()}")
         print(f"  Penalty  sp gates:     {df['sp_total_p'].describe()[['min','mean','max']].to_dict()}")
         print(f"  Penalty  layer gates:  {df['layer_total_p'].describe()[['min','mean','max']].to_dict()}")
 
@@ -294,8 +305,6 @@ def main():
     parser.add_argument("--params",         default="run/params/experiment_params_overlapping.jsonl")
     parser.add_argument("--data",           default="data/")
     parser.add_argument("--output",         default="results/circuit_resources")
-    parser.add_argument("--mixer",          default="Grover",
-                        choices=["Grover", "X-Mixer", "XY", "Ring-XY"])
     parser.add_argument("--vcg-resources",  default=None,
                         help="Path to vcg_circuit_resources.pkl (enables VCG gate counting)")
     args = parser.parse_args()
@@ -304,7 +313,6 @@ def main():
         params_path=args.params,
         data_dir=args.data,
         output_prefix=args.output,
-        mixer=args.mixer,
         vcg_resources_path=args.vcg_resources,
     )
 

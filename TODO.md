@@ -29,18 +29,18 @@ infeasible solutions have higher cost than the best feasible solution + 1
 
 ## 4. Increase optimization budget
 Current settings: HYBRID_STEPS=50, PENALTY_STEPS=50, num_restarts=10.
-P(feas) for HybridQAOA is only ~0.30 on average; some constraint types reach
+P(feas) for PC-QAOA is only ~0.30 on average; some constraint types reach
 P(feas)=0.0. Increase to STEPS=150+, restarts=20+, and raise VCG ar_threshold
 to 0.999 (already set) but also increase gadget budget to ensure gadgets
 really reach threshold before the full solver runs.
 
 ## 5. Update Conclusion section
 The conclusion still describes the old single/two-constraint framing. Update
-to reflect: multi-constraint hybrid solver, VCG comparison, Appendix B,
+to reflect: multi-constraint PC-QAOA solver, VCG comparison, Appendix B,
 and the improved warm-start results.
 
 ## 6. Hamiltonian normalization for PenaltyQAOA
-PenaltyQAOA's eigenvalue range is ~3000–4000× larger than HybridQAOA's due
+PenaltyQAOA's eigenvalue range is ~3000–4000× larger than PC-QAOA's due
 to penalty terms. This makes the QAOA optimization landscape harder (sharper
 gradients) and makes the raw AR metric incomparable (addressed by AR_feas).
 Fix: rescale the full Hamiltonian to [-1, 1] before optimization so that

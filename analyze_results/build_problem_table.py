@@ -9,7 +9,7 @@ Two entry points:
 
 2. build_problem_table_from_raw(raw_pkl_path, data_dir, output_prefix)
    New entry point: reads the raw merged pkl produced by
-   run_hybrid_vs_penalty.py, computes all metrics (p_feas, p_opt,
+   run_pcqaoa_vs_penalty.py, computes all metrics (p_feas, p_opt,
    AR_feas, final-layer selection) inline, and saves both the processed
    comparison_ar pkl and the wide problem_table.
 
@@ -19,7 +19,7 @@ Problem identity:
     constraints_hash, constraint_type, n_x, n_c, qubo_string,
     has_feasible_solution
 
-Per-method columns (suffix _h = Hybrid, _p = Penalty):
+Per-method columns (suffix _pc = PC-QAOA, _p = Penalty):
     n_layers_{h,p}          -- final layer reached
     total_time_hr_{h,p}     -- cumulative wall-clock time (hours)
     AR_{h,p}                -- approximation ratio at final layer
@@ -30,7 +30,7 @@ Per-method columns (suffix _h = Hybrid, _p = Penalty):
     finished_{h,p}          -- bool: result exists in dataset
 
 Derived:
-    max_total_time_hr       -- max(total_time_hr_h, total_time_hr_p)
+    max_total_time_hr       -- max(total_time_hr_pc, total_time_hr_p)
     min_total_time_hr       -- min of available times
 
 Usage
@@ -44,7 +44,7 @@ Usage
 
     # directly from raw jax merged pkl:
     python analyze_results/build_problem_table.py \\
-        --raw results/overlapping/hybrid_vs_penalty.pkl \\
+        --raw results/overlapping/pcqaoa_vs_penalty.pkl \\
         --output results/overlapping/problem_table.csv
 """
 
@@ -146,7 +146,7 @@ def build_problem_table(
     # ------------------------------------------------------------------
     # Pivot to wide format: one row per problem, columns per method
     # ------------------------------------------------------------------
-    method_map = {'HybridQAOA': 'h', 'PenaltyQAOA': 'p'}
+    method_map = {'PC-QAOA': 'h', 'PenaltyQAOA': 'p'}
 
     # Problem identity columns (same across both methods)
     problem_cols = [c for c in [
@@ -228,8 +228,8 @@ P_FEAS_THRESHOLD = 0.75  # convergence threshold (mirrors run script)
 
 # Maps full class name -> suffix used in problem_table columns
 _METHOD_SUFFIX = {
-    'HybridQAOA':          'h',
-    'HybridQAOA':  'h',
+    'PC-QAOA':          'h',
+    'PC-QAOA':  'h',
     'PenaltyQAOA':         'p',
     'PenaltyQAOA': 'p',
 }
@@ -247,7 +247,7 @@ def build_problem_table_from_raw(
 ) -> pd.DataFrame:
     """Build a per-problem summary table directly from a raw merged pkl.
 
-    Works with the pkl produced by run_hybrid_vs_penalty.py (one row per
+    Works with the pkl produced by run_pcqaoa_vs_penalty.py (one row per
     layer per method per problem).  Computes all metrics inline:
 
       - p_feasible, p_optimal  — from counts + constraints (no QUBO needed)
@@ -259,7 +259,7 @@ def build_problem_table_from_raw(
     Parameters
     ----------
     raw_pkl_path : str
-        Path to the raw merged pkl (e.g. results/overlapping/hybrid_vs_penalty.pkl).
+        Path to the raw merged pkl (e.g. results/overlapping/pcqaoa_vs_penalty.pkl).
     data_dir : str
         Directory containing qubos.csv (needed for AR_feas computation).
     output_prefix : str or None
@@ -272,7 +272,7 @@ def build_problem_table_from_raw(
     pd.DataFrame  (one row per problem, wide format)
     """
     from analyze_results.metrics import (
-        p_feasible_hybrid, p_optimal_hybrid,
+        p_feasible_pcqaoa, p_optimal_pcqaoa,
         ar_feasibility_conditioned, aggregate_counts, feasibility_check,
     )
 
@@ -321,8 +321,8 @@ def build_problem_table_from_raw(
         ar = (opt_cost - C_max) / (C_min - C_max) if (C_min - C_max) != 0 else float('nan')
 
         # p_feasible, p_optimal
-        p_feas = p_feasible_hybrid(rd)
-        p_opt  = p_optimal_hybrid(rd)
+        p_feas = p_feasible_pcqaoa(rd)
+        p_opt  = p_optimal_pcqaoa(rd)
 
         # AR_feas (needs QUBO matrix)
         ar_feas = float('nan')
@@ -437,7 +437,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--raw',      default=None,
-                        help='Raw merged pkl from run_hybrid_vs_penalty.py '
+                        help='Raw merged pkl from run_pcqaoa_vs_penalty.py '
                              '(skips --comp-ar / --comp-res if given)')
     parser.add_argument('--data-dir', default='data/')
     parser.add_argument('--comp-ar',  default='results/overlapping/comparison_ar.pkl')
@@ -461,9 +461,9 @@ def main():
                 continue
             show_cols = [c for c in [
                 'n_x', 'constraint_type', 'max_total_time_hr',
-                'n_layers_h', 'total_time_hr_h', 'finished_h', 'converged_h',
+                'n_layers_pc', 'total_time_hr_pc', 'finished_pc', 'converged_pc',
                 'n_layers_p', 'total_time_hr_p', 'finished_p', 'converged_p',
-                'AR_feas_h', 'AR_feas_p', 'p_feasible_h', 'p_feasible_p',
+                'AR_feas_pc', 'AR_feas_p', 'p_feasible_pc', 'p_feasible_p',
                 'constraints_hash',
             ] if c in sub.columns]
             print(f"\n=== {label} ({len(sub)} problems) — sample ===")

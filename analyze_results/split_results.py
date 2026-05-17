@@ -6,11 +6,11 @@ process so downstream analysis scripts do not need raw counts or Hamiltonians.
 Produces (in --output-dir, default: results/):
     vcg_ar.pkl            -- VCG: AR, p_feasible, metadata            (small)
     vcg_resources.pkl     -- VCG: shots, depth, timing, metadata      (small)
-    comparison_ar.pkl     -- Hybrid vs Penalty: AR, p_feasible,
+    comparison_ar.pkl     -- PC-QAOA vs PenaltyQAOA: AR, p_feasible,
                              p_optimal, metadata                       (small)
-    comparison_resources.pkl -- Hybrid vs Penalty: shots, timing,
+    comparison_resources.pkl -- PC-QAOA vs PenaltyQAOA: shots, timing,
                              parameter counts, metadata                (small)
-    comparison_counts.pkl -- Hybrid vs Penalty: raw counts + constraints
+    comparison_counts.pkl -- PC-QAOA vs PenaltyQAOA: raw counts + constraints
                              (large; skip with --no-counts)
 
 Usage
@@ -18,7 +18,7 @@ Usage
     python analyze_results/split_results.py
     python analyze_results/split_results.py \\
         --vcg-dir    gadgets/pending/ \\
-        --hybrid     results/hybrid_vs_penalty.pkl \\
+        --pc-qaoa     results/overlapping/pc_qaoa_vs_penalty.pkl \\
         --output-dir results/
     python analyze_results/split_results.py --no-counts
 """
@@ -37,7 +37,7 @@ import pandas as pd
 import itertools
 
 from analyze_results.metrics import (
-    p_feasible_hybrid, p_optimal_hybrid,
+    p_feasible_pcqaoa, p_optimal_pcqaoa,
     ar_feasibility_conditioned,
 )
 
@@ -53,20 +53,22 @@ _SHARED_META = [
     'angle_strategy', 'n_layers', 'layer',
 ]
 
-# Hybrid vs Penalty splits
+# PC-QAOA vs PenaltyQAOA splits
 COMPARISON_AR_COLS = _SHARED_META + [
-    'constraints_hash', 'mixer', 'penalty',
+    'constraints_hash',
+    'structural_constraints', 'penalty_constraints', 'n_structural', 'n_penalty',
     'AR', 'AR_feas', 'p_feasible', 'p_optimal',
     'min_val', 'C_max', 'C_min', 'opt_cost',
     'has_feasible_solution',
 ]
 COMPARISON_RESOURCES_COLS = _SHARED_META + [
-    'constraints_hash', 'mixer', 'num_gamma', 'num_beta',
+    'constraints_hash', 'num_gamma', 'num_beta',
+    'n_structural', 'n_penalty',
     'est_shots', 'est_error', 'group_est_shots', 'group_est_error',
     'hamiltonian_time', 'optimize_time', 'counts_time',
 ]
 COMPARISON_COUNTS_COLS = _SHARED_META + [
-    'constraints', 'counts',
+    'constraints', 'structural_constraints', 'penalty_constraints', 'counts',
 ]
 
 
@@ -150,7 +152,7 @@ def _extract_resources(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Hybrid vs Penalty processing
+# PC-QAOA vs PenaltyQAOA processing
 # ---------------------------------------------------------------------------
 
 def _load_qubo_lookup(data_dir: str = 'data/') -> dict:
@@ -171,7 +173,7 @@ def _load_qubo_lookup(data_dir: str = 'data/') -> dict:
 
 
 def _compute_ar_feas_column(df: pd.DataFrame) -> pd.Series:
-    """Compute AR_feas for every row in the hybrid DataFrame.
+    """Compute AR_feas for every row in the PC-QAOA DataFrame.
 
     Requires columns: counts, qubo_string, constraints, n_x, min_val.
     Returns a Series of AR_feas values (NaN when no feasible shots or QUBO missing).
@@ -225,12 +227,12 @@ def _check_has_feasible(row) -> bool:
     return False
 
 
-def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None:
-    """Load the merged hybrid vs penalty results pickle, compute metrics, and save splits.
+def process_pc_qaoa(pcqaoa_path: str, output_dir: str, save_counts: bool) -> None:
+    """Load the merged PC-QAOA vs PenaltyQAOA results pickle, compute metrics, and save splits.
 
     Steps performed:
 
-    1. Load *hybrid_path* and unpack any length-1 list columns.
+    1. Load *pcqaoa_path* and unpack any length-1 list columns.
     2. Dedup step 1: drop exact duplicate saves at the same layer on
        ``(method, qubo_string, constraints_hash, n_x, layer, angle_strategy)``.
     3. Compute ``p_feasible``, ``p_optimal``, and ``AR_feas`` (the last requires
@@ -248,30 +250,30 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
 
     Parameters
     ----------
-    hybrid_path : str
-        Path to the merged ``hybrid_vs_penalty.pkl`` produced by the run scripts.
+    pcqaoa_path : str
+        Path to the merged ``pcqaoa_vs_penalty.pkl`` produced by the run scripts.
     output_dir : str
         Destination directory for the split pickles.
     save_counts : bool
         If ``False``, skip writing ``comparison_counts.pkl`` (saves disk space).
     """
     print(f"\n{'='*60}")
-    print("  Hybrid vs Penalty results")
+    print("  PC-QAOA vs PenaltyQAOA results")
     print(f"{'='*60}")
 
-    if not os.path.exists(hybrid_path):
-        print(f"  File not found: {hybrid_path}")
+    if not os.path.exists(pcqaoa_path):
+        print(f"  File not found: {pcqaoa_path}")
         return
 
-    df = pd.read_pickle(hybrid_path)
+    df = pd.read_pickle(pcqaoa_path)
     if df.empty:
         print("  Results file is empty.")
         return
 
     df = _unpack_list_cols(df)
 
-    # Normalise JAX class names to canonical names used by plot scripts
-    _METHOD_REMAP = {'HybridQAOA': 'HybridQAOA', 'PenaltyQAOA': 'PenaltyQAOA'}
+    # Normalise method strings (old pkl files store 'PC-QAOA'; new ones store 'PC-QAOA')
+    _METHOD_REMAP = {'HybridQAOA': 'PC-QAOA', 'PC-QAOA': 'PC-QAOA', 'PCQAOA': 'PC-QAOA', 'PenaltyQAOA': 'PenaltyQAOA'}
     if 'method' in df.columns:
         df['method'] = df['method'].map(lambda m: _METHOD_REMAP.get(m, m))
 
@@ -289,8 +291,8 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
         print(f"  Removed {before - len(df):,} duplicate saves at the same layer")
 
     # Compute derived metrics (requires counts)
-    df['p_feasible'] = df.apply(p_feasible_hybrid, axis=1)
-    df['p_optimal']  = df.apply(p_optimal_hybrid, axis=1)
+    df['p_feasible'] = df.apply(p_feasible_pcqaoa, axis=1)
+    df['p_optimal']  = df.apply(p_optimal_pcqaoa, axis=1)
 
     # AR_feas: feasibility-conditioned AR.  Requires the QUBO matrix, which is
     # not stored directly — load it from data/qubos.csv keyed by qubo_string.
@@ -358,8 +360,8 @@ def process_hybrid(hybrid_path: str, output_dir: str, save_counts: bool) -> None
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--hybrid',     default='results/overlapping/hybrid_vs_penalty.pkl',
-                        help='Merged hybrid vs penalty results pickle')
+    parser.add_argument('--pc-qaoa', dest='pc_qaoa',     default='results/overlapping/pc_qaoa_vs_penalty.pkl',
+                        help='Merged PC-QAOA vs PenaltyQAOA results pickle')
     parser.add_argument('--output-dir', default='results/',
                         help='Output directory for split pickles (default: results/)')
     parser.add_argument('--no-counts',  action='store_true',
@@ -368,7 +370,7 @@ def main() -> None:
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    process_hybrid(args.hybrid, args.output_dir, save_counts=not args.no_counts)
+    process_pc_qaoa(args.pc_qaoa, args.output_dir, save_counts=not args.no_counts)
 
     print(f"\n{'='*60}")
     print(f"  Done. Split files written to: {args.output_dir}")

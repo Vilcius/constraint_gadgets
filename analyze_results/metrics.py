@@ -1,5 +1,5 @@
 """
-metrics.py -- Core metric functions for VCG and HybridQAOA results.
+metrics.py -- Core metric functions for VCG and PC-QAOA results.
 """
 
 import numpy as np
@@ -74,7 +74,7 @@ def compute_comparison_metrics(counts: dict, opt_cost: float,
 # ---------------------------------------------------------------------------
 
 
-def p_feasible_hybrid(row) -> float:
+def p_feasible_pcqaoa(row) -> float:
     """Fraction of counts (first n_x bits) satisfying all constraints.
 
     Uses eval-based feasibility check consistent with data.make_data.get_optimal_x.
@@ -102,7 +102,7 @@ def p_feasible_hybrid(row) -> float:
     return feasible / total
 
 
-def p_optimal_hybrid(row) -> float:
+def p_optimal_pcqaoa(row) -> float:
     """Fraction of counts (first n_x bits) that are an optimal feasible solution.
 
     Uses the ``optimal_x`` list of bitstrings stored by the run script (produced
@@ -138,11 +138,11 @@ def p_optimal_hybrid(row) -> float:
 # ---------------------------------------------------------------------------
 
 
-def add_hybrid_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """Add p_feasible and p_optimal columns to a HybridQAOA DataFrame."""
+def add_pcqaoa_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """Add p_feasible and p_optimal columns to a PC-QAOA DataFrame."""
     df = df.copy()
-    df['p_feasible'] = df.apply(p_feasible_hybrid, axis=1)
-    df['p_optimal'] = df.apply(p_optimal_hybrid, axis=1)
+    df['p_feasible'] = df.apply(p_feasible_pcqaoa, axis=1)
+    df['p_optimal'] = df.apply(p_optimal_pcqaoa, axis=1)
     df['AR'] = pd.to_numeric(df['AR'], errors='coerce')
     return df
 

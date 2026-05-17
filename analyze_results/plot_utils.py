@@ -22,9 +22,9 @@ _ROSE_PINE = {
     'love':        '#cf222e',   # red   — infeasible / PenaltyQAOA
     'gold':        '#b08800',   # amber — struct✓ / penalty✗
     'rose':        '#e85c8a',   # pink  — struct✗ / penalty✓
-    'pine':        '#1f6feb',   # blue  — feasible / HybridQAOA / QAOA
+    'pine':        '#1f6feb',   # blue  — feasible / PC-QAOA / QAOA
     'foam':        '#1a7f37',   # green — optimal
-    'iris':        '#8250df',   # purple — ma-QAOA / HybridQAOA
+    'iris':        '#8250df',   # purple — ma-QAOA / PC-QAOA
     'highlight_low':  '#f6f8fa',
     'highlight_med':  '#e8eaed',
     'highlight_high': '#d0d7de',
@@ -46,8 +46,10 @@ CONSTRAINT_COLORS = {
 # Method colours
 METHOD_COLORS = {
     'VCG':          _ROSE_PINE['pine'],
-    'HybridQAOA':   '#9f7aea',   # amethyst / lavender
+    'PC-QAOA':      '#9f7aea',   # amethyst / lavender
     'PenaltyQAOA':  '#4fc3f7',   # crystal blue / cyan
+    'PC-QAOA (VCG)':   '#8250df',   # iris
+    'PC-QAOA (exact)': '#5cb8b2',   # foam teal
 }
 
 # Angle-strategy colours
@@ -79,10 +81,15 @@ def setup_style() -> None:
         'legend.facecolor':  _ROSE_PINE['surface'],
         'legend.edgecolor':  _ROSE_PINE['highlight_high'],
         'legend.framealpha': 1.0,
-        'figure.dpi':        120,
-        'savefig.dpi':       150,
+        'figure.dpi':        150,
+        'savefig.dpi':       200,
         'savefig.facecolor': bg,
-        'font.size':         11,
+        'font.size':         14,
+        'axes.titlesize':    15,
+        'axes.labelsize':    14,
+        'xtick.labelsize':   13,
+        'ytick.labelsize':   13,
+        'legend.fontsize':   12,
         'axes.spines.top':   False,
         'axes.spines.right': False,
         'axes.formatter.use_mathtext':   False,

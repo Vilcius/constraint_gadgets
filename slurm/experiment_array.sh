@@ -25,7 +25,7 @@ fi
 PENDING_DIR="${2:-$PROJECT_ROOT/results/pending_overlapping}"
 mkdir -p "$PENDING_DIR"
 
-python3.11 "$PROJECT_ROOT/run/run_hybrid_vs_penalty.py" \
+python3.11 "$PROJECT_ROOT/run/run_pc_qaoa_vs_penalty.py" \
     --cop-id "$SLURM_ARRAY_TASK_ID" \
     --params  "$PARAMS_FILE" \
     --db      "$PROJECT_ROOT/gadgets/vcg_db.pkl" \

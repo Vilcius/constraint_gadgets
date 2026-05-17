@@ -9,7 +9,7 @@ Core library for constraint-aware QAOA.
 | `qaoa_base.py` | Shared primitives: QUBO→Ising conversion, Hamiltonian construction, cost unitaries, X/XY mixers, Adam optimisation loop, resource estimation |
 | `constraint_handler.py` | Constraint parsing, type classification, variable sets, slack allocation, feasibility checking, and constraint normalisation for DB lookup |
 | `vcg.py` | Variational Constraint Gadget (VCG): builds a Z-diagonal constraint Hamiltonian via Walsh-Hadamard transform and trains a QAOA circuit to prepare the uniform superposition over feasible states |
-| `hybrid_qaoa.py` | HybridQAOA: partitions constraints into structural (enforced via VCG/Dicke gadgets) and penalty (added to cost Hamiltonian); runs QAOA in the feasible subspace |
+| `hybrid_qaoa.py` | PC-QAOA: partitions constraints into structural (enforced via VCG/Dicke gadgets) and penalty (added to cost Hamiltonian); runs QAOA in the feasible subspace |
 | `penalty_qaoa.py` | PenaltyQAOA: baseline approach that converts all constraints to quadratic penalty terms and runs standard QAOA with X-mixer |
 | `dicke_state_prep.py` | Exact Dicke state preparation for `sum x_i == k` constraints (Bartschi & Eidenbenz, 2019); uses XY mixer to preserve Hamming weight |
 
@@ -30,8 +30,8 @@ constraint_handler   <── parses / classifies all constraints
             hybrid_qaoa ──── penalty_qaoa
 ```
 
-`HybridQAOA` and `PenaltyQAOA` both delegate to `qaoa_base` for optimisation.
-`HybridQAOA` additionally uses `vcg` and `dicke_state_prep` for its initial state
+`PC-QAOA` and `PenaltyQAOA` both delegate to `qaoa_base` for optimisation.
+`PC-QAOA` additionally uses `vcg` and `dicke_state_prep` for its initial state
 and Grover mixer.
 
 ## Constraint types

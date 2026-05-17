@@ -6,7 +6,7 @@ Modular analysis pipeline for constraint_gadget experiments.
 
 | File | Purpose |
 |---|---|
-| `data_loader.py` | Load VCG / HybridQAOA result pickles; filter DataFrames |
+| `data_loader.py` | Load VCG / PC-QAOA result pickles; filter DataFrames |
 | `metrics.py` | P(feasible) (brute-force constraint check on first `n_x` bits), P(optimal) (uses `optimal_x` bitstring list stored by run script), AR augmentation, summary stats |
 | `plot_utils.py` | Shared light-theme styling (paper-friendly), colour maps, `save_fig` |
 | `plot_ar.py` | AR vs n_x, by constraint type, by angle strategy |
@@ -22,7 +22,7 @@ Modular analysis pipeline for constraint_gadget experiments.
 ```bash
 python analyze_results/main_analysis.py \
     --vcg   gadgets/gadget_db.pkl \
-    --hybrid results/hybrid_vs_penalty.pkl \
+    --pc-qaoa results/hybrid_vs_penalty.pkl \
     --output-dir ./analysis_output/
 ```
 
@@ -38,9 +38,9 @@ Output directories:
 | Function / Class | Description |
 |---|---|
 | `ResultsCollector` | Accumulate experiment rows incrementally; persist/resume from pickle |
-| `GadgetDatabase` | Lightweight VCG store: lookup by constraint key for HybridQAOA |
+| `GadgetDatabase` | Lightweight VCG store: lookup by constraint key for PC-QAOA |
 | `read_typed_csv(path)` | Parse `n_vars; [constraint, ...]` CSV format |
 | `collect_vcg_data(gadget, ...)` | Extract metrics from a trained VCG instance |
-| `collect_hybrid_data(solver, ...)` | Extract metrics from a HybridQAOA instance |
+| `collect_hybrid_data(solver, ...)` | Extract metrics from a PC-QAOA instance |
 | `collect_penalty_data(solver, ...)` | Extract metrics from a PenaltyQAOA instance |
 | `remap_constraint_to_vars(c, vars)` | Embed zero-indexed constraint into QUBO variable positions |

@@ -15,9 +15,9 @@ source $ANACONDA_SH
 # Arguments: $1 = PROJECT_ROOT  $2 = PENDING_DIR  $3 = OUTPUT_PKL
 PROJECT_ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PENDING_DIR="${2:-$PROJECT_ROOT/results/pending_overlapping}"
-OUTPUT="${3:-$PROJECT_ROOT/results/overlapping/hybrid_vs_penalty.pkl}"
+OUTPUT="${3:-$PROJECT_ROOT/results/overlapping/pc_qaoa_vs_penalty.pkl}"
 
-python3.11 "$PROJECT_ROOT/run/run_hybrid_vs_penalty.py" \
+python3.11 "$PROJECT_ROOT/run/run_pc_qaoa_vs_penalty.py" \
     --merge \
     --pending-dir "$PENDING_DIR" \
     --output      "$OUTPUT"

@@ -21,9 +21,9 @@ def plot_shots_vs_n(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
         ax.plot(means.index, means.values, marker='o', label=family, color=color)
         ax.scatter(grp['n_x'], grp['est_shots'], color=color, alpha=0.3, s=20)
 
-    ax.set_xlabel('n_x')
+    ax.set_xlabel('$n$')
     ax.set_ylabel('Estimated shots')
-    ax.set_title('Estimated shots vs n_x')
+    ax.set_title('Estimated shots vs $n$')
     ax.legend()
 
     if save_path:
@@ -49,9 +49,9 @@ def plot_depth_vs_n(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
         ax.plot(means.index, means.values, marker='s', label=family, color=color)
         ax.scatter(grp['n_x'], grp['depth'], color=color, alpha=0.3, s=20)
 
-    ax.set_xlabel('n_x')
+    ax.set_xlabel('$n$')
     ax.set_ylabel('Circuit depth')
-    ax.set_title('Circuit depth vs n_x')
+    ax.set_title('Circuit depth vs $n$')
     ax.legend()
 
     if save_path:
@@ -137,7 +137,7 @@ def plot_vcg_total_time(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
                        color=NX_COLORS.get(nx, pu._ROSE_PINE['muted']),
                        marker=NX_MARKERS.get(nx, 'o'),
                        s=40, alpha=0.75, zorder=3,
-                       label=f'$n_x={nx}$' if fam == families[0] else '')
+                       label=f'$|\\text{{supp}}(c_k)|={nx}$' if fam == families[0] else '')
 
     for fam in families:
         xi = x_pos[fam]
@@ -155,7 +155,7 @@ def plot_vcg_total_time(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     for h, l in zip(handles, labels):
         if l not in seen:
             seen[l] = h
-    ax.legend(seen.values(), seen.keys(), title='$n_x$', framealpha=1,
+    ax.legend(seen.values(), seen.keys(), title='$|\\text{supp}(c_k)|$', framealpha=1,
               loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=len(seen))
 
     fig.tight_layout()
@@ -165,7 +165,7 @@ def plot_vcg_total_time(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
 
 
 def plot_comparison_total_time(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
-    """Box + strip: total per-layer time per method (HybridQAOA vs PenaltyQAOA).
+    """Box + strip: total per-layer time per method (PC-QAOA vs PenaltyQAOA).
 
     Total time per row = hamiltonian_time + optimize_time + counts_time.
     """
@@ -201,7 +201,7 @@ def plot_comparison_total_time(df: pd.DataFrame, save_path: str = None) -> plt.F
         df[col] = df[col].apply(_to_float)
     df['_total'] = df[time_cols].sum(axis=1)
 
-    methods  = [m for m in ['HybridQAOA', 'PenaltyQAOA'] if m in df['method'].values]
+    methods  = [m for m in ['PC-QAOA', 'PenaltyQAOA'] if m in df['method'].values]
     colors   = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
     data     = [df[df['method'] == m]['_total'].dropna().values for m in methods]
     positions = list(range(len(methods)))
@@ -227,7 +227,7 @@ def plot_comparison_total_time(df: pd.DataFrame, save_path: str = None) -> plt.F
     ax.set_xticks(positions)
     ax.set_xticklabels(methods)
     ax.set_ylabel('Total time per layer (s)')
-    ax.set_title('Per-layer wall-clock time\nHybridQAOA vs PenaltyQAOA')
+    ax.set_title('Per-layer wall-clock time\nPC-QAOA vs PenaltyQAOA')
 
     if save_path:
         pu.save_fig(fig, save_path)
@@ -332,34 +332,56 @@ def plot_total_time_vs_nx(
     # Filter to comparison n_x range only (exclude VCG-only sizes)
     task_times = task_times[task_times['n_x'] >= 4]
 
-    # Plot: mean ± std of total_solve_time (hours, linear scale) vs n_x
-    fig, ax = plt.subplots(figsize=(7, 4.5))
-    methods = [m for m in ['HybridQAOA', 'PenaltyQAOA'] if m in task_times['method'].values]
+    # 1x2 figure: (a) both methods combined, (b) both methods × overlap_type
+    has_split = 'overlap_type' in task_times.columns
+    fig, axes = plt.subplots(1, 2, figsize=(14, 4.5))
 
-    for method in methods:
-        color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['muted'])
-        sub = task_times[task_times['method'] == method]
-        stats = (
-            sub.groupby('n_x')['total_solve_time']
-            .agg(['mean', 'std'])
-            .reset_index()
-        )
-        stats['std'] = stats['std'].fillna(0.0)
-        mean_h = stats['mean'].values / 3600.0
-        lo_h   = np.clip(mean_h - stats['std'].values / 3600.0, 0, None)
-        hi_h   = mean_h + stats['std'].values / 3600.0
+    methods = [m for m in ['PC-QAOA', 'PenaltyQAOA'] if m in task_times['method'].values]
+    _OV_LS  = {'disjoint': '-', 'overlapping': '--'}
 
-        nx_vals = stats['n_x'].values
-        ax.plot(nx_vals, mean_h, marker='o', color=color, label=method, zorder=3)
-        ax.fill_between(nx_vals, lo_h, hi_h, color=color, alpha=0.15, zorder=2)
+    def _time_lines(ax, sub_df, linestyle='-', label_suffix=''):
+        for method in methods:
+            color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['muted'])
+            sub = sub_df[sub_df['method'] == method]
+            if sub.empty:
+                continue
+            stats = (sub.groupby('n_x')['total_solve_time']
+                     .agg(['mean', 'std']).reset_index())
+            stats['std'] = stats['std'].fillna(0.0)
+            mean_h = stats['mean'].values / 3600.0
+            lo_h   = np.clip(mean_h - stats['std'].values / 3600.0, 0, None)
+            hi_h   = mean_h + stats['std'].values / 3600.0
+            nx_v   = stats['n_x'].values
+            lbl    = method + (f' ({label_suffix})' if label_suffix else '')
+            ax.plot(nx_v, mean_h, marker='o', color=color,
+                    linestyle=linestyle, label=lbl, zorder=3)
+            ax.fill_between(nx_v, lo_h, hi_h, color=color, alpha=0.12, zorder=2)
 
-    ax.set_ylim(bottom=0)
-    ax.set_xlabel('$n_x$')
-    ax.set_ylabel('Total solve time (hours)')
-    ax.set_title('Total solve time vs $n_x$')
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-    ax.legend(framealpha=1)
+    # Panel (a): combined
+    _time_lines(axes[0], task_times)
+    axes[0].set_ylim(bottom=0)
+    axes[0].set_xlabel('$n$')
+    axes[0].set_ylabel('Total solve time (hours)')
+    axes[0].set_title('Total solve time vs $n$')
+    axes[0].xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    axes[0].legend(framealpha=1, fontsize=8)
 
+    # Panel (b): split by overlap_type (4 lines)
+    if has_split:
+        for ov in ['disjoint', 'overlapping']:
+            sub_ov = task_times[task_times['overlap_type'] == ov]
+            _time_lines(axes[1], sub_ov,
+                        linestyle=_OV_LS[ov], label_suffix=ov)
+    else:
+        _time_lines(axes[1], task_times)
+    axes[1].set_ylim(bottom=0)
+    axes[1].set_xlabel('$n$')
+    axes[1].set_ylabel('Total solve time (hours)')
+    axes[1].set_title('Total solve time: disjoint (—) vs overlapping (- -)')
+    axes[1].xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    axes[1].legend(framealpha=1, fontsize=7, ncol=2)
+
+    fig.tight_layout()
     if save_path:
         pu.save_fig(fig, save_path)
     return fig
@@ -398,9 +420,9 @@ def plot_time_breakdown(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
 
     ax.set_xticks(x)
     ax.set_xticklabels([str(n) for n in ns])
-    ax.set_xlabel('n_x')
+    ax.set_xlabel('$n$')
     ax.set_ylabel('Time (s)')
-    ax.set_title('Mean time breakdown by n_x')
+    ax.set_title('Mean time breakdown by $n$')
     ax.legend()
 
     if save_path:
@@ -409,9 +431,9 @@ def plot_time_breakdown(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
 
 
 def plot_total_time_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
-    """Box + strip: cumulative solve time per task, HybridQAOA vs PenaltyQAOA.
+    """Box + strip: cumulative solve time per task, PC-QAOA vs PenaltyQAOA.
 
-    ``df`` must contain a ``method`` column with values 'HybridQAOA' / 'PenaltyQAOA'
+    ``df`` must contain a ``method`` column with values 'PC-QAOA' / 'PenaltyQAOA'
     and a task identifier (``qubo_string``) so that per-layer times can be summed
     into a single total-solve-time per task.
 
@@ -455,7 +477,7 @@ def plot_total_time_comparison(df: pd.DataFrame, save_path: str = None) -> plt.F
             .rename(columns={'total_time': 'solve_time'})
         )
 
-    methods = ['HybridQAOA', 'PenaltyQAOA']
+    methods = ['PC-QAOA', 'PenaltyQAOA']
     colors  = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
 
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -487,6 +509,71 @@ def plot_total_time_comparison(df: pd.DataFrame, save_path: str = None) -> plt.F
     ax.set_ylabel('Total solve time (s)')
     ax.set_title('Cumulative solve time per task\n(sum across all layers run)')
 
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
+def plot_circuit_resources_vs_nx(
+    df: pd.DataFrame,
+    p_layers: list[int] | None = None,
+    save_path: str = None,
+) -> plt.Figure:
+    """Three-panel: (a) qubit count, (b) 2Q gates at fixed p, (c) 2Q gates vs p, vs n_x."""
+    if p_layers is None:
+        p_layers = [1, 5]
+
+    pu.setup_style()
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+
+    nx_vals = sorted(df['n_x'].unique())
+    h_color = pu.METHOD_COLORS['PC-QAOA']
+    p_color = pu.METHOD_COLORS['PenaltyQAOA']
+
+    def _fill(ax, nx_vals, means, stds, color, alpha=0.15):
+        ax.fill_between(
+            nx_vals,
+            [max(0, means[n] - stds[n]) for n in nx_vals],
+            [means[n] + stds[n] for n in nx_vals],
+            color=color, alpha=alpha,
+        )
+
+    # ── Panel (a): qubits ─────────────────────────────────────────────────
+    ax = axes[0]
+    for col, label, color in [
+        ('n_qubits_pc', 'PC-QAOA', h_color),
+        ('n_qubits_p', 'PenaltyQAOA', p_color),
+    ]:
+        means = df.groupby('n_x')[col].mean()
+        stds  = df.groupby('n_x')[col].std().fillna(0)
+        ax.plot(nx_vals, [means[n] for n in nx_vals], marker='o', label=label, color=color)
+        _fill(ax, nx_vals, means, stds, color)
+    ax.set_xlabel('Problem size ($n$)')
+    ax.set_ylabel('Qubits')
+    ax.set_title('Circuit width')
+    ax.legend(fontsize=10, framealpha=0.4, loc='upper left')
+
+    # ── Panel (b): 2Q gates at fixed p values vs n_x ─────────────────────
+    ax = axes[1]
+    linestyles = ['-', '--']
+    for ls, p in zip(linestyles, p_layers):
+        for sp_col, lay_col, color, method in [
+            ('sp_2q_pc', 'layer_2q_pc', h_color, 'PC-QAOA'),
+            ('sp_2q_p', 'layer_2q_p', p_color, 'PenaltyQAOA'),
+        ]:
+            vals = df[sp_col] + p * df[lay_col]
+            tmp = pd.DataFrame({'n_x': df['n_x'], 'g': vals})
+            means = tmp.groupby('n_x')['g'].mean()
+            stds  = tmp.groupby('n_x')['g'].std().fillna(0)
+            ax.plot(nx_vals, [means[n] for n in nx_vals],
+                    marker='o', linestyle=ls, label=f'{method} $p={p}$', color=color)
+            _fill(ax, nx_vals, means, stds, color, alpha=0.08)
+    ax.set_xlabel('Problem size ($n$)')
+    ax.set_ylabel('Two-qubit gates')
+    ax.set_title('Two-qubit gate count vs $n$')
+    ax.legend(fontsize=10, framealpha=0.4, loc='upper left')
+
+    fig.tight_layout()
     if save_path:
         pu.save_fig(fig, save_path)
     return fig

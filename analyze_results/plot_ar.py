@@ -36,8 +36,8 @@ def plot_ar_by_n(df: pd.DataFrame, title: str = 'AR vs n_x',
         ax.scatter(xi + 1 + jitter, vals, color=color, s=25, alpha=0.75, zorder=3)
 
     ax.set_xticks(range(1, len(ns) + 1))
-    ax.set_xticklabels([f'$n_x={n}$' for n in ns])
-    ax.set_xlabel('$n_x$')
+    ax.set_xticklabels([f'$n={n}$' for n in ns])
+    ax.set_xlabel('$n$')
     ax.set_ylabel('Approximation Ratio (AR)')
     ax.set_title(title)
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
@@ -48,7 +48,7 @@ def plot_ar_by_n(df: pd.DataFrame, title: str = 'AR vs n_x',
 
 
 def plot_ar_by_constraint_type(vcg_df: pd.DataFrame,
-                                save_path: str = None) -> plt.Figure:
+                               save_path: str = None) -> plt.Figure:
     """Box plot of AR across constraint families."""
     pu.setup_style()
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -86,13 +86,13 @@ def plot_ar_by_constraint_type(vcg_df: pd.DataFrame,
 
 
 def plot_ar_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
-    """Side-by-side box + strip: AR distribution for HybridQAOA vs PenaltyQAOA."""
+    """Side-by-side box + strip: AR distribution for PC-QAOA vs PenaltyQAOA."""
     pu.setup_style()
     fig, ax = plt.subplots(figsize=(6, 4.5))
 
-    methods = [m for m in ['HybridQAOA', 'PenaltyQAOA'] if m in df['method'].values]
-    colors  = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
-    data    = [df[df['method'] == m]['AR'].dropna().values for m in methods]
+    methods = [m for m in ['PC-QAOA', 'PenaltyQAOA'] if m in df['method'].values]
+    colors = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
+    data = [df[df['method'] == m]['AR'].dropna().values for m in methods]
 
     positions = list(range(len(methods)))
     rng = np.random.default_rng(42)
@@ -115,7 +115,7 @@ def plot_ar_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     ax.set_xticks(positions)
     ax.set_xticklabels(methods)
     ax.set_ylabel('Approximation Ratio (AR)')
-    ax.set_title('HybridQAOA vs PenaltyQAOA: AR')
+    ax.set_title('PC-QAOA vs PenaltyQAOA: AR')
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
 
     if save_path:
@@ -131,7 +131,7 @@ def plot_ar_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     for method, grp in df.groupby('method'):
         color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
         means = grp.groupby('layer')['AR'].mean()
-        stds  = grp.groupby('layer')['AR'].std().fillna(0)
+        stds = grp.groupby('layer')['AR'].std().fillna(0)
         ax.plot(means.index, means.values, marker='o', label=method, color=color)
         ax.fill_between(means.index,
                         means.values - stds.values,
@@ -141,14 +141,14 @@ def plot_ar_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     ax.set_xlabel('QAOA layers (p)')
     ax.set_ylabel('Mean AR')
     ax.set_title('AR vs QAOA layers')
-    ax.legend()
+    ax.legend(fontsize=10, framealpha=0.4)
 
     if save_path:
         pu.save_fig(fig, save_path)
     return fig
 
 
-def plot_ar_feas_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
+def plot_ar_feas_vs_nx(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
     """Line plot: mean AR_feas vs problem size (n_x), one line per method.
 
     P(feas)=0 instances contribute AR_feas=0 (worst case) rather than being
@@ -160,18 +160,18 @@ def plot_ar_feas_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figur
     for method, grp in df.groupby('method'):
         color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
         means = grp.groupby('n_x')['AR_feas'].mean()
-        stds  = grp.groupby('n_x')['AR_feas'].std().fillna(0)
+        stds = grp.groupby('n_x')['AR_feas'].std().fillna(0)
         ax.plot(means.index, means.values, marker='o', label=method, color=color)
         ax.fill_between(means.index,
                         np.clip(means.values - stds.values, 0, None),
                         np.clip(means.values + stds.values, 0, 1),
                         alpha=0.2, color=color)
 
-    ax.set_xlabel('Problem size ($n_x$)')
+    ax.set_xlabel('Problem size ($n$)')
     ax.set_ylabel(r'Mean $\mathrm{AR}_{\mathrm{feas}}$')
     ax.set_title(r'$\mathrm{AR}_{\mathrm{feas}}$ vs problem size')
     ax.set_xticks(sorted(df['n_x'].unique()))
-    ax.legend()
+    ax.legend(fontsize=10, framealpha=0.4)
 
     if save_path:
         pu.save_fig(fig, save_path)
@@ -179,16 +179,16 @@ def plot_ar_feas_vs_layers(df: pd.DataFrame, save_path: str = None) -> plt.Figur
 
 
 def plot_ar_feas_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figure:
-    """Side-by-side box + strip: AR_feas for HybridQAOA vs PenaltyQAOA.
+    """Side-by-side box + strip: AR_feas for PC-QAOA vs PenaltyQAOA.
 
     P(feas)=0 instances contribute AR_feas=0 (worst case) and are included.
     """
     pu.setup_style()
     fig, ax = plt.subplots(figsize=(6, 4.5))
 
-    methods = [m for m in ['HybridQAOA', 'PenaltyQAOA'] if m in df['method'].values]
-    colors  = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
-    data    = [df[df['method'] == m]['AR_feas'].values for m in methods]
+    methods = [m for m in ['PC-QAOA', 'PenaltyQAOA'] if m in df['method'].values]
+    colors = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
+    data = [df[df['method'] == m]['AR_feas'].values for m in methods]
 
     positions = list(range(len(methods)))
     rng = np.random.default_rng(42)
@@ -212,7 +212,7 @@ def plot_ar_feas_comparison(df: pd.DataFrame, save_path: str = None) -> plt.Figu
     ax.set_xticks(positions)
     ax.set_xticklabels(methods)
     ax.set_ylabel('AR$_\\mathrm{feas}$')
-    ax.set_title('AR$_\\mathrm{feas}$: HybridQAOA vs PenaltyQAOA\n'
+    ax.set_title('AR$_\\mathrm{feas}$: PC-QAOA vs PenaltyQAOA\n'
                  '($P(\\mathrm{feas})=0$ instances assigned AR$_\\mathrm{feas}=0$)')
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
 
@@ -230,20 +230,21 @@ def plot_layers_to_threshold(df: pd.DataFrame, save_path: str = None) -> plt.Fig
     pu.setup_style()
     fig, ax = plt.subplots(figsize=(8, 4.5))
 
-    last = df[df['layer'] == df['n_layers']].copy()
+    # comp_ar_conv already has one row per experiment with n_layers = convergence layer
+    last = df.copy()
     last['converged'] = last['p_feasible'] >= 0.75
 
-    methods    = [m for m in ['HybridQAOA', 'PenaltyQAOA'] if m in last['method'].values]
-    colors     = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
+    methods = [m for m in ['PC-QAOA', 'PenaltyQAOA'] if m in last['method'].values]
+    colors = [pu.METHOD_COLORS.get(m, pu._ROSE_PINE['muted']) for m in methods]
     max_layers = int(last['n_layers'].max())
 
     # x positions: 1..max_layers for converged, then immediately "Did not meet"
     x_converged = np.arange(1, max_layers + 1)
-    x_dnm       = max_layers + 1          # adjacent, separator drawn manually
-    bar_width   = 0.35
+    x_dnm = max_layers + 1          # adjacent, separator drawn manually
+    bar_width = 0.35
 
     for i, (method, color) in enumerate(zip(methods, colors)):
-        sub    = last[last['method'] == method]
+        sub = last[last['method'] == method]
         offset = (i - (len(methods) - 1) / 2) * bar_width
 
         # Converged bars
@@ -271,7 +272,7 @@ def plot_layers_to_threshold(df: pd.DataFrame, save_path: str = None) -> plt.Fig
                     ha='center', va='bottom', fontsize=7, zorder=4)
 
     # x-axis ticks
-    all_x      = list(x_converged) + [x_dnm]
+    all_x = list(x_converged) + [x_dnm]
     all_labels = [str(p) for p in range(1, max_layers + 1)] + ['Did not\nmeet']
     ax.set_xticks(all_x)
     ax.set_xticklabels(all_labels)
@@ -282,8 +283,8 @@ def plot_layers_to_threshold(df: pd.DataFrame, save_path: str = None) -> plt.Fig
 
     ax.set_xlabel('QAOA layers $p$ at convergence')
     ax.set_ylabel('Number of experiments')
-    ax.set_title('Layers until $P(\\mathrm{feas}) \\geq 0.75$: HybridQAOA vs PenaltyQAOA')
-    ax.legend(framealpha=1)
+    ax.set_title('Layers until $P(\\mathrm{feas}) \\geq 0.75$: PC-QAOA vs PenaltyQAOA')
+    ax.legend(framealpha=1, fontsize=10)
 
     if save_path:
         pu.save_fig(fig, save_path)
@@ -291,7 +292,7 @@ def plot_layers_to_threshold(df: pd.DataFrame, save_path: str = None) -> plt.Fig
 
 
 def plot_ar_by_angle_strategy(df: pd.DataFrame,
-                               save_path: str = None) -> plt.Figure:
+                              save_path: str = None) -> plt.Figure:
     """Side-by-side box plots of AR for QAOA vs ma-QAOA."""
     pu.setup_style()
     fig, ax = plt.subplots(figsize=(7, 5))
@@ -311,6 +312,94 @@ def plot_ar_by_angle_strategy(df: pd.DataFrame,
     ax.set_ylabel('Approximation Ratio (AR)')
     ax.set_title('AR: QAOA vs ma-QAOA')
 
+    if save_path:
+        pu.save_fig(fig, save_path)
+    return fig
+
+
+def _plot_metric_panel(ax, df: pd.DataFrame, metric: str, ylabel: str,
+                       group_col: str = 'method', linestyles: dict = None,
+                       threshold: float | None = None) -> None:
+    """Helper: plot mean ± std of *metric* vs n_x on *ax*, grouped by *group_col*."""
+    nx_vals = sorted(df['n_x'].unique())
+    for grp_val, grp in df.groupby(group_col):
+        if group_col == 'method':
+            color = pu.METHOD_COLORS.get(grp_val, pu._ROSE_PINE['subtle'])
+            label = grp_val
+        else:
+            # overlap_type grouping
+            color = pu._ROSE_PINE['pine'] if grp_val == 'disjoint' else pu._ROSE_PINE['iris']
+            label = grp_val.capitalize()
+        ls = (linestyles or {}).get(grp_val, '-')
+        means = grp.groupby('n_x')[metric].mean()
+        stds = grp.groupby('n_x')[metric].std().fillna(0)
+        ax.plot(nx_vals, [means.get(n, np.nan) for n in nx_vals],
+                marker='o', label=label, color=color, linestyle=ls)
+        ax.fill_between(
+            nx_vals,
+            [max(0, means.get(n, 0) - stds.get(n, 0)) for n in nx_vals],
+            [min(1, means.get(n, 0) + stds.get(n, 0)) for n in nx_vals],
+            color=color, alpha=0.15,
+        )
+    if threshold is not None:
+        ax.axhline(threshold, color=pu._ROSE_PINE['muted'],
+                   linestyle='--', linewidth=1, label=f'threshold ({threshold})')
+    ax.set_xlabel('$n$')
+    ax.set_ylabel(ylabel)
+    ax.set_xticks(nx_vals)
+    ax.legend(fontsize=10, framealpha=0.4)
+
+
+_OV_LS = {'disjoint': '-', 'overlapping': '--'}
+
+
+def _split_panel_ar(ax, df: pd.DataFrame, metric: str, ylabel: str,
+                    clip=(0.0, 1.0)) -> None:
+    """4-line panel: both methods × {disjoint, overlapping}.
+
+    Color = method, linestyle = overlap type (solid/dashed).
+    """
+    nx_vals = sorted(df['n_x'].unique())
+    for method, mgrp in df.groupby('method'):
+        color = pu.METHOD_COLORS.get(method, pu._ROSE_PINE['subtle'])
+        for ov, ogrp in mgrp.groupby('overlap_type'):
+            ls = _OV_LS.get(ov, '-')
+            label = f'{method} ({ov})'
+            means = ogrp.groupby('n_x')[metric].mean()
+            stds = ogrp.groupby('n_x')[metric].std().fillna(0)
+            ax.plot(nx_vals, [means.get(n, np.nan) for n in nx_vals],
+                    marker='o', linestyle=ls, label=label, color=color)
+            ax.fill_between(
+                nx_vals,
+                [max(clip[0], means.get(n, 0) - stds.get(n, 0)) for n in nx_vals],
+                [min(clip[1], means.get(n, 0) + stds.get(n, 0)) for n in nx_vals],
+                color=color, alpha=0.10,
+            )
+    ax.set_xlabel('$n$')
+    ax.set_ylabel(ylabel)
+    ax.set_xticks(nx_vals)
+    leg = ax.legend(fontsize=10, ncol=2, handlelength=2.5, framealpha=0.4)
+    for h in leg.legend_handles:
+        h.set_marker('')
+
+
+def plot_ar_feas_with_overlap_split(
+    df: pd.DataFrame,
+    save_path: str = None,
+) -> plt.Figure:
+    """1x2: (a) AR_feas vs n_x both methods; (b) both methods by overlap type (4 lines)."""
+    pu.setup_style()
+    fig, axes = plt.subplots(1, 2, figsize=(14, 4.5))
+
+    _plot_metric_panel(axes[0], df, 'AR_feas',
+                       r'Mean $\mathrm{AR}_\mathrm{feas}$')
+    axes[0].set_title(r'$\mathrm{AR}_\mathrm{feas}$ vs $n$')
+
+    _split_panel_ar(axes[1], df, 'AR_feas',
+                    r'Mean $\mathrm{AR}_\mathrm{feas}$')
+    axes[1].set_title(r'$\mathrm{AR}_\mathrm{feas}$: disjoint (—) vs overlapping (- -)')
+
+    fig.tight_layout()
     if save_path:
         pu.save_fig(fig, save_path)
     return fig

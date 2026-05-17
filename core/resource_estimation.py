@@ -1,6 +1,6 @@
 """resource_estimation.py
 
-Analytical circuit resource estimation for HybridQAOA and PenaltyQAOA.
+Analytical circuit resource estimation for PC-QAOA and PenaltyQAOA.
 Uses pennylane.labs.resource_estimation ResourceOperator subclasses.
 
 Each ResourceOperator decomposes to primitive gate types:
@@ -216,7 +216,7 @@ def _state_prep_info(state_prep_list) -> Tuple:
       ("leq",   n, k)
       ("geq",   n)
       ("flow",  n_in, n_out)
-      ("vcg",)          -- not analytically estimated
+      ("vcg",   n)      -- n = number of VCG qubits
     """
     from . import dicke_state_prep as dsp
 
@@ -233,7 +233,7 @@ def _state_prep_info(state_prep_list) -> Tuple:
         elif isinstance(sp, dsp.DickeMultiweightStatePrep):
             entries.append(("leq", sp.n_qubits, max(sp.weights)))
         else:
-            entries.append(("vcg",))
+            entries.append(("vcg", sp.n_x))
     return tuple(entries)
 
 
@@ -463,9 +463,9 @@ _1Q_GATES_SET = frozenset({"X", "Hadamard", "RX", "RY", "RZ", "PhaseShift"})
 _2Q_GATES_SET = frozenset({"CNOT", "CRY", "CRZ", "SWAP"})
 
 
-class ResourceHybridStatePrep(ResourceOperator):
+class ResourcePCQAOAStatePrep(ResourceOperator):
     """
-    Initial state preparation for one HybridQAOA circuit (applied once).
+    Initial state preparation for one PC-QAOA circuit (applied once).
     Covers: Hadamard on slack qubits + all structural state prep circuits.
     """
 
@@ -495,25 +495,26 @@ class ResourceHybridStatePrep(ResourceOperator):
         return gates
 
 
-class ResourceHybridLayer(ResourceOperator):
+class ResourcePCQAOALayer(ResourceOperator):
     """
-    One QAOA layer for HybridQAOA: cost unitary + mixer.
+    One QAOA layer for PC-QAOA: cost unitary + per-gadget mixers + RX on free wires.
 
-    For Grover mixer the layer cost includes 2× state prep (forward + adjoint).
+    Each gadget uses its natural mixer:
+      dicke → Ring-XY, flow → Ring-XY (in + out independently),
+      leq/vcg → per-gadget Grover (2× sp + reflection on gadget wires),
+      geq → none (fixed), remaining free wires → RX.
     """
 
-    resource_keys = {"num_wires", "pauli_term_sizes", "mixer", "sp_info"}
+    resource_keys = {"num_wires", "pauli_term_sizes", "sp_info"}
 
     def __init__(
         self,
         num_wires: int,
         pauli_term_sizes: Tuple[int, ...],
-        mixer: str,
         sp_info: Tuple,
     ) -> None:
         self.num_wires = num_wires
         self.pauli_term_sizes = pauli_term_sizes
-        self.mixer = mixer
         self.sp_info = sp_info
         super().__init__()
 
@@ -522,31 +523,50 @@ class ResourceHybridLayer(ResourceOperator):
         return {
             "num_wires": self.num_wires,
             "pauli_term_sizes": self.pauli_term_sizes,
-            "mixer": self.mixer,
             "sp_info": self.sp_info,
         }
 
     @classmethod
-    def resource_rep(cls, num_wires, pauli_term_sizes, mixer, sp_info) -> CompressedResourceOp:
+    def resource_rep(cls, num_wires, pauli_term_sizes, sp_info) -> CompressedResourceOp:
         return CompressedResourceOp(cls, num_wires, {
             "num_wires": num_wires, "pauli_term_sizes": pauli_term_sizes,
-            "mixer": mixer, "sp_info": sp_info,
+            "sp_info": sp_info,
         })
 
     @classmethod
     def resource_decomp(
-        cls, num_wires, pauli_term_sizes, mixer, sp_info, **kwargs
+        cls, num_wires, pauli_term_sizes, sp_info, **kwargs
     ) -> List[GateCount]:
         gates = list(ResourceCostLayer.resource_decomp(pauli_term_sizes))
-        if mixer == "X-Mixer":
-            gates.extend(ResourceXMixer.resource_decomp(num_wires))
-        elif mixer in ("XY", "Ring-XY"):
-            gates.extend(ResourceXYMixer.resource_decomp(num_wires, ring=(mixer == "Ring-XY")))
-        else:  # Grover: 2× state prep + reflection
-            for key, cnt in _count_state_prep(sp_info).items():
-                if cnt > 0 and key in _SP_REP_MAP:
-                    gates.append(GateCount(_SP_REP_MAP[key](), 2 * cnt))
-            gates.extend(ResourceGroverReflection.resource_decomp(num_wires))
+        structured_wires = 0
+        for entry in sp_info:
+            t = entry[0]
+            if t == "dicke":
+                n = entry[1]
+                gates.extend(ResourceXYMixer.resource_decomp(n, ring=True))
+                structured_wires += n
+            elif t == "flow":
+                n_in, n_out = entry[1], entry[2]
+                gates.extend(ResourceXYMixer.resource_decomp(n_in, ring=True))
+                gates.extend(ResourceXYMixer.resource_decomp(n_out, ring=True))
+                structured_wires += n_in + n_out
+            elif t == "leq":
+                n = entry[1]
+                sp_single = _count_state_prep((entry,))
+                for key, cnt in sp_single.items():
+                    if cnt > 0 and key in _SP_REP_MAP:
+                        gates.append(GateCount(_SP_REP_MAP[key](), 2 * cnt))
+                gates.extend(ResourceGroverReflection.resource_decomp(n))
+                structured_wires += n
+            elif t == "geq":
+                structured_wires += entry[1]  # fixed — no mixer
+            elif t == "vcg":
+                n = entry[1]
+                gates.extend(ResourceGroverReflection.resource_decomp(n))
+                structured_wires += n
+        free_wires = num_wires - structured_wires
+        if free_wires > 0:
+            gates.extend(ResourceXMixer.resource_decomp(free_wires))
         return gates
 
 
@@ -599,9 +619,9 @@ class ResourcePenaltyLayer(ResourceOperator):
         return gates
 
 
-class ResourceHybridQAOA(ResourceOperator):
+class ResourcePCQAOA(ResourceOperator):
     """
-    Full HybridQAOA circuit resources.
+    Full PC-QAOA circuit resources.
 
     Parameters
     ----------
@@ -611,31 +631,27 @@ class ResourceHybridQAOA(ResourceOperator):
         Number of QAOA layers.
     pauli_term_sizes : tuple[int]
         Wire count for each non-identity Pauli term in the problem Hamiltonian.
-    mixer : str
-        One of "Grover", "X-Mixer", "XY", "Ring-XY".
     n_slack : int
         Number of slack qubits (each initialised with Hadamard).
     sp_info : tuple
         State prep info from _state_prep_info().  Each entry is
         ("dicke", n, k), ("leq", n, k), ("geq", n), ("flow", n_in, n_out),
-        or ("vcg",).
+        or ("vcg", n).
     """
 
-    resource_keys = {"num_wires", "n_layers", "pauli_term_sizes", "mixer", "n_slack", "sp_info"}
+    resource_keys = {"num_wires", "n_layers", "pauli_term_sizes", "n_slack", "sp_info"}
 
     def __init__(
         self,
         num_wires: int,
         n_layers: int,
         pauli_term_sizes: Tuple[int, ...],
-        mixer: str,
         n_slack: int,
         sp_info: Tuple,
     ) -> None:
         self.num_wires = num_wires
         self.n_layers = n_layers
         self.pauli_term_sizes = pauli_term_sizes
-        self.mixer = mixer
         self.n_slack = n_slack
         self.sp_info = sp_info
         super().__init__()
@@ -643,33 +659,32 @@ class ResourceHybridQAOA(ResourceOperator):
     @property
     def resource_params(self) -> dict:
         return {
-            "num_wires":       self.num_wires,
-            "n_layers":        self.n_layers,
+            "num_wires":        self.num_wires,
+            "n_layers":         self.n_layers,
             "pauli_term_sizes": self.pauli_term_sizes,
-            "mixer":           self.mixer,
-            "n_slack":         self.n_slack,
-            "sp_info":         self.sp_info,
+            "n_slack":          self.n_slack,
+            "sp_info":          self.sp_info,
         }
 
     @classmethod
-    def resource_rep(cls, num_wires, n_layers, pauli_term_sizes, mixer, n_slack, sp_info):
+    def resource_rep(cls, num_wires, n_layers, pauli_term_sizes, n_slack, sp_info):
         return CompressedResourceOp(cls, num_wires, {
             "num_wires": num_wires, "n_layers": n_layers,
-            "pauli_term_sizes": pauli_term_sizes, "mixer": mixer,
+            "pauli_term_sizes": pauli_term_sizes,
             "n_slack": n_slack, "sp_info": sp_info,
         })
 
     @classmethod
     def resource_decomp(
-        cls, num_wires, n_layers, pauli_term_sizes, mixer, n_slack, sp_info, **kwargs
+        cls, num_wires, n_layers, pauli_term_sizes, n_slack, sp_info, **kwargs
     ) -> List[GateCount]:
         gates: List[GateCount] = []
 
-        # 1. Slack qubit initialisation: H per slack wire
+        # 1. Slack qubit initialisation
         if n_slack > 0:
             gates.append(GateCount(_h(), n_slack))
 
-        # 2. State prep (once, before QAOA layers)
+        # 2. State prep (once)
         sp_counts = _count_state_prep(sp_info)
         rep_map = {
             "X": _x(), "CNOT": _cnot(), "CRY": _cry(), "CC_RY": _cc_ry(),
@@ -679,23 +694,10 @@ class ResourceHybridQAOA(ResourceOperator):
             if cnt > 0 and key in rep_map:
                 gates.append(GateCount(rep_map[key], cnt))
 
-        # 3. QAOA layers: cost unitary + mixer
+        # 3. QAOA layers: cost unitary + per-gadget mixers
+        layer_gates = ResourcePCQAOALayer.resource_decomp(num_wires, pauli_term_sizes, sp_info)
         for _ in range(n_layers):
-            # Cost unitary: one MultiRZ per Pauli term, grouped by wire count
-            cost_layer = ResourceCostLayer.resource_decomp(pauli_term_sizes)
-            gates.extend(cost_layer)
-
-            if mixer == "X-Mixer":
-                gates.extend(ResourceXMixer.resource_decomp(num_wires))
-            elif mixer in ("XY", "Ring-XY"):
-                ring = (mixer == "Ring-XY")
-                gates.extend(ResourceXYMixer.resource_decomp(num_wires, ring=ring))
-            else:  # Grover
-                # 2× state prep (forward + adjoint have equal cost)
-                for key, cnt in sp_counts.items():
-                    if cnt > 0 and key in rep_map:
-                        gates.append(GateCount(rep_map[key], 2 * cnt))
-                gates.extend(ResourceGroverReflection.resource_decomp(num_wires))
+            gates.extend(layer_gates)
 
         return gates
 
@@ -778,20 +780,19 @@ def _build_gate_set(num_wires: int) -> set:
     return gate_set
 
 
-def estimate_hybrid_resources(hqaoa, gate_set=None):
+def estimate_pc_qaoa_resources(pcqaoa, gate_set=None):
     """
-    Estimate circuit resources for a HybridQAOA instance.
+    Estimate circuit resources for a PC-QAOA instance.
     Only reads Hamiltonian/wire metadata — does not require JIT compilation.
     """
     if gate_set is None:
-        gate_set = _build_gate_set(hqaoa.n_total)
-    op = ResourceHybridQAOA(
-        num_wires=hqaoa.n_total,
-        n_layers=hqaoa.n_layers,
-        pauli_term_sizes=_pauli_term_sizes(hqaoa.problem_ham),
-        mixer=hqaoa.mixer,
-        n_slack=hqaoa.n_slack,
-        sp_info=_state_prep_info(hqaoa.state_prep),
+        gate_set = _build_gate_set(pcqaoa.n_total)
+    op = ResourcePCQAOA(
+        num_wires=pcqaoa.n_total,
+        n_layers=pcqaoa.n_layers,
+        pauli_term_sizes=_pauli_term_sizes(pcqaoa.problem_ham),
+        n_slack=pcqaoa.n_slack,
+        sp_info=_state_prep_info(pcqaoa.state_prep),
     )
     return plre.estimate(op, gate_set=gate_set)
 
@@ -813,10 +814,11 @@ def estimate_penalty_resources(pqaoa, gate_set=None):
 
 
 def _is_exact_structural(pc) -> bool:
-    """Return True if pc can be prepared exactly (Dicke/LEQ/flow/geq-single)."""
+    """Return True if pc can be prepared exactly (Dicke/LEQ/ISP/flow/geq-single)."""
     return (
         ch.is_dicke_compatible(pc)
         or ch.is_cardinality_leq_compatible(pc)
+        or ch.is_independent_set_pair_compatible(pc)
         or ch.is_cardinality_geq_single_compatible(pc)
         or ch.is_flow_compatible(pc)
     )
@@ -835,7 +837,6 @@ def estimate_from_task(
     task: dict,
     qubos: dict,
     n_layers: int = 3,
-    mixer: str = "Grover",
     penalty_weight: float = None,
     gate_set=None,
     vcg_db: dict | None = None,
@@ -843,7 +844,7 @@ def estimate_from_task(
     """
     Estimate circuit resources directly from a task dict and QUBO lookup.
 
-    Does NOT instantiate HybridQAOA or PenaltyQAOA — no JAX
+    Does NOT instantiate PC-QAOA or PenaltyQAOA — no JAX
     JIT compilation.  Builds only the Hamiltonians needed for gate counting.
 
     Parameters
@@ -855,7 +856,7 @@ def estimate_from_task(
     n_layers : int
         Number of QAOA layers.
     mixer : str
-        Hybrid mixer type ("Grover", "X-Mixer", "XY", "Ring-XY").
+        PC-QAOA mixer type ("Grover", "X-Mixer", "XY", "Ring-XY").
     penalty_weight : float or None
         Penalty weight.  If None, computed as 5 + 2|min_val|.
     gate_set : set[str] or None
@@ -863,19 +864,19 @@ def estimate_from_task(
     vcg_db : dict or None
         Pre-computed VCG gate counts keyed by vcg_key = str(sorted(constraints)).
         Each value is a {gate_name: count} dict for one opt_circuit() call.
-        When provided, VCG structural constraints contribute to hybrid resources.
+        When provided, VCG structural constraints contribute to PC-QAOA resources.
 
     Returns
     -------
     dict with keys:
-        "hybrid", "penalty"         -- plre.Resources for full circuits
-        "hybrid_sp", "hybrid_layer" -- plre.Resources for state-prep / one layer
+        "PC-QAOA", "penalty"         -- plre.Resources for full circuits
+        "pcqaoa_sp", "pcqaoa_layer" -- plre.Resources for state-prep / one layer
         "penalty_sp", "penalty_layer"
         "vcg_sp_gates"              -- dict: VCG contribution to r_sp
         "vcg_layer_gates"           -- dict: VCG contribution to r_layer (2x sp)
-        "has_vcg_h"                 -- bool: any VCG structural constraints?
-        "vcg_missing_h"             -- bool: VCG present but not in vcg_db?
-        "n_qubits_h", "n_slack_h", "n_qubits_p", "n_slack_p"
+        "has_vcg_pc"                 -- bool: any VCG structural constraints?
+        "vcg_missing_pc"             -- bool: VCG present but not in vcg_db?
+        "n_qubits_pc", "n_slack_pc", "n_qubits_p", "n_slack_p"
     """
     from . import qaoa_base as base
     from . import dicke_state_prep as dsp
@@ -893,13 +894,13 @@ def estimate_from_task(
     structural_indices, penalty_indices = ch.partition_constraints(parsed, strategy="auto")
     pen_constraints = [parsed[i] for i in penalty_indices]
 
-    # ── Hybrid wires ──────────────────────────────────────────────────────
+    # ── PC-QAOA wires ──────────────────────────────────────────────────────
     x_wires = list(range(n_x))
     if pen_constraints:
-        _, n_slack_h = ch.determine_slack_variables(pen_constraints, n_x)
+        _, n_slack_pc = ch.determine_slack_variables(pen_constraints, n_x)
     else:
-        n_slack_h = 0
-    n_total_h = n_x + n_slack_h
+        n_slack_pc = 0
+    n_total_h = n_x + n_slack_pc
 
     # Build state prep objects and classify VCG vs exact
     state_prep = []
@@ -910,13 +911,17 @@ def estimate_from_task(
             state_prep.append(dsp.from_parsed_constraint(pc))
         elif ch.is_cardinality_leq_compatible(pc):
             state_prep.append(dsp.from_cardinality_leq_constraint(pc))
+        elif ch.is_independent_set_pair_compatible(pc):
+            var_wires = sorted(pc.variables)
+            state_prep.append(dsp.CardinalityLeqStatePrep(
+                var_wires=var_wires, max_hamming_weight=1, constraint_str=pc.raw))
         elif ch.is_cardinality_geq_single_compatible(pc):
             state_prep.append(dsp.from_cardinality_geq_single_constraint(pc))
         elif ch.is_flow_compatible(pc):
             state_prep.append(dsp.from_flow_constraint(pc))
         else:
             state_prep.append(None)  # VCG
-            vcg_constraint_keys.append(str(sorted([all_constraints[i]])))
+            vcg_constraint_keys.append(ch.normalize_constraint(all_constraints[i]))
 
     has_vcg = len(vcg_constraint_keys) > 0
     sp_info = _state_prep_info([s for s in state_prep if s is not None])
@@ -956,17 +961,17 @@ def estimate_from_task(
     gs_p = gate_set or _build_gate_set(n_total_p)
 
     # ── Factored estimates (non-VCG): state prep (once) + per layer ───────
-    h_sp  = plre.estimate(ResourceHybridStatePrep(n_slack_h, sp_info), gate_set=gs_h)
-    h_lay = plre.estimate(ResourceHybridLayer(n_total_h, h_term_sizes, mixer, sp_info),
+    h_sp  = plre.estimate(ResourcePCQAOAStatePrep(n_slack_pc, sp_info), gate_set=gs_h)
+    h_lay = plre.estimate(ResourcePCQAOALayer(n_total_h, h_term_sizes, sp_info),
                           gate_set=gs_h)
     p_sp  = plre.estimate(ResourcePenaltyStatePrep(n_slack_p), gate_set=gs_p)
     p_lay = plre.estimate(ResourcePenaltyLayer(n_total_p, p_term_sizes), gate_set=gs_p)
 
     # ── Full circuit (r_sp + n_layers * r_layer) ──────────────────────────
-    hybrid_op = ResourceHybridQAOA(
+    pc_qaoa_op = ResourcePCQAOA(
         num_wires=n_total_h, n_layers=n_layers,
-        pauli_term_sizes=h_term_sizes, mixer=mixer,
-        n_slack=n_slack_h, sp_info=sp_info,
+        pauli_term_sizes=h_term_sizes,
+        n_slack=n_slack_pc, sp_info=sp_info,
     )
     penalty_op = ResourcePenaltyQAOA(
         num_wires=n_total_p, n_layers=n_layers,
@@ -974,18 +979,18 @@ def estimate_from_task(
     )
 
     return {
-        "hybrid":           plre.estimate(hybrid_op,  gate_set=gs_h),
+        "pc_qaoa": plre.estimate(pc_qaoa_op,  gate_set=gs_h),
         "penalty":          plre.estimate(penalty_op, gate_set=gs_p),
-        "hybrid_sp":        h_sp,
-        "hybrid_layer":     h_lay,
+        "pc_qaoa_sp":        h_sp,
+        "pc_qaoa_layer":     h_lay,
         "penalty_sp":       p_sp,
         "penalty_layer":    p_lay,
         "vcg_sp_gates":     vcg_sp_gates,
         "vcg_layer_gates":  vcg_layer_gates,
-        "has_vcg_h":        has_vcg,
-        "vcg_missing_h":    vcg_missing,
-        "n_qubits_h":       n_total_h,
-        "n_slack_h":        n_slack_h,
+        "has_vcg_pc":        has_vcg,
+        "vcg_missing_pc":    vcg_missing,
+        "n_qubits_pc":       n_total_h,
+        "n_slack_pc":        n_slack_pc,
         "n_qubits_p":       n_total_p,
         "n_slack_p":        n_slack_p,
     }

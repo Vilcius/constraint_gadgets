@@ -7,7 +7,7 @@ Runnable examples and results. All scripts run from the project root.
 | File | Purpose |
 |---|---|
 | `example_vcg.py` | Train a VCG on a single knapsack constraint and inspect its state |
-| `example_hybrid.py` | Solve a three-constraint QUBO with HybridQAOA vs PenaltyQAOA (layer sweep p=1..5) |
+| `example_hybrid.py` | Solve a three-constraint QUBO with PC-QAOA vs PenaltyQAOA (layer sweep p=1..5) |
 | `vcg_results.md` | Results and figures from `example_vcg.py` |
 | `hybrid_results.md` | Results and figures from `example_hybrid.py` |
 
@@ -17,7 +17,7 @@ Runnable examples and results. All scripts run from the project root.
 # VCG example: train on 3*x_0 + 2*x_1 + x_2 <= 3, print AR / P(feasible), plot counts
 python examples/example_vcg.py
 
-# HybridQAOA vs PenaltyQAOA -- three-constraint COP on 7 decision variables, layers p=1..5
+# PC-QAOA vs PenaltyQAOA -- three-constraint COP on 7 decision variables, layers p=1..5
 python examples/example_hybrid.py
 ```
 
@@ -43,7 +43,7 @@ See `vcg_results.md` for results and interpretation.
 
 ## example_hybrid.py
 
-Compares HybridQAOA against a full-penalisation baseline (PenaltyQAOA) on a
+Compares PC-QAOA against a full-penalisation baseline (PenaltyQAOA) on a
 three-constraint combinatorial optimisation problem over 7 binary decision
 variables (`x_0 ... x_6`).
 
@@ -57,7 +57,7 @@ Both methods run a warm-started layer sweep from p=1 to p=5.
 | B | `6*x_3 + 2*x_4 + 2*x_5 <= 3` | {3, 4, 5} | Structural -- VCG gadget (trained) |
 | C | `x_1 + x_4 + x_6 <= 1` | {1, 4, 6} | Penalized (overlaps A and B) |
 
-HybridQAOA handles constraint partitioning internally via `ch.partition_constraints`.
+PC-QAOA handles constraint partitioning internally via `ch.partition_constraints`.
 
 **Outputs** (written to `examples/results/` and `examples/figures/`):
 

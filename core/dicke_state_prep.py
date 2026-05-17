@@ -10,7 +10,7 @@ This module provides:
   - Specification of the compatible mixer (XY or Ring-XY), which preserves
     Hamming weight and thus keeps the state within the feasible subspace.
   - An interface (``opt_circuit()``) matching VCG, so that
-    DickeStatePrep objects can be dropped directly into HybridQAOA as
+    DickeStatePrep objects can be dropped directly into PC-QAOA as
     structural state preparation components.
   - ``CardinalityLeqStatePrep`` for ``sum x_i <= k`` inequality constraints,
     which prepares a uniform superposition of Dicke states |D^n_0> through
@@ -346,12 +346,12 @@ def prepare_cardinality_leq_state(wires: List[int], k: int) -> None:
 @dataclass
 class DickeStatePrep:
     """
-    Dicke state preparation component for hybrid QAOA.
+    Dicke state preparation component for PC-QAOA.
 
     Encapsulates everything needed to:
       1. Prepare the feasible subspace |D^n_k> (state prep circuit).
       2. Apply a Hamming-weight-preserving mixer.
-      3. Interface with HybridQAOA via ``opt_circuit()`` and ``mixer_circuit()``.
+      3. Interface with PC-QAOA via ``opt_circuit()`` and ``mixer_circuit()``.
 
     Unlike VCG, this does NOT require:
       - Flag qubits (the constraint is exactly satisfied by construction).
@@ -404,7 +404,7 @@ class DickeStatePrep:
         Apply the Dicke state preparation circuit.
 
         This is the equivalent of VCG.opt_circuit() -- it can
-        be called by HybridQAOA as a state preparation subroutine, and
+        be called by PC-QAOA as a state preparation subroutine, and
         its adjoint can be used in the Grover mixer.
         """
         prepare_dicke_state(self.var_wires, self.hamming_weight)
@@ -452,7 +452,7 @@ class DickeStatePrep:
             qml.SWAP(wires=[wires[k], wires[k + 1]])
 
     # ------------------------------------------------------------------
-    # Properties for HybridQAOA integration
+    # Properties for PC-QAOA integration
     # ------------------------------------------------------------------
 
     @property
@@ -547,7 +547,7 @@ class CardinalityLeqStatePrep:
     Unlike DickeStatePrep (which prepares a single Dicke state |D^n_k> and
     uses the XY mixer), this class prepares a superposition across all Dicke
     states from weight 0 to k.  The XY mixer does NOT preserve the feasible
-    subspace (it fixes weight exactly), so HybridQAOA must use the Grover
+    subspace (it fixes weight exactly), so PC-QAOA must use the Grover
     mixer when this gadget is present.
 
     Parameters
@@ -590,6 +590,11 @@ class CardinalityLeqStatePrep:
         if self.max_hamming_weight == 0:
             return
         prepare_cardinality_leq_state(self.var_wires, self.max_hamming_weight)
+
+    def mixer_circuit(self, beta: float) -> None:
+        """Per-gadget Grover mixer on this gadget's qubits."""
+        from . import qaoa_base as base
+        base.apply_grover_mixer(beta, self.var_wires, [self])
 
     def get_info(self) -> dict:
         return {
@@ -736,7 +741,7 @@ def from_cardinality_geq_single_constraint(
 @dataclass
 class FlowStatePrep:
     """
-    Flow conservation state preparation for hybrid QAOA.
+    Flow conservation state preparation for PC-QAOA.
 
     For constraints of the form  sum_in x_i - sum_out x_j == 0
     (all ±1 linear coefficients, equality, rhs=0), the feasible subspace
@@ -810,14 +815,14 @@ class FlowStatePrep:
         sectors indexed by the common weight w, and independent Ring-XY mixers
         act only within each fixed-w sector — they cannot move amplitude
         between sectors with different w.  For full feasibility-preserving
-        mixing use the Grover mixer (mixer='Grover' in HybridQAOA), which is
+        mixing use the Grover mixer (mixer='Grover' in PC-QAOA), which is
         the default and the mixer used in all reported experiments.
         """
         import warnings
         warnings.warn(
             "FlowStatePrep.mixer_circuit uses independent Ring-XY mixers, which "
             "cannot mix across weight sectors of the flow-conservation constraint. "
-            "Use mixer='Grover' in HybridQAOA for correct feasibility-preserving mixing.",
+            "Use mixer='Grover' in PC-QAOA for correct feasibility-preserving mixing.",
             stacklevel=2,
         )
         if self.n_in > 1:
@@ -826,7 +831,7 @@ class FlowStatePrep:
             base.apply_xy_mixer(beta, self.out_wires, ring=True)
 
     # ------------------------------------------------------------------
-    # Properties for HybridQAOA integration
+    # Properties for PC-QAOA integration
     # ------------------------------------------------------------------
 
     @property

@@ -90,7 +90,7 @@ class VCG:
         self,
         constraints: list,
         ar_threshold: float = 0.999,
-        entropy_threshold: float = 0.9,
+        entropy_threshold: float = 0.9999,
         max_layers: int = 8,
         qaoa_restarts: int = 5,
         qaoa_steps: int = 150,
@@ -180,6 +180,8 @@ class VCG:
             self.n_layers = 0
             self.ar = 1.0
             self.entropy = 1.0       # trivially uniform over 1 feasible state
+            self.converged = True
+            self.training_history = []
             self.num_gamma = 0
             self.num_beta = 0
             self.train_time = time.time() - _train_start
@@ -194,6 +196,8 @@ class VCG:
             self.n_layers = 0
             self.ar = 1.0
             self.entropy = 1.0
+            self.converged = True
+            self.training_history = []
             self.num_gamma = 0
             self.num_beta = 0
             self.train_time = time.time() - _train_start
@@ -222,6 +226,7 @@ class VCG:
         best_angles = None
         best_n_layers = 1
         prev_angles = None
+        training_history = []
 
         for p in range(1, self.max_layers + 1):
             num_gamma = len(self.constraint_Ham.ops) if self.decompose else 1
@@ -245,12 +250,16 @@ class VCG:
             )
             prev_angles = opt_angles
             ar = (float(opt_cost) - 1.0) / -2.0
+            ent = self._compute_entropy_norm(opt_angles, p)
 
-            # Once AR threshold is met, rank by entropy (spread over feasible states).
-            # Before that, still track best AR as fallback.
-            if ar >= self.ar_threshold:
-                ent = self._compute_entropy_norm(opt_angles, p)
-            else:
+            training_history.append({
+                'p': p,
+                'ar': ar,
+                'entropy': float(ent),
+            })
+
+            # Entropy-based selection only applies once AR threshold is met.
+            if ar < self.ar_threshold:
                 ent = -1.0
 
             if ar >= self.ar_threshold and ent > best_entropy:
@@ -284,6 +293,9 @@ class VCG:
         self.n_layers = best_n_layers
         self.ar = best_ar
         self.entropy = best_entropy if best_entropy >= 0 else None
+        self.converged = (best_ar >= self.ar_threshold
+                          and best_entropy >= self.entropy_threshold)
+        self.training_history = training_history
         self.train_time = time.time() - _train_start
         # Update parameter counts to match the trained depth
         self.num_gamma = len(self.constraint_Ham.ops) if self.decompose else 1
@@ -295,7 +307,7 @@ class VCG:
     # ------------------------------------------------------------------
 
     def opt_circuit(self) -> None:
-        """Apply the trained circuit (HybridQAOA / Grover mixer interface)."""
+        """Apply the trained circuit (PC-QAOA / Grover mixer interface)."""
         if self._single_feasible_bitstring is not None:
             for wire, bit in zip(self.var_wires, self._single_feasible_bitstring):
                 if bit == '1':
@@ -307,6 +319,11 @@ class VCG:
         if self.opt_angles is None:
             raise RuntimeError("Call train() before using opt_circuit().")
         self._circuit(self.opt_angles, 'ma-QAOA', self.n_layers)
+
+    def mixer_circuit(self, beta: float) -> None:
+        """Per-gadget Grover mixer on this gadget's qubits."""
+        from . import qaoa_base as base
+        base.apply_grover_mixer(beta, self.var_wires, [self])
 
     # ------------------------------------------------------------------
     # Measurement

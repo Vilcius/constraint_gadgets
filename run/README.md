@@ -1,6 +1,6 @@
 # run
 
-Scripts for building the VCG database and running HybridQAOA vs PenaltyQAOA experiments.
+Scripts for building the VCG database and running PC-QAOA vs PenaltyQAOA experiments.
 All scripts are runnable directly or importable as a library.
 
 ## Scripts
@@ -9,8 +9,8 @@ All scripts are runnable directly or importable as a library.
 |---|---|
 | `add_to_vcg_database.py` | Train a single VCG (QAOA warm-start -> ma-QAOA sweep) and add it to the gadget DB |
 | `create_vcg_database.py` | **Primary DB builder.** Populate the full gadget DB for all knapsack and quadratic-knapsack constraints using VCG (no ancilla qubits) |
-| `generate_experiment_params.py` | Enumerate HybridQAOA vs PenaltyQAOA experiment tasks and write a JSONL parameter file |
-| `run_hybrid_vs_penalty.py` | Run the experiment sweep: HybridQAOA and PenaltyQAOA layer sweeps for each task; stores `optimal_x` (brute-force optimal bitstrings) in every result row for P(opt) computation |
+| `generate_experiment_params.py` | Enumerate PC-QAOA vs PenaltyQAOA experiment tasks and write a JSONL parameter file |
+| `run_hybrid_vs_penalty.py` | Run the experiment sweep: PC-QAOA and PenaltyQAOA layer sweeps for each task; stores `optimal_x` (brute-force optimal bitstrings) in every result row for P(opt) computation |
 
 ## Workflow
 
@@ -93,7 +93,7 @@ Each line specifies `constraints`, `families`, `n_x`, and `qubo_idx`.
 
 ## run_hybrid_vs_penalty.py
 
-Runs HybridQAOA and PenaltyQAOA layer sweeps for every experiment task.
+Runs PC-QAOA and PenaltyQAOA layer sweeps for every experiment task.
 Both solvers use ma-QAOA angles and warm-started layer growth.
 Stops each solver when P(feasible) ≥ 0.75 or max layers is reached.
 

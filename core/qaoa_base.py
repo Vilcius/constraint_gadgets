@@ -2,7 +2,7 @@
 qaoa_base.py -- Shared QAOA / Hamiltonian utilities.
 
 Consolidates functionality duplicated across VCG, ProblemQAOA,
-PenaltyQAOA, and HybridQAOA:
+PenaltyQAOA, and PC-QAOA:
 
   - QUBO <-> Ising conversion
   - Hamiltonian construction (QUBO, overlap)
@@ -235,11 +235,11 @@ def apply_xy_mixer(
 
 
 def _apply_xy_interaction(beta: float, wire_a: int, wire_b: int) -> None:
-    """Single XY interaction: exp(-i beta (XX + YY)/2) on two qubits."""
-    qml.CNOT(wires=[wire_a, wire_b])
-    qml.RY(beta, wires=wire_a)
-    qml.RY(beta, wires=wire_b)
-    qml.CNOT(wires=[wire_a, wire_b])
+    """Single XY interaction: exp(-i beta (XX + YY)/2) on two qubits.
+
+    Uses IsingXY(2*beta) which preserves Hamming weight exactly.
+    """
+    qml.IsingXY(2 * beta, wires=[wire_a, wire_b])
 
 
 # ======================================================================

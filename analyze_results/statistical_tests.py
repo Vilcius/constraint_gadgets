@@ -53,7 +53,7 @@ def compare_constraint_types(df: pd.DataFrame,
     return pd.DataFrame({'H': [h], 'p_value': [p]})
 
 
-def run_full_stats(vcg_df: pd.DataFrame, hybrid_df: pd.DataFrame,
+def run_full_stats(vcg_df: pd.DataFrame, pcqaoa_df: pd.DataFrame,
                    output_dir: str = './analysis_output/statistical_tests/') -> None:
     """Run all statistical tests and export results as CSVs."""
     os.makedirs(output_dir, exist_ok=True)
@@ -67,10 +67,10 @@ def run_full_stats(vcg_df: pd.DataFrame, hybrid_df: pd.DataFrame,
         kw_vcg.to_csv(os.path.join(output_dir, 'vcg_constraint_type_kruskalwallis.csv'),
                       index=False)
 
-    # Hybrid AR comparison across constraint types
-    if not hybrid_df.empty and 'AR' in hybrid_df.columns:
-        kw_hybrid = compare_constraint_types(hybrid_df, 'AR')
-        kw_hybrid.to_csv(os.path.join(output_dir, 'hybrid_constraint_type_kruskalwallis.csv'),
+    # PC-QAOA AR comparison across constraint types
+    if not pcqaoa_df.empty and 'AR' in pcqaoa_df.columns:
+        kw_pcqaoa = compare_constraint_types(pcqaoa_df, 'AR')
+        kw_pcqaoa.to_csv(os.path.join(output_dir, 'pcqaoa_constraint_type_kruskalwallis.csv'),
                          index=False)
 
     print(f"Statistical test results saved to {output_dir}")

@@ -11,7 +11,7 @@ Each entry in the output file is:
     {"constraints": ["<normalized_constraint>"], "family": "<family>"}
 
 Constraints are normalized to x_0, x_1, ... (sorted variable indices) so
-the VCG database keys match the lookup performed by HybridQAOA at runtime.
+the VCG database keys match the lookup performed by PC-QAOA at runtime.
 
 Usage
 -----

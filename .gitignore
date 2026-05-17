@@ -11,3 +11,9 @@ results/pending/
 current_queue.txt
 
 gadgets/gadget_db.pkl
+
+# Temp / scratch
+texput.log
+tmp_test_*.py
+results/tmp_*/
+results/qaoa_cat_*.pkl

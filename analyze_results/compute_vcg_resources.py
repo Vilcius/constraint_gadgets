@@ -18,7 +18,7 @@ Special cases detected in VCG.__init__ (no QAOA):
 Gate keys used
 --------------
 Hadamard, RX, RZ, CNOT — MultiRZ(k) is decomposed as 2(k-1) CNOT + 1 RZ
-for consistency with the Hybrid/Penalty gate basis.
+for consistency with the PC-QAOA/Penalty gate basis.
 
 Output DataFrame columns
 ------------------------

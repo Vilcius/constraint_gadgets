@@ -115,6 +115,17 @@ def _fmt(val, d: int = 3) -> str:
     return f'{val:.{d}f}'
 
 
+def _fmt_ar_feas(ar_feas, p_feas, d: int = 3) -> str:
+    """Format AR_feas: 0 when P(feas)=0, — when uncomputable, else value."""
+    nan = lambda v: v is None or (isinstance(v, float) and v != v)
+    if nan(ar_feas):
+        # p_feasible = 0 → paper convention assigns AR_feas = 0
+        if not nan(p_feas) and float(p_feas) == 0.0:
+            return '0.000'
+        return '—'
+    return f'{ar_feas:.{d}f}'
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Generator
 # ─────────────────────────────────────────────────────────────────────────────
@@ -144,7 +155,7 @@ def generate(problem_set: str) -> None:
             cr_by_hash[row['constraints_hash']] = row.to_dict()
 
     layers  = [1, 2, 3, 4, 5]
-    methods = [('H', 'HybridQAOA'), ('P', 'PenaltyQAOA')]
+    methods = [('H', 'PC-QAOA'), ('P', 'PenaltyQAOA')]
 
     lines: list[str] = []
     title = problem_set.capitalize()

@@ -1,5 +1,5 @@
 """
-generate_experiment_params.py -- Enumerate HybridQAOA vs PenaltyQAOA experiment
+generate_experiment_params.py -- Enumerate PC-QAOA vs PenaltyQAOA experiment
 parameter combinations and write them as JSON-per-line for SLURM array jobs.
 
 Problem structure
@@ -249,7 +249,7 @@ def generate_cops(data_dir: str = 'data/', max_cops: int = 250,
 
 def _parse_args():
     p = argparse.ArgumentParser(
-        description='Generate HybridQAOA vs PenaltyQAOA experiment parameters.'
+        description='Generate PC-QAOA vs PenaltyQAOA experiment parameters.'
     )
     p.add_argument('--data-dir', default='data/')
     p.add_argument('--output', default='run/params/experiment_params_overlapping.jsonl',

@@ -11,7 +11,7 @@ Utilities for running batch jobs on a SLURM cluster.
 | `vcg_array.sh` | SLURM array script: trains one VCG per task (`--task-id $SLURM_ARRAY_TASK_ID`) |
 | `vcg_merge.sh` | Single-node job: merges per-task VCG pickles into `gadgets/gadget_db.pkl` |
 | `generate_experiment_params.sh` | Single-node job: runs `generate_experiment_params.py` to produce `run/params/experiment_params.jsonl` |
-| `experiment_array.sh` | SLURM array script: runs one HybridQAOA + PenaltyQAOA experiment per task |
+| `experiment_array.sh` | SLURM array script: runs one PC-QAOA + PenaltyQAOA experiment per task |
 | `experiment_merge.sh` | Single-node job: merges per-task experiment pickles into `results/hybrid_vs_penalty.pkl` |
 | `run_analysis.sh` | Single-node job: splits results and runs analysis/plots |
 | `submit_all.sh` | Full pipeline: chains all 6 steps via SLURM dependencies |
