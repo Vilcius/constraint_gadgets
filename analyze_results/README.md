@@ -6,41 +6,65 @@ Modular analysis pipeline for constraint_gadget experiments.
 
 | File | Purpose |
 |---|---|
-| `data_loader.py` | Load VCG / PC-QAOA result pickles; filter DataFrames |
-| `metrics.py` | P(feasible) (brute-force constraint check on first `n_x` bits), P(optimal) (uses `optimal_x` bitstring list stored by run script), AR augmentation, summary stats |
-| `plot_utils.py` | Shared light-theme styling (paper-friendly), colour maps, `save_fig` |
-| `plot_ar.py` | AR vs n_x, by constraint type, by angle strategy |
-| `plot_feasibility.py` | P(feasible) and P(optimal) plots; AR vs P(feasible) scatter |
+| `split_results.py` | Split raw merged pkl into typed DataFrames (comparison_ar, comparison_resources, etc.) |
+| `compute_circuit_resources.py` | Analytical gate-count table for all experiments |
+| `compute_vcg_resources.py` | Analytical gate-count table for trained VCGs |
+| `generate_plots.py` | Top-level orchestrator: combine splits, run analysis, copy plots and stats to paper/ |
+| `generate_results_markdown.py` | GitHub-readable markdown tables of raw results → `results/*/README.md` |
+| `main_analysis.py` | Core analysis: produces all figures, summaries, and statistical tests |
+| `build_problem_table.py` | Problem metadata table from raw results (called automatically during merge) |
+| `results_helper.py` | `ResultsCollector`, CSV parsing, constraint remapping utilities |
+| `metrics.py` | P(feasible), P(optimal), AR_feas, summary stats |
+| `plot_utils.py` | Shared matplotlib styling (rose-pine palette), `save_fig` |
+| `plot_ar.py` | AR and AR_feas plots vs n_x, by constraint type, by angle strategy |
+| `plot_feasibility.py` | P(feasible) and P(optimal) plots |
 | `plot_resources.py` | Estimated shots, circuit depth, time breakdown |
+| `plot_vcg_db.py` | VCG database summary plots (entropy, layers, convergence) |
 | `statistical_tests.py` | Mann-Whitney U (angle strategies), Kruskal-Wallis (families) |
-| `main_analysis.py` | CLI entry point — loads, computes, plots, exports |
-| `results_helper.py` | `ResultsCollector`, `GadgetDatabase`, `collect_vcg_data`, `collect_hybrid_data`, `collect_penalty_data`, CSV/constraint utilities |
-| `../data/make_data.py` | QUBO generation and optimal-x brute force (lives in `data/`) |
 
 ## Quick start
 
+The normal entry point is `generate_plots.py`, which combines both splits,
+runs the full analysis, and copies outputs to `paper/`.
+
 ```bash
-python analyze_results/main_analysis.py \
-    --vcg   gadgets/gadget_db.pkl \
-    --pc-qaoa results/hybrid_vs_penalty.pkl \
-    --output-dir ./analysis_output/
+# 1. Split raw results (once per split, after experiments complete)
+python analyze_results/split_results.py \
+    --pc-qaoa results/overlapping/pc_qaoa_vs_penalty.pkl \
+    --output-dir results/overlapping/
+
+python analyze_results/split_results.py \
+    --pc-qaoa results/disjoint/pc_qaoa_vs_penalty.pkl \
+    --output-dir results/disjoint/
+
+# 2. Compute circuit resources
+python analyze_results/compute_circuit_resources.py
+python analyze_results/compute_vcg_resources.py
+
+# 3. Combine, plot, and export
+python analyze_results/generate_plots.py
 ```
 
-Output directories:
-- `analysis_output/figures/ar/`
-- `analysis_output/figures/feasibility/`
-- `analysis_output/figures/resources/`
-- `analysis_output/summaries/`
-- `analysis_output/statistical_tests/`
+Output layout:
+```
+analysis_output/
+    combined/figures/ar/
+    combined/figures/feasibility/
+    combined/figures/resources/
+    combined/figures/vcg_db/
+    combined/summaries/
+    combined/statistical_tests/
+    disjoint/   ← per-split figures and summaries
+    overlapping/
+```
+
+`generate_plots.py` also writes `results/{disjoint,overlapping}/README.md`
+with GitHub-readable tables of every problem instance and its results.
 
 ## results_helper utilities
 
 | Function / Class | Description |
 |---|---|
 | `ResultsCollector` | Accumulate experiment rows incrementally; persist/resume from pickle |
-| `GadgetDatabase` | Lightweight VCG store: lookup by constraint key for PC-QAOA |
 | `read_typed_csv(path)` | Parse `n_vars; [constraint, ...]` CSV format |
-| `collect_vcg_data(gadget, ...)` | Extract metrics from a trained VCG instance |
-| `collect_hybrid_data(solver, ...)` | Extract metrics from a PC-QAOA instance |
-| `collect_penalty_data(solver, ...)` | Extract metrics from a PenaltyQAOA instance |
 | `remap_constraint_to_vars(c, vars)` | Embed zero-indexed constraint into QUBO variable positions |
