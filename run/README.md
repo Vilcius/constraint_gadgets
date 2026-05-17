@@ -1,117 +1,103 @@
 # run
 
 Scripts for building the VCG database and running PC-QAOA vs PenaltyQAOA experiments.
-All scripts are runnable directly or importable as a library.
 
 ## Scripts
 
 | File | Purpose |
 |---|---|
-| `add_to_vcg_database.py` | Train a single VCG (QAOA warm-start -> ma-QAOA sweep) and add it to the gadget DB |
-| `create_vcg_database.py` | **Primary DB builder.** Populate the full gadget DB for all knapsack and quadratic-knapsack constraints using VCG (no ancilla qubits) |
-| `generate_experiment_params.py` | Enumerate PC-QAOA vs PenaltyQAOA experiment tasks and write a JSONL parameter file |
-| `run_hybrid_vs_penalty.py` | Run the experiment sweep: PC-QAOA and PenaltyQAOA layer sweeps for each task; stores `optimal_x` (brute-force optimal bitstrings) in every result row for P(opt) computation |
+| `generate_vcg_params.py` | Extract unique VCG constraints from experiment params → `vcg_params_experiments.jsonl` |
+| `create_vcg_database.py` | Train all VCG gadgets (knapsack + quadratic-knapsack); save to `gadgets/vcg_db.pkl` |
+| `generate_experiment_params.py` | Enumerate PC-QAOA vs PenaltyQAOA tasks; write overlapping and disjoint JSONL files |
+| `run_pc_qaoa_vs_penalty.py` | Run one COP (SLURM) or merge pending results into a single DataFrame |
 
 ## Workflow
 
 ```
-1. create_vcg_database.py     ← train VCG gadgets; saves gadgets/gadget_db.pkl
-2. generate_experiment_params.py ← enumerate tasks; saves run/params/experiment_params.jsonl
-3. run_hybrid_vs_penalty.py      ← run experiments; saves results/hybrid_vs_penalty.pkl
+1. generate_vcg_params.py       → run/params/vcg_params_experiments.jsonl
+2. create_vcg_database.py       → gadgets/vcg_db.pkl
+3. generate_experiment_params.py → run/params/experiment_params_{overlapping,disjoint}.jsonl
+4. run_pc_qaoa_vs_penalty.py    → results/{overlapping,disjoint}/pc_qaoa_vs_penalty.pkl
 ```
 
-## add_to_vcg_database.py
+## generate_vcg_params.py
 
-Trains a VCG for one set of constraints and registers it in the gadget database.
-
-**Training procedure:**
-1. Single QAOA p=1 run (2 parameters, ~8 s) to obtain warm-start angles.
-2. ma-QAOA layer sweep: p=1 seeded from QAOA angles; p>1 jointly re-optimises
-   all layers warm-started from the previous depth. Stops when AR ≥ threshold.
+Reads the experiment param files and extracts all unique knapsack and
+quadratic-knapsack constraints that need a trained VCG gadget.
+Cardinality, flow, assignment, and independent-set constraints are handled
+by exact state preparations and do not need VCGs.
 
 ```bash
-python run/add_to_vcg_database.py \
-    --constraints "5*x_0 + 10*x_1 + 1*x_2 <= 9" \
-    --db gadgets/gadget_db.pkl
-
-# With explicit budget:
-python run/add_to_vcg_database.py \
-    --constraints "5*x_0 + 10*x_1 + 1*x_2 <= 9" \
-    --db gadgets/gadget_db.pkl \
-    --ar-threshold 0.999 --max-layers 8 \
-    --qaoa-restarts 5 --qaoa-steps 150 \
-    --ma-restarts 20 --ma-steps 200
-```
-
-Library usage:
-```python
-from run.add_to_vcg_database import train_and_add
-ar = train_and_add(
-    constraints=["5*x_0 + 10*x_1 + 1*x_2 <= 9"],
-    db_path="gadgets/gadget_db.pkl",
-)
+python run/generate_vcg_params.py
+# → run/params/vcg_params_experiments.jsonl
 ```
 
 ## create_vcg_database.py
 
-Discovers all knapsack and quadratic-knapsack constraints (n >= 3) and trains
-a VCG gadget for each one. Skips constraints already present in the DB.
-This is the primary database-building script — no ancilla qubits are used.
+Trains a VCG gadget for each constraint in the params file.
+Skips constraints already present in the DB.
 
 ```bash
-# Sequential (all constraints, ~8 hours):
-python run/create_vcg_database.py
+# Sequential (single machine):
+python run/create_vcg_database.py \
+    --params run/params/vcg_params_experiments.jsonl \
+    --db gadgets/vcg_db.pkl
 
-# SLURM parallel:
-# Step 1 – write task list
-python run/create_vcg_database.py --generate-params \
-    --params-out run/params/vcg_params.jsonl
+# Parallel (8 workers, used by slurm/vcg_train.sh):
+python run/create_vcg_database.py \
+    --params run/params/vcg_params_experiments.jsonl \
+    --db gadgets/vcg_db.pkl \
+    --workers 8
 
-# Step 2 – submit array job (N = number of lines in vcg_params.jsonl)
-#   sbatch --array=0-<N-1> slurm/vcg_array.sh
-
-# Step 3 – merge per-task results
-python run/create_vcg_database.py --merge \
-    --pending-dir gadgets/pending/ \
-    --db gadgets/gadget_db.pkl
+# Force retrain even if already in DB:
+python run/create_vcg_database.py \
+    --params run/params/vcg_params_experiments.jsonl \
+    --db gadgets/vcg_db.pkl \
+    --force
 ```
 
 ## generate_experiment_params.py
 
-Enumerates experiment combinations (2–3 constraints drawn from any supported
-family) and writes one JSON object per line to a JSONL file.
-Structural vs penalty partitioning is decided at run time by
-`partition_constraints(strategy="auto")` in `run_hybrid_vs_penalty.py`.
+Enumerates 2–3 constraint COPs drawn from any supported family.
+Generates both overlapping (variables may be shared across constraints)
+and disjoint (all constraint variable sets are disjoint) splits.
 
 ```bash
+# Overlapping (default):
 python run/generate_experiment_params.py \
-    --output run/params/experiment_params.jsonl \
-    --max-tasks 500 --seed 42
+    --output run/params/experiment_params_overlapping.jsonl \
+    --max-cops 250 --seed 42
+
+# Disjoint:
+python run/generate_experiment_params.py \
+    --output run/params/experiment_params_disjoint.jsonl \
+    --max-cops 250 --seed 42 --disjoint
 ```
 
 Each line specifies `constraints`, `families`, `n_x`, and `qubo_idx`.
 
-## run_hybrid_vs_penalty.py
+## run_pc_qaoa_vs_penalty.py
 
-Runs PC-QAOA and PenaltyQAOA layer sweeps for every experiment task.
-Both solvers use ma-QAOA angles and warm-started layer growth.
-Stops each solver when P(feasible) ≥ 0.75 or max layers is reached.
+Runs PC-QAOA and PenaltyQAOA layer sweeps for a single COP or merges all
+pending results. Both solvers use ma-QAOA angles with warm-started layer
+growth. Supports resuming interrupted runs.
 
 ```bash
-# Sequential:
-python run/run_hybrid_vs_penalty.py \
-    --params run/params/experiment_params.jsonl \
-    --db gadgets/gadget_db.pkl
+# Single COP (used by slurm/experiment_array.sh):
+python run/run_pc_qaoa_vs_penalty.py \
+    --params run/params/experiment_params_overlapping.jsonl \
+    --cop-id 42 \
+    --db gadgets/vcg_db.pkl \
+    --pending-dir results/pending_overlapping/
 
-# Single SLURM task:
-python run/run_hybrid_vs_penalty.py \
-    --params run/params/experiment_params.jsonl \
-    --task-id 42 \
-    --db gadgets/gadget_db.pkl \
-    --pending-dir results/pending/
+# Merge SLURM results (used by slurm/experiment_merge.sh):
+python run/run_pc_qaoa_vs_penalty.py \
+    --merge \
+    --pending-dir results/pending_overlapping/ \
+    --output results/overlapping/pc_qaoa_vs_penalty.pkl
 
-# Merge results:
-python run/run_hybrid_vs_penalty.py \
-    --merge --pending-dir results/pending/ \
-    --output results/hybrid_vs_penalty.pkl
+# Sequential (local, all COPs):
+python run/run_pc_qaoa_vs_penalty.py \
+    --params run/params/experiment_params_overlapping.jsonl \
+    --db gadgets/vcg_db.pkl
 ```
