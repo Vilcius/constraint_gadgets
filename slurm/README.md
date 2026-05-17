@@ -1,21 +1,16 @@
 # slurm
 
-Utilities for running batch jobs on a SLURM cluster.
+SLURM scripts for running the full experiment pipeline on an HPC cluster.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `generate_params.py` | Convenience wrapper: delegates to `run/create_vcg_database.py` and `run/generate_experiment_params.py` to produce JSONL task lists |
-| `generate_vcg_params.sh` | Single-node job: runs `create_vcg_database.py --generate-params` to produce `run/params/vcg_params.jsonl` |
-| `vcg_array.sh` | SLURM array script: trains one VCG per task (`--task-id $SLURM_ARRAY_TASK_ID`) |
-| `vcg_merge.sh` | Single-node job: merges per-task VCG pickles into `gadgets/gadget_db.pkl` |
-| `generate_experiment_params.sh` | Single-node job: runs `generate_experiment_params.py` to produce `run/params/experiment_params.jsonl` |
-| `experiment_array.sh` | SLURM array script: runs one PC-QAOA + PenaltyQAOA experiment per task |
-| `experiment_merge.sh` | Single-node job: merges per-task experiment pickles into `results/hybrid_vs_penalty.pkl` |
-| `run_analysis.sh` | Single-node job: splits results and runs analysis/plots |
-| `submit_all.sh` | Full pipeline: chains all 6 steps via SLURM dependencies |
-| `check_failed.sh` | Utility: reports failed tasks from `results/pending/` and `gadgets/pending/` |
+| `submit.sh` | Full pipeline: submit VCG training + 500 experiments in dependency order |
+| `vcg_train.sh` | Single job (8 workers): train all VCG gadgets → `gadgets/vcg_db.pkl` |
+| `experiment_array.sh` | SLURM array: run one COP per task → `results/pending_*/cop_N.pkl` |
+| `experiment_merge.sh` | Single job: merge pending results → `results/*/pc_qaoa_vs_penalty.pkl` |
+| `check_failed.sh` | Utility: report failed tasks and print resubmit commands |
 
 ## Usage
 
@@ -24,37 +19,68 @@ Utilities for running batch jobs on a SLURM cluster.
 From the project root on the cluster:
 
 ```bash
-bash slurm/submit_all.sh
+bash slurm/submit.sh
 ```
 
-This submits all 6 steps in dependency order and prints all job IDs.
-Final results land in `results/hybrid_vs_penalty.pkl`.
+This submits three stages in dependency order:
+
+1. **VCG training** — single job, 8 parallel workers, trains all gadgets
+2. **Experiment arrays** — 250 overlapping + 250 disjoint COPs, each as a SLURM array (depends on step 1)
+3. **Merge jobs** — one per split, collects `cop_*.pkl` files into a single DataFrame (depends on step 2)
 
 ### Step by step
 
 ```bash
-# 1. Generate VCG task list
-python run/create_vcg_database.py \
-    --generate-params --params-out run/params/vcg_params.jsonl \
-    --data-dir data/
-N_VCG=$(wc -l < run/params/vcg_params.jsonl)
+# 1. Train all VCG gadgets
+sbatch slurm/vcg_train.sh $PWD
 
-# 2. Submit VCG training array (0-indexed)
-sbatch --array=0-$((N_VCG - 1)) slurm/vcg_array.sh run/params/vcg_params.jsonl
+# 2. Submit experiment arrays (after VCG training completes)
+sbatch --array=0-249 slurm/experiment_array.sh \
+    $PWD/run/params/experiment_params_overlapping.jsonl \
+    $PWD/results/pending_overlapping
 
-# 3. After all VCG tasks finish, merge
-sbatch slurm/vcg_merge.sh $PWD   # or: python run/create_vcg_database.py --merge ...
+sbatch --array=0-249 slurm/experiment_array.sh \
+    $PWD/run/params/experiment_params_disjoint.jsonl \
+    $PWD/results/pending_disjoint
 
-# 4. Generate experiment task list
-python run/generate_experiment_params.py \
-    --output run/params/experiment_params.jsonl --max-tasks 500 --data-dir data/
-N_EXP=$(wc -l < run/params/experiment_params.jsonl)
+# 3. Merge results (after each array completes)
+sbatch slurm/experiment_merge.sh $PWD \
+    results/pending_overlapping \
+    results/overlapping/pc_qaoa_vs_penalty.pkl
 
-# 5. Submit experiment array
-sbatch --array=0-$((N_EXP - 1)) slurm/experiment_array.sh run/params/experiment_params.jsonl
-
-# 6. After all experiment tasks finish, merge
-sbatch slurm/experiment_merge.sh $PWD   # or: python run/run_hybrid_vs_penalty.py --merge ...
+sbatch slurm/experiment_merge.sh $PWD \
+    results/pending_disjoint \
+    results/disjoint/pc_qaoa_vs_penalty.pkl
 ```
 
-See `run/README.md` for the full workflow description.
+### Post-processing (run after merge jobs complete)
+
+The SLURM pipeline ends after the merge step. The following must be run manually (or via a new job):
+
+```bash
+# Split raw results into typed DataFrames (once per split)
+python analyze_results/split_results.py \
+    --pc-qaoa results/overlapping/pc_qaoa_vs_penalty.pkl \
+    --output-dir results/overlapping/
+
+python analyze_results/split_results.py \
+    --pc-qaoa results/disjoint/pc_qaoa_vs_penalty.pkl \
+    --output-dir results/disjoint/
+
+# Compute circuit resources
+python analyze_results/compute_circuit_resources.py
+python analyze_results/compute_vcg_resources.py
+
+# Combine splits, generate all plots, copy to paper/
+python analyze_results/generate_plots.py
+```
+
+### Checking for failures
+
+```bash
+# Check which COPs failed and get resubmit commands
+bash slurm/check_failed.sh overlapping 250
+bash slurm/check_failed.sh disjoint 250
+```
+
+Failed tasks produce `cop_N.failed.json` logs in the pending directory with a timestamp and error message.
