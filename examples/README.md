@@ -7,9 +7,9 @@ Runnable examples and results. All scripts run from the project root.
 | File | Purpose |
 |---|---|
 | `example_vcg.py` | Train a VCG on a single knapsack constraint and inspect its state |
-| `example_hybrid.py` | Solve a three-constraint QUBO with PC-QAOA vs PenaltyQAOA (layer sweep p=1..5) |
+| `example_pc_qaoa.py` | Solve a three-constraint QUBO with PC-QAOA vs PenaltyQAOA (layer sweep p=1..5) |
 | `vcg_results.md` | Results and figures from `example_vcg.py` |
-| `hybrid_results.md` | Results and figures from `example_hybrid.py` |
+| `pc_qaoa_results.md` | Results and figures from `example_pc_qaoa.py` |
 
 ## Running
 
@@ -18,7 +18,7 @@ Runnable examples and results. All scripts run from the project root.
 python examples/example_vcg.py
 
 # PC-QAOA vs PenaltyQAOA -- three-constraint COP on 7 decision variables, layers p=1..5
-python examples/example_hybrid.py
+python examples/example_pc_qaoa.py
 ```
 
 ## example_vcg.py
@@ -41,7 +41,7 @@ P(feasible) is computed by evaluating the constraint directly on measured bitstr
 
 See `vcg_results.md` for results and interpretation.
 
-## example_hybrid.py
+## example_pc_qaoa.py
 
 Compares PC-QAOA against a full-penalisation baseline (PenaltyQAOA) on a
 three-constraint combinatorial optimisation problem over 7 binary decision
@@ -63,8 +63,8 @@ PC-QAOA handles constraint partitioning internally via `ch.partition_constraints
 
 | Output | Description |
 |---|---|
-| `example_hybrid_results.pkl` | Per-layer results rows (via `ResultsCollector`) |
-| `hybrid_example_layer_sweep.png` | AR / P(feasible) / P(optimal) vs layers (both methods) |
-| `hybrid_example_counts.png` | Top-20 measurement distributions at p=5 with feasibility colour coding |
+| `example_pcqaoa_results.pkl` | Per-layer results rows (via `ResultsCollector`) |
+| `pcqaoa_example_layer_sweep.png` | AR / P(feasible) / P(optimal) vs layers (both methods) |
+| `pcqaoa_example_counts.png` | Top-20 measurement distributions at p=5 with feasibility colour coding |
 
-See `hybrid_results.md` for results and interpretation.
+See `pc_qaoa_results.md` for results and interpretation.
