@@ -139,7 +139,7 @@ def plot_entropy_by_type(df: pd.DataFrame, out_dir: str) -> None:
     ax.set_xticklabels([f'${nx}$' for nx in nx_vals])
     ax.set_xlabel('$|\\text{supp}(c_k)|$')
     ax.set_ylabel('$\\mathcal{S}_{\\mathrm{norm}}$')
-    ax.set_title('VCG gadget $\\mathcal{S}_{\\mathrm{norm}}$ by constraint family')
+    ax.set_title('VCG $\\mathcal{S}_{\\mathrm{norm}}$ by constraint family')
     ax.set_ylim(0, 1.15)
     ax.legend(framealpha=1)
 
