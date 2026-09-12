@@ -30,6 +30,26 @@ from . import constraint_handler as ch
 from .dicke_state_prep import prepare_dicke_multiweight_state
 
 
+def state_quality(state, feasible_mask):
+    """Exact phase-sensitive metrics; conditional fidelity is zero at PF=0."""
+    state = jnp.asarray(state)
+    mask = jnp.asarray(feasible_mask, dtype=bool)
+    probabilities = jnp.abs(state) ** 2
+    count = jnp.sum(mask)
+    p_f = jnp.sum(jnp.where(mask, probabilities, 0.0))
+    fidelity = jnp.abs(jnp.sum(jnp.where(mask, state, 0.0))) ** 2 / count
+    conditional = jnp.where(p_f > 1e-12, fidelity / jnp.maximum(p_f, 1e-12), 0.0)
+    return p_f, fidelity, jnp.clip(conditional, 0.0, 1.0)
+
+
+def loss_from_state(state, feasible_mask, mode=1, weight=1.0):
+    """mode 0: historical energy; 1: total infidelity; 2: conditional loss."""
+    p_f, fidelity, conditional = state_quality(state, feasible_mask)
+    return jnp.real(jnp.where(mode == 0, 1-2*p_f,
+                    jnp.where(mode == 1, 1-fidelity,
+                              (1-p_f) + weight*(1-conditional))))
+
+
 def _check_constraint_op(lhs_val: float, op: ch.ConstraintOp, rhs: float) -> bool:
     """Return True if ``lhs_val op rhs`` holds."""
     if op == ch.ConstraintOp.EQ:
@@ -357,6 +377,25 @@ class VCG:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def tuning_functions(self, angle_strategy, n_layers):
+        """Opt-in state/loss QNodes with dynamic mode/weight for JIT reuse.
+
+        Retains the legacy parameter layout (including its unused identity
+        slot), so exported angles work with existing opt_circuit()/DB loaders.
+        """
+        dev = qml.device('default.qubit', wires=self.var_wires)
+        mask = jnp.asarray(self.outcomes) == -1
+
+        @qml.qnode(dev, interface='jax', diff_method='backprop')
+        def state(angles):
+            self._circuit(angles, angle_strategy, n_layers)
+            return qml.state()
+
+        def objective(angles, mode, weight):
+            return loss_from_state(state(angles), mask, mode, weight)
+
+        return objective, jax.jit(state)
 
     def _circuit(self, angles: np.ndarray, angle_strategy: str, n_layers: int) -> None:
         """Apply QAOA circuit with given angles (internal use only)."""

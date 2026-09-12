@@ -1,0 +1,18 @@
+# Compatible versions recorded in the preliminary study; also usable on Python 3.13.
+-r ../requirements.txt
+pennylane==0.43.1
+pennylane-lightning==0.43.0
+jax==0.6.2
+jaxlib==0.6.2
+optax==0.2.5
+chex==0.1.90
+numpy==2.2.6
+scipy==1.15.3
+matplotlib==3.10.3
+pandas==2.3.1
+pytest==8.4.1
+gast==0.6.0
+tqdm==4.67.1
+nbformat>=5.10,<6
+nbclient>=0.10,<1
+ipykernel>=6.29,<8

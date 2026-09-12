@@ -1,0 +1,101 @@
+{
+  "identifier": "1cf7eb89c181bb2ab0fa426458b348e06805daa191a0682d6a95585f1ffb08f7",
+  "config": {
+    "dataset_seed": 42,
+    "training_seed": 7,
+    "sampling_seed": 19,
+    "checkpoint_steps": 10,
+    "study_a": {
+      "supports": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "per_support": 10,
+      "losses": [
+        "feasibility",
+        "fidelity",
+        "lambda_0.5",
+        "lambda_1",
+        "lambda_2"
+      ],
+      "qaoa_restarts": 5,
+      "qaoa_steps": 150,
+      "ma_restarts": 20,
+      "ma_steps": 200,
+      "max_depth": 8,
+      "learning_rate": 0.05,
+      "fidelity_threshold": 0.999
+    },
+    "study_b": {
+      "sizes": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "per_regime": 2,
+      "multipliers": [
+        0.5,
+        1.0,
+        2.0
+      ],
+      "max_depth": 5,
+      "restarts": 10,
+      "steps": 50,
+      "learning_rate": 0.01,
+      "shots": 10000
+    },
+    "profile": "full"
+  },
+  "source": {
+    "commit": "81ca593dd42718ea238aa21d6e8136f1a5b1bb81",
+    "files": {
+      "core/vcg.py": "f9d39cbc225dbaa76335815c4edb98e59216438785c3b93fdd58937e07d1d424",
+      "core/dicke_state_prep.py": "565e9eedd3be916b813108ce5c747265ac0678421ba4cb8c127139f99ede0c2a",
+      "core/penalty_qaoa.py": "a3e390cc96f7730c8d02807353e2cc66650833cb832db6ea693dbc90231eeb54",
+      "core/pc_qaoa.py": "3dbaeb542eb51137cade7189372f02abe15d285982065fdad3a68c1be06957ad",
+      "core/constraint_handler.py": "d36f9ff81d10d44939a8978d659a348d5b87280c19fe3f9cd16f8b2e15166403",
+      "core/optimization.py": "0f362cb2c2c5d56fab48fa4d89864af0ac0fd10082f187730f5a5571295a3efd",
+      "core/qaoa_base.py": "ad645de1749f11bc7a333272bb24c1fabb418e0dd1087bfa9fb348ded0b9011e",
+      "core/resource_estimation.py": "84d61f0fb9e3b6a07ff139633e8a7507e79c76053abd9f66d9f24fe631006ea7",
+      "core/__init__.py": "cc543314180d0ce9f623dafbac22f9a1fb85c23d9e7e54c3094b0181db9edcd3",
+      "core/penalty_heuristics.py": "1c0841f2c23c98187213ebdf139eab2482fe84e82443d7935d543bca85b865d9",
+      "tuning/datasets.py": "f0a450c9678a950667f0568dee4b76a4c1fc28979ff4232ab1c3f8cad2915283",
+      "tuning/studies.py": "6f0c4b252cf68c65eae0d6d4273123bbc0cc7d5d3ed63efc3dd022f321f2d457",
+      "tuning/storage.py": "fb971ad7653f509a869428e9ff423e4a69afe97e069af12dfdbc118fd53533b2",
+      "tuning/run.py": "8ed7b045d9b2f0b2c649cc5636f2fdcba0be5e7daca6e2c08b4d1c2348a966a2",
+      "run/generate_experiment_params.py": "ed7a07366b7784c38e496bd0cda7e64b037e3d5233815ba378fbd42a86272005",
+      "data/make_data.py": "d8d78c2b7504b651e9705420a1656424dd3f472bc9526e7a222fb703a2d761c2",
+      "data/make_constraints.py": "7f6a4f0badd4ec28cb0b29e566d62969d1ac6b09e22929437f43256ea1824355",
+      "data/quadratic_knapsack_constraints.csv": "8026d46d5891241e4bdd21bde3dbc294b0ff668d869056de7970279ce09175f1",
+      "data/qubos.csv": "f86ef733ba7e1d12b3717e7230d32f1e7cb95319520cf7aab414bd1d3125142e",
+      "data/independent_set_constraints.csv": "0ecfedb739d3e4daa1de9b538538825dabb29a10027cf78fcce6395dde598c78",
+      "data/knapsack_constraints.csv": "3bbe52b2bd68f9c63d2da9e62c6f4098b970f396cbc77d44b49617638e59c40b",
+      "data/assignment_constraints.csv": "23b4e2283e11e86ebb0144dd92050c70babed9e9a6c96373c3afb1620b11d955",
+      "data/subtour_constraints.csv": "47031ccac6989a5487aa0fa10f9e5eaac244abb2089f6b9be68df54bec73cf70",
+      "data/flow_constraints.csv": "da232276a67b8e30c034bd3cce3061657a267c6ff9a01dd6a5c5741c7038158a",
+      "data/cardinality_constraints.csv": "66b4bc0c18b6dfcc73958907bb1cdf9e4ae52cf791250d203f98b747d2c6de40"
+    }
+  },
+  "environment": {
+    "python": "3.13.13",
+    "platform": "Linux-5.14.0-687.36.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "packages": {
+      "pennylane": "0.43.1",
+      "pennylane-lightning": "0.43.0",
+      "jax": "0.6.2",
+      "jaxlib": "0.6.2",
+      "optax": "0.2.5",
+      "numpy": "2.2.6",
+      "scipy": "1.15.3",
+      "matplotlib": "3.10.3",
+      "pandas": "2.3.1",
+      "nbformat": "5.11.1",
+      "nbclient": "0.11.0"
+    }
+  }
+}

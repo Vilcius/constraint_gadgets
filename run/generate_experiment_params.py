@@ -130,7 +130,7 @@ def _has_feasible_solution(constraints: list, n_x: int) -> bool:
 def generate_cops(data_dir: str = 'data/', max_cops: int = 250,
                   seed: int = 42, n_constraints_range: tuple = (2, 3),
                   min_n_x: int = 3, max_n_x: int = 8,
-                  disjoint: bool = False) -> list:
+                  disjoint: bool = False, qubos: dict | None = None) -> list:
     """Sample constrained optimization problems (COPs) from all constraint families.
 
     Each COP has 2–3 constraints (controlled by n_constraints_range) drawn
@@ -158,7 +158,8 @@ def generate_cops(data_dir: str = 'data/', max_cops: int = 250,
     rng = random.Random(seed)
 
     pool  = _load_all_constraints(data_dir)
-    qubos = read_qubos_from_file('qubos.csv', results_dir=data_dir)
+    if qubos is None:
+        qubos = read_qubos_from_file('qubos.csv', results_dir=data_dir)
 
     if not pool:
         raise RuntimeError('No constraints found — check data_dir.')

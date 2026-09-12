@@ -1,0 +1,28 @@
+{
+  "dataset_seed": 42,
+  "training_seed": 7,
+  "sampling_seed": 19,
+  "checkpoint_steps": 10,
+  "study_a": {
+    "supports": [4, 5, 6, 7, 8],
+    "per_support": 10,
+    "losses": ["feasibility", "fidelity", "lambda_0.5", "lambda_1", "lambda_2"],
+    "qaoa_restarts": 5,
+    "qaoa_steps": 150,
+    "ma_restarts": 20,
+    "ma_steps": 200,
+    "max_depth": 8,
+    "learning_rate": 0.05,
+    "fidelity_threshold": 0.999
+  },
+  "study_b": {
+    "sizes": [4, 5, 6, 7, 8],
+    "per_regime": 2,
+    "methods": ["range", "feasible", "verma_lewis", "local", "maximum"],
+    "max_depth": 5,
+    "restarts": 10,
+    "steps": 50,
+    "learning_rate": 0.01,
+    "shots": 10000
+  }
+}

@@ -1,0 +1,159 @@
+\section{Calibration of Training Loss and Penalty Strength}
+\label{cal:sec}
+We conducted two calibration studies before the main algorithm comparison. Study A selected a VCG training loss for preparing the uniform superposition of feasible states. Study B selected a rule for setting the shared penalty coefficient in standard PenaltyQAOA. Study B did not use trained VCGs and did not execute PC-QAOA. The studies used separate instance sets and selection criteria. The calibration COPs are reserved from the subsequent algorithm comparison.
+
+\subsection{Study A: VCG Loss Selection}
+\label{cal:a}
+\paragraph{Constraint set.}
+We generated 50 constraints on support sizes $k\in\{4,5,6,7,8\}$, with ten constraints per size and two or three per family within each size. The family totals were 13 positive weighted inequalities, 13 mixed-sign inequalities, 12 weighted equalities, and 12 quadratic inequalities. For positive weighted inequalities, coefficients were integers in $\{1,\ldots,5\}$. If $S$ denotes their sum, the right-hand side was sampled uniformly from the integers between $\max(1,\lfloor S/3\rfloor)$ and $\lfloor2S/3\rfloor$, inclusive. Quadratic inequalities used dense upper-triangular coefficient arrays, including diagonal terms, with coefficients in $\{1,2,3\}$ and the same capacity rule applied to the coefficient sum. Diagonal terms satisfy $x_i^2=x_i$ on binary inputs.
+
+Mixed-sign inequalities used coefficient magnitudes in $\{1,\ldots,5\}$ and required both signs. Writing $a$ and $b$ for the minimum and maximum attainable left-hand-side values, the integer right-hand side was drawn from $[a+\lfloor(b-a)/3\rfloor,\,a+\lfloor2(b-a)/3\rfloor]$. Weighted equalities used positive coefficients in $\{1,\ldots,5\}$ and an attainable right-hand side in the positive-weight capacity range. We rejected empty and fully feasible sets, repeated feasible masks at the same support size, and cases supported by the existing exact-preparation routines, including singleton sets and unions of complete Hamming-weight sectors. The accepted feasible fractions (the total amount of bitstrings feasible out of all $2^k$ bitstrings) ranged from $0.078125$ to $0.90625$ (Fig.~\ref{cal:a-data}).
+
+\begin{figure}[tb]
+\centering\includegraphics[width=0.88\linewidth]{figures/a_dataset.pdf}
+\caption{Study A constraint composition and feasible fractions. A feasible fraction is the number of satisfying bitstrings divided by $2^k$.}
+\label{cal:a-data}
+\end{figure}
+
+\paragraph{Loss functions.}
+For feasible set $\mathcal F$, the target state and evaluation metrics were
+\begin{align}
+|u_{\mathcal F}\rangle &= |\mathcal F|^{-1/2}\sum_{x\in\mathcal F}|x\rangle,\\
+P_{\mathcal F}(\theta)&=\sum_{x\in\mathcal F}|\langle x|\psi_\theta\rangle|^2,\qquad
+F(\theta)=|\langle u_{\mathcal F}|\psi_\theta\rangle|^2,\\
+F_{\mathrm{cond}}(\theta)&=F(\theta)/P_{\mathcal F}(\theta).
+\end{align}
+
+
+We compared five candidate loss functions, which had the form:
+\begin{align}
+L_{\mathrm{feas}}&=1-2P_{\mathcal F}, & L_{\mathrm{fid}}&=1-F,\\
+L_\lambda&=(1-P_{\mathcal F})+\lambda(1-F_{\mathrm{cond}}),
+&&\lambda\in\{0.5,1,2\}.
+\end{align}
+Every loss was applied to every constraint, giving 250 complete VCG training tasks ($5$ losses $\times 50$ constraints). Each task used one complete training seed and the restart budgets in Table~\ref{cal:budgets}. Initialization seeds were matched across losses for each constraint and depth to compare performance fairly. The inherited optimized angles could differ between losses.
+
+\begin{table}[tb]
+\centering
+\caption{Training budgets. A restart runs the full stated number of Adam steps. Early stopping in Study A occurs between depths, not within a restart.}
+\label{cal:budgets}
+\begin{tabular}{lcc}
+\toprule
+Setting & Study A & Study B\\
+\midrule
+Standard-QAOA warm-up & $p=1$, $5\times150$ steps & None\\
+Main angle strategy & ma-QAOA & Standard QAOA\\
+Depths & $1$--$8$ & $1$--$5$\\
+Restarts per main depth & 20 & 10\\
+Adam steps per restart & 200 & 50\\
+Learning rate & 0.05 & 0.01\\
+Final measurements per depth & Exact state metrics & 10,000 shots\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Training and retention.}
+Training used the same warm-starting procedure we used in the manuscript; we retained the best angles at the end of each layer of ma-QAOA to initialize subsequent layers of optimization. At each depth, the restart with the lowest final value of its assigned training loss was retained. Fidelity was then evaluated for that state. Training stopped if this fidelity reached $0.999$, or after depth eight. The task returned the highest-fidelity state among the retained depth states. Tasks that failed to reach the threshold remained in the analysis. These fidelity-based stopping and return rules replaced the entropy-based rules of the earlier experimental workflow.
+
+\paragraph{Results.}
+The selected loss was $L_{\mathrm{fid}}$, which achieved mean fidelity $0.999719$ and reached $F\geq0.999$ on all 50 constraints (Table~\ref{cal:a-results}). Its mean selected depth was $3.18$, compared with $3.42$--$3.62$ for the conditional-fidelity losses. Each conditional-fidelity loss reached the threshold on 49 constraints. Their mean fidelities were also high, and their small differences from $L_{\mathrm{fid}}$ do not establish a broad performance separation. We should choose $L_{\mathrm{fid}}$ for our loss function.
+
+\begin{table}[tb]
+\centering\small
+\caption{Study A results across all 50 constraints per loss. Depth columns report the mean selected depth and the mean number of evaluated ma-QAOA depths.}
+\label{cal:a-results}
+\resizebox{\linewidth}{!}{\input{tables/study_a.tex}}
+\end{table}
+
+The feasibility loss (the one we used in the original manuscript) achieved mean feasible probability $0.994615$, but mean total fidelity was only $0.462554$ and only two constraints reached the fidelity threshold. Its mean selected depth was $1.68$, although it evaluated $7.72$ depths on average. Figure~\ref{cal:a-quality} shows the difference between feasibility and fidelity; Fig.~\ref{cal:a-example} compares the probability distributions for one constraint under two losses. These results support including total fidelity in the training objective when the desired gadget prepares the uniform feasible superposition.
+
+\begin{figure}[tb]
+\centering
+\begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/a_fidelity.pdf}\caption{Returned fidelity by support size.}\end{subfigure}\hfill
+\begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/a_selected_depth.pdf}\caption{Selected depth by support size.}\end{subfigure}
+\caption{Study A means and pointwise 95\% confidence intervals across constraints. Each support-size mean contains ten constraints. The selected depth is the depth of the returned gadget, not necessarily the final depth evaluated.}
+\label{cal:a-size}
+\end{figure}
+\begin{figure}[tb]
+\centering\includegraphics[width=0.7\linewidth]{figures/a_fidelity_feasibility.pdf}
+\caption{Returned-state fidelity versus feasible probability. Each point is one constraint--loss task.}
+\label{cal:a-quality}
+\end{figure}
+\begin{figure}[tb]
+\centering\includegraphics[width=0.92\linewidth]{figures/a_matched_distribution.pdf}
+\caption{Returned probability distributions for the same mixed-sign constraint trained with $L_{\mathrm{feas}}$ and $L_{\mathrm{fid}}$. Blue denotes feasible states and rose denotes infeasible states (note how there is no rose!). The dashed line is $1/|\mathcal F|$, the target probability on each feasible state. (Note how bad $L_\mathrm{feas}$ performs compared to $L_\mathrm{fid}$).}
+\label{cal:a-example}
+\end{figure}
+\FloatBarrier
+
+\subsection{Study B: Penalty-Rule Selection}
+\label{cal:b}
+The goal of this study is to determine the best way to select the penalty parameter $\delta$ used in PenaltyQAOA. 
+
+\paragraph{Calibration problems.}
+We generated 20 fresh COPs with decision sizes $n\in\{4,5,6,7,8\}$. Each size contributed two problems with disjoint constraint supports and two with overlapping supports. Across the 50 constraint occurrences, there were 12 cardinality, 10 knapsack, nine quadratic-knapsack, eight flow, six independent-set, and five assignment constraints. The constraints used in this experiment were different from those generated in the VCG training experiment.
+
+Each objective was generated independently as an upper-triangular QUBO with integer coefficients from $-5$ through $4$. The COPs were checked for feasibility and repeated constraint collections were rejected. Joint feasible fractions ranged from $0.0625$ to $0.75$ (Fig.~\ref{cal:b-data}). The complete dataset was saved before training.
+
+\begin{figure}[tb]
+\centering\includegraphics[width=0.88\linewidth]{figures/b_dataset.pdf}
+\caption{Study B constraint occurrences and joint feasible fractions. Each feasible fraction counts decision strings satisfying all constraints simultaneously, divided by $2^n$.}
+\label{cal:b-data}
+\end{figure}
+
+\paragraph{Five penalty rules.}
+Write the objective with each coefficient counted once:
+\begin{equation}
+f(x)=\sum_i q_i x_i+\sum_{i<j}q_{ij}x_ix_j.
+\end{equation}
+For $i\ne j$, define $c_{ij}=q_{\min(i,j),\max(i,j)}$. Let $q_t$ range over the linear and pairwise coefficients, and set
+\begin{equation}
+L_Q=\sum_t\min(0,q_t),\qquad U_Q=\sum_t\max(0,q_t).
+\end{equation}
+The five candidates were
+\begin{align}
+\delta_{\mathrm{range}}&=U_Q-L_Q+1,\label{cal:range}\\
+\delta_{\mathrm{feasible}}&=f(\bar x)-L_Q+1,\\
+\delta_{\mathrm{VL}}&=1+\max_i\left\{q_i+\sum_{j\ne i}\max(c_{ij},0),\;-q_i-\sum_{j\ne i}\min(c_{ij},0)\right\},\\
+\delta_{\mathrm{local}}&=1+\max_i\left(|q_i|+\sum_{j\ne i}|c_{ij}|\right),\\
+\delta_{\mathrm{max}}&=1+\max_t|q_t|.
+\end{align}
+For each of the 20 COPs, we tested all five $\delta$ options, leading to $100$ total optimized COPs. 
+
+The feasible point $\bar x$ was the first feasible string encountered in a seeded random ordering of decision strings, searched without replacement. No objective values or optimal-solution labels entered that search. The objective was evaluated after the point was chosen. The search required a mean of $3.2$ feasibility checks, with a maximum of 11; its measured mean runtime was approximately $0.149$ ms on this machine. This search is inexpensive for the calibration sizes, but its enumeration-based implementation is not a scalable feasibility algorithm.
+
+The rules $\delta_{\mathrm{range}}$ and $\delta_{\mathrm{feasible}}$ are sufficient for the implemented integer squared-residual encoding. To see this, write the penalized energy as $f(x)+\delta\sum_j r_j(x,s_j)^2$. For an infeasible decision string, its minimum residual sum over slack assignments is at least one. With $\delta_{\mathrm{feasible}}$, its energy is therefore at least $L_Q+\delta_{\mathrm{feasible}}=f(\bar x)+1$, above the energy of a feasible point with valid slack. The bound for $\delta_{\mathrm{range}}$ follows by replacing $f(\bar x)$ with its upper bound $U_Q$. These guarantees concern global energy minima, not the success probability of finite-depth QAOA.
+
+The signed local rule $\delta_{\mathrm{VL}}$ uses the objective-change calculation of Verma and Lewis~\cite{cal:verma}, with an added unit margin. The rules $\delta_{\mathrm{VL}}$, $\delta_{\mathrm{local}}$ and $\delta_{\mathrm{max}}$ are heuristics for the general overlapping constraints considered here. A one-bit objective-change bound alone does not prove that arbitrary infeasible assignments can be repaired with a sufficient decrease in penalty. The sufficient-bound reasoning is consistent with the exact-penalty framework discussed by Diez Garc\'ia et al.~\cite{cal:garcia}; their solver experiments do not establish QAOA performance for these instances.
+
+\paragraph{Optimization and measurements.}
+We optimized using standard QAOA with the hyperparameters in Table~\ref{cal:budgets}, following the same warm-starting procedure in the manuscript once again. At each depth, the restart with the lowest final penalized expectation was retained. Final performance was determined by calculating $P(\mathrm{opt})$ from $10{,}000$ measurement shots. 
+
+\paragraph{Results and selection.}
+$\delta_{\mathrm{range}}$ achieved the highest mean sampled $P(\mathrm{opt})$, $12.3775\%$, followed by $\delta_{\mathrm{max}}$ at $11.2840\%$ (Table~\ref{cal:b-results}). The ordering of the mean exact probabilities was the same. We should therefore select $\delta_{\mathrm{range}}$ in Eq.~\eqref{cal:range} for the subsequent penalty-based experiments when we do the full PC-QAOA vs. PenaltyQAOA experiment. Figure~\ref{cal:b-methods} reports the final-depth means and the full depth progression.
+
+\begin{table}[tb]
+\centering\small
+\caption{Study B results at depth five of QAOA, with 20 COPs per method. Probabilities and interval bounds are percentages.}
+\label{cal:b-results}
+\resizebox{\linewidth}{!}{\input{tables/study_b.tex}}
+\end{table}
+\begin{figure}[tb]
+\centering
+\begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/b_methods.pdf}\caption{Final-depth method comparison.}\end{subfigure}\hfill
+\begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/b_depth_methods.pdf}\caption{Depth progression.}\end{subfigure}
+\caption{Study B mean sampled optimal-solution probabilities and pointwise 95\% confidence intervals across 20 COPs. These intervals estimate uncertainty in each method's mean; they are not paired intervals for differences between methods.}
+\label{cal:b-methods}
+\end{figure}
+
+
+Performance varied strongly with the sampled instances. For $\delta_{\mathrm{range}}$, mean $P(\mathrm{opt})$ was $40.588\%$ on the four-variable COPs and $0.615\%$ on the eight-variable COPs (Table~\ref{cal:b-size}). Its mean was $21.116\%$ for disjoint COPs and $3.639\%$ for overlapping COPs. These groups also differ in constraint composition and slack count; the differences cannot be assigned to size or overlap alone. The two four-variable disjoint COPs contributed substantially to the mean advantage of $\delta_{\mathrm{range}}$. $\delta_{\mathrm{range}}$ remained first after removing any single COP, but removing both of those COPs changed the leader to $\delta_{\mathrm{max}}$. That post hoc sensitivity check did not change the selection dataset or criterion.
+
+\begin{table}[tb]
+\centering\small
+\caption{Mean sampled depth-five $P(\mathrm{opt})$ (percent) by decision size, with four COPs per size. Different methods lead at different sizes.}
+\label{cal:b-size}
+\input{tables/size_b.tex}
+\end{table}
+
+The completed calibration supports $L_{\mathrm{fid}}$ as a direct and effective training objective for the sampled VCG families. It selects $\delta_{\mathrm{range}}$ as the penalty rule with the highest aggregate sampled success probability at depth five. It does not show that this rule is optimal at other depths or for each constraint family.

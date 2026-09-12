@@ -1,0 +1,20 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,booktabs,graphicx,subcaption,placeins}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{microtype}
+\title{Calibration of VCG Training Loss and PenaltyQAOA Penalty Strength}
+\author{}
+\date{Completed calibration results, 10 September 2026}
+\begin{document}
+\maketitle
+\input{tuning_section.tex}
+\FloatBarrier
+\appendix
+\input{reproducibility.tex}
+\begin{thebibliography}{9}
+\bibitem{cal:verma} A. Verma and M. Lewis, ``Penalty and partitioning techniques to improve performance of QUBO solvers,'' \emph{Discrete Optimization} \textbf{44}, 100594 (2022). \href{https://doi.org/10.1016/j.disopt.2020.100594}{doi:10.1016/j.disopt.2020.100594}.
+\bibitem{cal:garcia} M. Diez Garc\'ia, M. Ayodele, and A. Moraglio, ``Exact and Sequential Penalty Weights in Quadratic Unconstrained Binary Optimisation with a Digital Annealer,'' \emph{GECCO '22 Companion}, pp. 184--187 (2022). \href{https://doi.org/10.1145/3520304.3528925}{doi:10.1145/3520304.3528925}.
+\end{thebibliography}
+\end{document}

@@ -1,0 +1,48 @@
+{
+  "study_a_run_id": "1cf7eb89c181bb2ab0fa426458b348e06805daa191a0682d6a95585f1ffb08f7",
+  "study_b_run_id": "d4972f8704455fbe673b425f7f6dfbdf92ddffa6e1c833a24b4d5dded71bcf34",
+  "analysis_sha256": "61a09d334219ec0d666764f262ab88f85dea1815550b7919d1e6eb37c3c8d9c4",
+  "counts": {
+    "a": 250,
+    "b": 100
+  },
+  "interval": "pointwise Student t, 95%, across instances",
+  "paired_comparisons": [
+    {
+      "method": "maximum",
+      "mean_difference": 0.010935000000000004,
+      "ci95_lower": -0.01373853632846751,
+      "ci95_upper": 0.03560853632846751,
+      "wins": 10,
+      "ties": 0,
+      "losses": 10
+    },
+    {
+      "method": "verma_lewis",
+      "mean_difference": 0.014575,
+      "ci95_lower": -0.014216625643067181,
+      "ci95_upper": 0.04336662564306718,
+      "wins": 11,
+      "ties": 1,
+      "losses": 8
+    },
+    {
+      "method": "local",
+      "mean_difference": 0.016419999999999994,
+      "ci95_lower": -0.011837732463575716,
+      "ci95_upper": 0.0446777324635757,
+      "wins": 11,
+      "ties": 0,
+      "losses": 9
+    },
+    {
+      "method": "feasible",
+      "mean_difference": 0.02499,
+      "ci95_lower": -0.016584502927835143,
+      "ci95_upper": 0.06656450292783514,
+      "wins": 8,
+      "ties": 0,
+      "losses": 12
+    }
+  ]
+}

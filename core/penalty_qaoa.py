@@ -38,6 +38,7 @@ class PenaltyQAOA:
         learning_rate: float = 0.01,
         steps: int = 50,
         num_restarts: int = 10,
+        compile_on_init: bool = True,
     ) -> None:
 
         self.qubo = qubo
@@ -70,7 +71,8 @@ class PenaltyQAOA:
         self.num_beta = len(self.all_wires)
 
         # Compile cost circuit + single Adam step via JAX jit
-        self._compiled_cost, self._compiled_step = self._build_compiled_fns()
+        self._compiled_cost, self._compiled_step = (
+            self._build_compiled_fns() if compile_on_init else (None, None))
 
     # ------------------------------------------------------------------
     # Hamiltonian construction
@@ -91,7 +93,7 @@ class PenaltyQAOA:
     # Circuit
     # ------------------------------------------------------------------
 
-    def qaoa_circuit(self, angles) -> None:
+    def qaoa_circuit(self, angles, hamiltonian=None) -> None:
         """Standard QAOA circuit with X-mixer."""
         gammas, betas = base.split_angles(
             angles, self.num_gamma, self.num_beta, self.angle_strategy
@@ -101,12 +103,58 @@ class PenaltyQAOA:
             qml.Hadamard(wires=wire)
 
         for q in range(self.n_layers):
-            base.apply_cost_unitary(self.full_Ham, gammas, q)
+            base.apply_cost_unitary(self.full_Ham if hamiltonian is None else hamiltonian, gammas, q)
             base.apply_x_mixer(betas, q, self.all_wires)
 
     # ------------------------------------------------------------------
     # Compiled functions
     # ------------------------------------------------------------------
+
+    def tuning_functions(self):
+        """Standard-QAOA expectation/probabilities with a dynamic penalty.
+
+        Same gate construction and slack allocation as qaoa_circuit. Only the
+        coefficients change between policies; the QNode topology stays fixed.
+        """
+        if self.angle_strategy != 'QAOA':
+            raise ValueError('Dynamic-penalty tuning expects standard QAOA')
+        unit_penalty = base.build_penalty_hamiltonian(
+            self.parsed_constraints, self.slack_info, 1.0,
+            fallback_wire=self.x_wires[0])
+        # All cost terms commute and standard QAOA shares their angle.
+        # Coalesce repeated Pauli words before tracing: the raw squared
+        # residual expansion otherwise makes thousands of redundant gates
+        # and an unnecessarily large differentiation graph. Keep objective
+        # and unit-penalty weights separate so delta remains a dynamic input.
+        q_rep, p_rep = self.qubo_Ham.pauli_rep, unit_penalty.pauli_rep
+        words = list(dict.fromkeys([*q_rep, *p_rep]))
+        words = [word for word in words if q_rep.get(word, 0) != 0 or p_rep.get(word, 0) != 0]
+        q_coeff = jnp.asarray([float(complex(q_rep.get(word, 0)).real) for word in words])
+        p_coeff = jnp.asarray([float(complex(p_rep.get(word, 0)).real) for word in words])
+        ops = [word.operation(wire_order=self.all_wires) for word in words]
+
+        def hamiltonian(delta):
+            return qml.Hamiltonian(q_coeff + delta*p_coeff, ops)
+
+        dev = qml.device('default.qubit', wires=self.all_wires)
+
+        @qml.qnode(dev, interface='jax', diff_method='backprop')
+        def expectation(angles, delta):
+            ham = hamiltonian(delta)
+            self.qaoa_circuit(angles, ham)
+            return qml.expval(ham)
+
+        @qml.qnode(dev, interface='jax', diff_method='backprop')
+        def probabilities(angles, delta):
+            self.qaoa_circuit(angles, hamiltonian(delta))
+            return qml.probs(wires=self.x_wires)
+
+        def objective(angles, delta):
+            # Match _build_compiled_fns: products in higher-order penalty
+            # Hamiltonians can give an otherwise real expectation complex dtype.
+            return jnp.real(expectation(angles, delta))
+
+        return objective, jax.jit(probabilities)
 
     def _build_compiled_fns(self):
         """
@@ -157,6 +205,8 @@ class PenaltyQAOA:
         ``steps`` budget.  The outer restart loop is plain Python (each
         restart is an independent compiled call, so no tracing issue).
         """
+        if self._compiled_cost is None:
+            self._compiled_cost, self._compiled_step = self._build_compiled_fns()
         optimizer = optax.adam(self.learning_rate)
         best_cost = float("inf")
         best_angles = None

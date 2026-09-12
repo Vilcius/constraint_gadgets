@@ -1,0 +1,8 @@
+{
+  "condition": "fidelity",
+  "mean_fidelity": 0.9997186863497762,
+  "criterion": "mean total fidelity across constraints",
+  "run_id": "1cf7eb89c181bb2ab0fa426458b348e06805daa191a0682d6a95585f1ffb08f7",
+  "database": "selected_vcg_db.pkl",
+  "n_constraints": 50
+}
