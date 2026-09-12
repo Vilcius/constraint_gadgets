@@ -1,7 +1,7 @@
 """
-compute_vcg_resources.py -- Analytical gate-count table for trained VCGs.
+compute_vcg_resources.py -- qre gate-count table for trained VCGs.
 
-Loads the VCG training database (gadgets/vcg_db.pkl) and analytically counts
+Loads the VCG training database (gadgets/vcg_db.pkl) and traces qre
 gates for one VCG.opt_circuit() call per gadget.  No re-training is performed.
 
 VCG circuit structure (general QAOA path):
@@ -56,8 +56,8 @@ from tqdm import tqdm
 
 from core.vcg import VCG
 from core.resource_estimation import (
-    count_dicke_gates,
-    count_leq_gates,
+    estimate_vcg_resources,
+    NISQ_GATE_SET,
     _1Q_GATES_SET,
     _2Q_GATES_SET,
 )
@@ -80,58 +80,15 @@ def _count_1q_2q(gate_dict: dict):
 
 # ── VCG gate counting ─────────────────────────────────────────────────────────
 
-def _count_multiweight_dicke_gates(n_x: int, weights: list) -> dict:
-    """Gate counts for prepare_dicke_multiweight_state(wires, weights)."""
-    if not weights:
-        return {}
-    return count_leq_gates(n_x, max(weights))
-
-
 def count_vcg_opt_circuit_gates(vcg: VCG, n_layers_override: int | None = None) -> dict:
-    """
-    Analytical gate count for one VCG.opt_circuit() call.
-
-    Parameters
-    ----------
-    vcg : VCG
-        Instantiated VCG (no training needed — special-case flags are set in __init__).
-    n_layers_override : int or None
-        If provided, overrides vcg.n_layers.  Pass the n_layers from the DB entry
-        when calling with a freshly instantiated (untrained) VCG.
-    """
-    use_qaoa = n_layers_override is not None and n_layers_override >= 1
-
-    if not use_qaoa:
-        if vcg._single_feasible_bitstring is not None:
-            x_count = vcg._single_feasible_bitstring.count('1')
-            return {"X": x_count} if x_count > 0 else {}
-        if vcg._dicke_superposition_weights is not None:
-            return _count_multiweight_dicke_gates(vcg.n_x, vcg._dicke_superposition_weights)
-
-    n_x = vcg.n_x
-    n_layers = n_layers_override if n_layers_override is not None else vcg.n_layers
-
-    if n_layers is None or n_layers == 0:
-        return {"Hadamard": n_x}
-
-    gates: dict[str, int] = {"Hadamard": n_x}
-
-    cnot_per_layer = 0
-    rz_per_layer = 0
-    _, ops = vcg.constraint_Ham.terms()
-    for op in ops:
-        s = qml.pauli.pauli_word_to_string(op)
-        if re.search(r'^I+$', s):
-            continue
-        k = len(op.wires)
-        cnot_per_layer += 2 * max(0, k - 1)
-        rz_per_layer += 1
-
-    gates["CNOT"] = cnot_per_layer * n_layers
-    gates["RZ"]   = rz_per_layer * n_layers
-    gates["RX"]   = n_x * n_layers
-
-    return {k: v for k, v in gates.items() if v > 0}
+    """Trace a restored VCG through the shared NISQ qre estimator."""
+    previous = vcg.n_layers
+    if n_layers_override is not None:
+        vcg.n_layers = n_layers_override
+    try:
+        return estimate_vcg_resources(vcg, {"nisq": NISQ_GATE_SET})["nisq"]["gate_counts"]
+    finally:
+        vcg.n_layers = previous
 
 
 # ── Main builder ──────────────────────────────────────────────────────────────
@@ -164,12 +121,18 @@ def build_vcg_resource_table(
 
     for vcg_key, entry in tqdm(db.items(), desc="Counting VCG gates"):
         try:
-            constraints = list(entry['constraints'])
-            n_x         = int(entry['n_x'])
+            constraints = list(entry.get('constraints', [vcg_key]))
             n_layers    = int(entry['n_layers'])
             ctype       = entry.get('family') or _classify(vcg_key)
 
             vcg = VCG(constraints)
+            n_x = int(entry.get('n_x', entry.get('support', vcg.n_x)))
+            vcg.opt_angles = entry.get('opt_angles')
+            vcg.n_layers = n_layers
+            if 'single_feasible_bitstring' in entry:
+                vcg._single_feasible_bitstring = entry['single_feasible_bitstring']
+            if 'dicke_superposition_weights' in entry:
+                vcg._dicke_superposition_weights = entry['dicke_superposition_weights']
             gate_dict = count_vcg_opt_circuit_gates(vcg, n_layers_override=n_layers)
             n1, n2 = _count_1q_2q(gate_dict)
 

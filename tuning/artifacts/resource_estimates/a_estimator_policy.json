@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "pennylane": "0.43.1",
+  "gate_sets": {
+    "nisq": [
+      "CNOT",
+      "Hadamard",
+      "RX",
+      "RY",
+      "RZ",
+      "S",
+      "T",
+      "X",
+      "Y",
+      "Z"
+    ],
+    "ftqc": [
+      "CNOT",
+      "Hadamard",
+      "S",
+      "T"
+    ]
+  },
+  "synthesis_config": "ResourceConfig(\n  precisions = {\n    RX: {'precision': 1e-09},\n    RY: {'precision': 1e-09},\n    RZ: {'precision': 1e-09},\n    CRX: {'precision': 1e-09},\n    CRY: {'precision': 1e-09},\n    CRZ: {'precision': 1e-09},\n    SelectPauliRot: {'precision': 1e-09},\n    QubitUnitary: {'precision': 1e-09},\n    AliasSampling: {'precision': 1e-09},\n    MPSPrep: {'precision': 1e-09},\n    QROMStatePreparation: {'precision': 1e-09},\n    SelectTHC: {'rotation_precision': 15},\n    PrepTHC: {'coeff_precision': 15},\n    QubitizeTHC: {'coeff_precision': 15, 'rotation_precision': 15},\n    TrotterVibronic: {'phase_grad_precision': 1e-06, 'coeff_precision': 0.001},\n    TrotterVibrational: {'phase_grad_precision': 1e-06, 'coeff_precision': 0.001}\n},\n  custom decomps = []\n)",
+  "source_hashes": {
+    "tuning/resource_analysis.py": "b6a1662d1274e5fdd3475dda552867d36fbf205bab6da1fc881f61eeb6a03689",
+    "core/resource_estimation.py": "99ab5a84da87d020e689d57df671036f6932ac4db64a25c5da3835eb27877c2a",
+    "core/vcg.py": "f9d39cbc225dbaa76335815c4edb98e59216438785c3b93fdd58937e07d1d424",
+    "core/qaoa_base.py": "ad645de1749f11bc7a333272bb24c1fabb418e0dd1087bfa9fb348ded0b9011e",
+    "core/constraint_handler.py": "d36f9ff81d10d44939a8978d659a348d5b87280c19fe3f9cd16f8b2e15166403",
+    "core/dicke_state_prep.py": "565e9eedd3be916b813108ce5c747265ac0678421ba4cb8c127139f99ede0c2a",
+    "core/penalty_qaoa.py": "a3e390cc96f7730c8d02807353e2cc66650833cb832db6ea693dbc90231eeb54"
+  },
+  "gates": "structural decompositions; no angle pruning or global transpilation"
+}

@@ -66,7 +66,7 @@ PC-QAOA columns  (per-gadget mixer: XY for Dicke/flow, Grover for VCG/LEQ, X for
   sp_gates_pc[_ftqc]       dict  gate breakdown of r_sp
   layer_total_pc[_ftqc]    int   total gates in one QAOA layer (r_layer)
   layer_gates_pc[_ftqc]    dict  gate breakdown of r_layer
-  sum_of_parts_pc[_ftqc]       int   upper-bound: each structural constraint's own
+  sum_of_parts_pc[_ftqc]       int   constraint subtotal: each structural constraint's own
                                      gadget cost (once) + each penalized constraint's
                                      own penalty-term cost (x n_layers); see
                                      estimate_from_task's docstring
@@ -77,11 +77,11 @@ Penalty QAOA columns  (X mixer, all constraints penalised into Hamiltonian)
   n_qubits_p       int      total qubits = n_x + n_slack_p
   n_slack_p        int      slack qubits from all constraints
 
-  sp_total_p[_ftqc]      int   total gates in state prep (= Hadamard on slack qubits)
+  sp_total_p[_ftqc]      int   total gates in state prep (= Hadamard on all qubits)
   sp_gates_p[_ftqc]      dict  gate breakdown of r_sp
   layer_total_p[_ftqc]   int   total gates in one QAOA layer
   layer_gates_p[_ftqc]   dict  gate breakdown of r_layer
-  sum_of_parts_p[_ftqc]       int   upper bound: every constraint's own penalty-term
+  sum_of_parts_p[_ftqc]       int   constraint subtotal: every constraint's own penalty-term
                                     cost (x n_layers), summed
   sum_of_parts_p_gates[_ftqc] dict  gate breakdown of the above
 
@@ -148,22 +148,22 @@ def _row_for_gate_set(res_gs: dict, suffix: str) -> dict:
     sop_p = res_gs["sum_of_parts_penalty"]
 
     return {
-        f"sp_total_pc{suffix}":          res_gs["pc_qaoa_sp"].total_gates,
+        f"sp_total_pc{suffix}":          sum(res_gs["pc_qaoa_sp"].gate_counts.values()),
         f"sp_1q_pc{suffix}":             sp_1q,
         f"sp_2q_pc{suffix}":             sp_2q,
         f"sp_gates_pc{suffix}":          sp_gates,
-        f"layer_total_pc{suffix}":       res_gs["pc_qaoa_layer"].total_gates,
+        f"layer_total_pc{suffix}":       sum(res_gs["pc_qaoa_layer"].gate_counts.values()),
         f"layer_1q_pc{suffix}":          layer_1q,
         f"layer_2q_pc{suffix}":          layer_2q,
         f"layer_gates_pc{suffix}":       layer_gates,
         f"sum_of_parts_pc{suffix}":      sum(sop_pc.values()),
         f"sum_of_parts_pc_gates{suffix}": sop_pc,
 
-        f"sp_total_p{suffix}":          res_gs["penalty_sp"].total_gates,
+        f"sp_total_p{suffix}":          sum(res_gs["penalty_sp"].gate_counts.values()),
         f"sp_1q_p{suffix}":             p_sp_1q,
         f"sp_2q_p{suffix}":             p_sp_2q,
         f"sp_gates_p{suffix}":          p_sp_gates,
-        f"layer_total_p{suffix}":       res_gs["penalty_layer"].total_gates,
+        f"layer_total_p{suffix}":       sum(res_gs["penalty_layer"].gate_counts.values()),
         f"layer_1q_p{suffix}":          p_layer_1q,
         f"layer_2q_p{suffix}":          p_layer_2q,
         f"layer_gates_p{suffix}":       p_layer_gates,

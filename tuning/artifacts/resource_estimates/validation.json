@@ -1,0 +1,8 @@
+{
+  "saved_vcg_circuits_validated": 250,
+  "a_rows": 600,
+  "b_rows": 1200,
+  "b_missing_constraint_occurrences": 23,
+  "analysis_seconds": 9.8079032599926,
+  "peak_rss_mib": 301.5546875
+}

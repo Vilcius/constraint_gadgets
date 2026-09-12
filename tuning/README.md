@@ -233,3 +233,49 @@ and rejection of multiplier configurations.
 ## Collaborator handoff
 
 The selected 50 VCGs are available in `tuning/artifacts/selected_vcg_db.pkl`; see `tuning/artifacts/README.md` for reconstruction and resource-estimation entry points. Raw results are not tracked. The legacy-source resume command above applies only to the original local run; on a fresh checkout, start a new Study A run with `python tuning/run.py run --study a --output tuning/results/new-a`.
+
+## Resource estimates from completed tuning runs
+
+The tuning branch includes main's qre estimator rewrite (`ab23dce`). It works
+with the installed PennyLane 0.43.1; no dependency upgrade is needed.
+
+```bash
+python tuning/resource_analysis.py --study both
+```
+
+Use `--a-output`, `--b-output`, and `--vcg-db` to read other saved datasets.
+This traces saved circuits without training, JAX compilation, or statevector
+simulation. Per-instance content-identified JSON caches and CSV tables are
+written under each study's `resource_estimates/` directory. Cache identifiers
+include source hashes, saved inputs, gate sets, PennyLane version, and the
+rotation-synthesis configuration. Interrupted analysis can be rerun.
+
+The notebook has resource tables and figures inside each study. Study A
+includes all 250 saved gadgets and 50 isolated penalty components. Study B
+includes gadget/penalty components for all 50 constraint occurrences and
+full PenaltyQAOA estimates at depths 1--5 for all five penalty settings.
+Missing VCGs are explicit and never trigger training. The database may be
+replaced to fill these entries. Full PC-QAOA comparisons are deferred while
+some Study B VCGs are unavailable.
+
+The estimator uses NISQ and FTQC gate sets defined in
+`core/resource_estimation.py`. FTQC synthesis precision is per rotation,
+not a total-circuit error budget; these estimates do not include error
+correction or physical hardware mapping. Reported gate counts are operation
+decompositions, with no angle pruning or global transpilation. Register
+qubits and synthesis ancillas are reported separately.
+
+Penalty components use merged Pauli words for shared-angle QAOA. Full Study B
+counts match the fixed merged topology in `PenaltyQAOA.tuning_functions`,
+including terms with zero angle at a particular penalty setting. Gadget
+preparation and one isolated penalty cost layer are component estimates,
+not interchangeable full algorithm costs. Full totals include objective
+terms, initial Hadamards on all PenaltyQAOA wires, and mixers. Grover mixers
+also use gadget unpreparation and repreparation every outer layer. Sums of
+isolated constraint components are not upper bounds on full-circuit costs.
+
+The integration also corrects the XY-mixer mirror to trace the actual
+`IsingXY` decomposition, including basis-change gates. Resource tests compare
+traces with executable circuits and verify missing-gadget and cache behavior.
+Final exported resource tables and figure previews are included under
+`tuning/artifacts/` for viewing on a fresh checkout.

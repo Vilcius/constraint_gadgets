@@ -35,11 +35,10 @@ For each constraint we estimate resources two ways (see
 ``estimate_constraint_resources`` / ``build_constraint_resource_db``):
   - "gadget"  -- used as an exact/VCG state-prep gadget for PC-QAOA
   - "penalty" -- penalized as a single term added to the cost Hamiltonian
-so that when a full problem is solved, the per-constraint numbers can be
-summed as a (conservative) upper bound and compared against the real,
-transpiled full-circuit estimate (which can be smaller, since combining
-Hamiltonian terms and transpilation both reduce gate counts below a naive
-sum of independently-estimated parts).
+These are constraint component costs, not full-circuit upper bounds: objective
+terms, mixers and slack initialization are counted separately. Tracing tallies
+operation decompositions; it does not perform global circuit transpilation.
+
 """
 from __future__ import annotations
 
@@ -81,11 +80,11 @@ def resources_to_dict(res: "qre.Resources") -> dict:
     """Plain-dict view of a qre.Resources object, suitable for pickling/saving."""
     return {
         "gate_counts": dict(res.gate_counts),
-        "total_gates": res.total_gates,
+        "total_gates": sum(res.gate_counts.values()),
         "algo_wires": res.algo_wires,
         "zeroed_wires": res.zeroed_wires,
         "any_state_wires": res.any_state_wires,
-        "total_wires": res.total_wires,
+        "total_wires": res.algo_wires + res.zeroed_wires + res.any_state_wires,
     }
 
 
@@ -289,11 +288,12 @@ def _qre_x_mixer(wires):
 
 
 def _qre_xy_interaction(a, b):
-    """One IsingXY(theta) interaction: standard 2-CNOT + 2-RY realisation."""
-    qre.CNOT(wires=[a, b])
-    qre.RY(wires=a)
-    qre.CNOT(wires=[a, b])
-    qre.RY(wires=b)
+    """Trace the actual IsingXY decomposition used by qaoa_base.
+
+    qre accepts qml operators and expands IsingXY through its decomposition.
+    A two-CNOT/two-RY sketch omits the executable circuit's basis changes.
+    """
+    qml.IsingXY(0.37, wires=[a, b])
 
 
 def _qre_xy_mixer(wires, ring=True):
@@ -498,6 +498,17 @@ def _qre_penalty_layer(all_wires, hamiltonian):
 
 # ── Per-constraint resource estimation (gadget vs. penalty) ────────────────
 
+def estimate_vcg_resources(gadget, gate_sets=None) -> dict:
+    """Estimate a restored VCG's state preparation without training.
+
+    Allows callers to reuse the reconstructed Hamiltonian across losses.
+    """
+    gate_sets = gate_sets or GATE_SETS
+    descriptor = _vcg_descriptor_from_object(gadget)
+    return {name: resources_to_dict(_run_estimate(descriptor["fn"], gates))
+            for name, gates in gate_sets.items()}
+
+
 def estimate_constraint_gadget(constraint_str: str, vcg_db: dict | None = None,
                                gate_sets=None) -> dict:
     """Resources for using ONE constraint as an exact/VCG state-prep gadget.
@@ -518,27 +529,35 @@ def estimate_constraint_gadget(constraint_str: str, vcg_db: dict | None = None,
 
 
 def estimate_constraint_penalty(constraint_str: str, n_x: int, penalty_weight: float,
-                                gate_sets=None) -> dict:
+                                gate_sets=None, coalesce: bool = False) -> dict:
     """Resources for penalizing ONE constraint as its own term in the cost
     Hamiltonian -- just that term (no mixer), reusing the real
-    build_penalty_hamiltonian / apply_cost_unitary construction."""
+    build_penalty_hamiltonian / apply_cost_unitary construction.
+    Set coalesce=True for shared-angle QAOA, which merges repeated Pauli
+    words. The default retains the legacy raw expansion.
+    """
     from . import qaoa_base as base
 
     gate_sets = gate_sets or GATE_SETS
     pc = ch.parse_constraints([constraint_str])[0]
     slack_infos, _ = ch.determine_slack_variables([pc], n_x)
-    pen_ham = base.build_penalty_hamiltonian([pc], slack_infos, penalty_weight)
+    pen_ham = base.build_penalty_hamiltonian(
+        [pc], slack_infos, penalty_weight, fallback_wire=0)
+    if coalesce:
+        pen_ham = pen_ham.simplify()
     fn = _closure(_qre_cost_layer, pen_ham)
     return {gs_name: resources_to_dict(_run_estimate(fn, gate_set))
             for gs_name, gate_set in gate_sets.items()}
 
 
 def estimate_constraint_resources(constraint_str: str, n_x: int, penalty_weight: float,
-                                  vcg_db: dict | None = None, gate_sets=None) -> dict:
+                                  vcg_db: dict | None = None, gate_sets=None,
+                                  coalesce_penalty: bool = False) -> dict:
     """Both views for one constraint: {"gadget": ..., "penalty": ...}."""
     return {
         "gadget": estimate_constraint_gadget(constraint_str, vcg_db, gate_sets),
-        "penalty": estimate_constraint_penalty(constraint_str, n_x, penalty_weight, gate_sets),
+        "penalty": estimate_constraint_penalty(
+            constraint_str, n_x, penalty_weight, gate_sets, coalesce=coalesce_penalty),
     }
 
 
@@ -576,16 +595,20 @@ def estimate_pc_qaoa_resources(pcqaoa, gate_sets=None) -> dict:
     return out
 
 
-def estimate_penalty_resources(pqaoa, gate_sets=None) -> dict:
-    """Estimate circuit resources for a real PenaltyQAOA instance, per gate set."""
+def estimate_penalty_resources(pqaoa, gate_sets=None, circuit_hamiltonian=None) -> dict:
+    """Estimate a PenaltyQAOA circuit, optionally using its tuning Hamiltonian.
+
+    The tuning runner coalesces Pauli words before tracing; supplying that
+    Hamiltonian counts the executed circuit rather than its raw expansion.
+    """
     gate_sets = gate_sets or GATE_SETS
-    slack_wires = list(range(pqaoa.n_total - pqaoa.n_slack, pqaoa.n_total))
     all_wires = list(range(pqaoa.n_total))
+    ham = pqaoa.full_Ham if circuit_hamiltonian is None else circuit_hamiltonian
 
     out = {}
     for gs_name, gate_set in gate_sets.items():
-        sp_res = _run_estimate(_closure(_qre_hadamard_init, slack_wires), gate_set)
-        layer_res = _run_estimate(_closure(_qre_penalty_layer, all_wires, pqaoa.full_Ham), gate_set)
+        sp_res = _run_estimate(_closure(_qre_hadamard_init, all_wires), gate_set)
+        layer_res = _run_estimate(_closure(_qre_penalty_layer, all_wires, ham), gate_set)
         full_res = sp_res.add_series(layer_res.multiply_series(pqaoa.n_layers))
         out[gs_name] = {"sp": sp_res, "layer": layer_res, "full": full_res}
     return out
@@ -623,16 +646,16 @@ def estimate_from_task(
         "nisq", "ftqc"  -- each a dict with:
             "pc_qaoa_sp", "pc_qaoa_layer", "pc_qaoa"   -- qre.Resources
             "penalty_sp", "penalty_layer", "penalty"   -- qre.Resources
-            "sum_of_parts_pc_qaoa"   -- {gate_name: count}, upper bound:
+            "sum_of_parts_pc_qaoa"   -- {gate_name: count}, constraint-only subtotal:
                 each structural constraint's own gadget cost (once) + each
                 PC-QAOA-penalized constraint's own penalty-term cost
                 (x n_layers, since that term recurs every layer)
-            "sum_of_parts_penalty"   -- {gate_name: count}, upper bound:
+            "sum_of_parts_penalty"   -- {gate_name: count}, constraint-only subtotal:
                 every constraint's own penalty-term cost (x n_layers), summed
-    The "full" pc_qaoa/penalty entries can be smaller than the sum-of-parts
-    entries: term-combination (Hamiltonian addition can merge two
-    constraints' Pauli terms) and transpilation both reduce gate counts
-    below a naive sum of independently-estimated parts.
+    The component sums omit objective evolution, mixers, slack initialization
+    and gadget unpreparation/repreparation within Grover mixers. They are not
+    upper bounds on full circuits. Estimates tally decompositions; they do
+    not run a global circuit transpiler or remove angle-dependent gates.
     """
     from . import qaoa_base as base
 
@@ -697,7 +720,7 @@ def estimate_from_task(
             _closure(_qre_mixer_layer, all_wires_pc, descriptors, problem_ham), gate_set)
         full_res = sp_res.add_series(layer_res.multiply_series(n_layers))
 
-        p_sp_res = _run_estimate(_closure(_qre_hadamard_init, slack_wires_p), gate_set)
+        p_sp_res = _run_estimate(_closure(_qre_hadamard_init, all_wires_p), gate_set)
         p_layer_res = _run_estimate(_closure(_qre_penalty_layer, all_wires_p, pen_full_ham), gate_set)
         p_full_res = p_sp_res.add_series(p_layer_res.multiply_series(n_layers))
 
