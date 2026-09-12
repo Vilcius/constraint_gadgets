@@ -1,0 +1,20 @@
+{
+  "identity": "046da9b78bd3131ebfb2545a4280a0763bb0dcf9c1113fe7ca605ba7a221df7c",
+  "instance_id": "b_8_disjoint_01",
+  "condition": "verma_lewis",
+  "rule": "verma_lewis",
+  "delta": 20.0,
+  "selectable": true,
+  "n_x": 8,
+  "regime": "disjoint",
+  "n_slack": 2,
+  "n_total": 10,
+  "depth": 5,
+  "p_optimal": 0.0271,
+  "p_feasible": 0.8989999999999999,
+  "exact_p_optimal": 0.026005225547232818,
+  "exact_p_feasible": 0.9042076562005725,
+  "compile_seconds": 0.03091729572042823,
+  "optimize_seconds": 12.340846750885248,
+  "process_peak_rss_mb": 1700.7265625
+}

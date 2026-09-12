@@ -1,0 +1,20 @@
+{
+  "identity": "1cf43acf9e6fedf518f6cc60bfca35241239adb9bbf5c45c9408975cc9e7a5f5",
+  "instance_id": "b_5_disjoint_02",
+  "condition": "maximum",
+  "rule": "maximum",
+  "delta": 6.0,
+  "selectable": true,
+  "n_x": 5,
+  "regime": "disjoint",
+  "n_slack": 0,
+  "n_total": 5,
+  "depth": 5,
+  "p_optimal": 0.4342,
+  "p_feasible": 0.7289,
+  "exact_p_optimal": 0.43563936181118007,
+  "exact_p_feasible": 0.729292869892271,
+  "compile_seconds": 0.004210330080240965,
+  "optimize_seconds": 1.087020514998585,
+  "process_peak_rss_mb": 828.69921875
+}

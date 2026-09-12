@@ -1,0 +1,845 @@
+"""
+constraint_handler.py -- Constraint preprocessing, classification, and partitioning.
+
+Provides a unified interface for:
+  - Parsing constraint strings ("x_0 + x_1 <= 1", "2*x_0 + x_1*x_2 == 3")
+  - Classifying constraint types (Dicke-compatible, general equality, inequality)
+  - Determining variable sets and detecting disjointness
+  - Partitioning constraints into structural vs. penalized groups
+  - Slack variable allocation for inequalities
+  - Feasibility checking of bitstrings
+  - Constraint normalisation and matching (for pre-computed lookup)
+"""
+
+from __future__ import annotations
+
+import re
+import itertools as it
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from typing import Dict, List, Optional, Set, Tuple
+
+import numpy as np
+
+
+# ======================================================================
+# Enums & data classes
+# ======================================================================
+
+class ConstraintType(Enum):
+    """Classification of a single constraint."""
+    DICKE = auto()              # sum x_i == b  (all +1 coefficients, equality)
+    CARDINALITY_LEQ = auto()    # sum x_i <= b  (all +1 coefficients, LEQ inequality)
+    CARDINALITY_GEQ_SINGLE = auto()    # sum x_i >= n  (all +1 coefficients, GEQ, rhs == n_vars; single feasible)
+    FLOW = auto()               # sum_in x_i - sum_out x_j == 0  (±1 coefficients, equality, rhs=0)
+    WEIGHTED_SUM = auto()       # sum c_i x_i op b  (linear, possibly inequality)
+    INDEPENDENT_SET_PAIR = auto()  # x_i*x_j == 0  → treated as x_i + x_j <= 1
+    QUADRATIC = auto()          # contains x_i * x_j terms (general)
+    GENERAL = auto()            # fallback
+
+
+class ConstraintOp(Enum):
+    """Relational operator."""
+    EQ  = "=="
+    LEQ = "<="
+    GEQ = ">="
+    LT  = "<"
+    GT  = ">"
+
+
+# Map string representations to ConstraintOp
+_OP_MAP = {
+    "==": ConstraintOp.EQ,
+    "<=": ConstraintOp.LEQ,
+    ">=": ConstraintOp.GEQ,
+    "=":  ConstraintOp.EQ,
+    "<":  ConstraintOp.LT,
+    ">":  ConstraintOp.GT,
+}
+
+# Parse order matters: check two-character operators before single-character
+_OP_PARSE_ORDER = ["==", "<=", ">=", "=", "<", ">"]
+
+
+@dataclass
+class ParsedConstraint:
+    """
+    Fully parsed representation of a single constraint string.
+
+    Attributes
+    ----------
+    raw : str
+        Original constraint string.
+    lhs_str : str
+        Left-hand side as a string.
+    rhs : float
+        Right-hand side numeric value.
+    op : ConstraintOp
+        Relational operator.
+    op_symbol : str
+        Original operator symbol string (e.g. "<=").
+    linear : dict[int, float]
+        Mapping variable_index -> coefficient for linear terms.
+    quadratic : dict[tuple[int,int], float]
+        Mapping (var_i, var_j) -> coefficient for quadratic terms (sorted indices).
+    constant : float
+        Constant term on the LHS.
+    variables : set[int]
+        All variable indices appearing in this constraint.
+    ctype : ConstraintType
+        Classified type of this constraint.
+    """
+    raw: str
+    lhs_str: str
+    rhs: float
+    op: ConstraintOp
+    op_symbol: str
+    linear: Dict[int, float] = field(default_factory=dict)
+    quadratic: Dict[Tuple[int, int], float] = field(default_factory=dict)
+    constant: float = 0.0
+    variables: Set[int] = field(default_factory=set)
+    ctype: ConstraintType = ConstraintType.GENERAL
+
+
+@dataclass
+class SlackInfo:
+    """
+    Slack variable allocation for a single penalised inequality constraint.
+
+    Attributes
+    ----------
+    constraint_idx : int
+        Index into the list of penalised constraints.
+    n_slack : int
+        Number of slack qubits needed.
+    slack_start_wire : int or None
+        First wire index for the slack variables.
+    operator : str
+        "eq", "leq", or "geq" (after converting strict inequalities).
+    effective_rhs : float
+        RHS after adjusting for strict inequalities.
+    """
+    constraint_idx: int
+    n_slack: int
+    slack_start_wire: Optional[int]
+    operator: str
+    effective_rhs: float
+
+
+# ======================================================================
+# Parsing
+# ======================================================================
+
+def parse_constraint(constraint: str) -> ParsedConstraint:
+    """
+    Parse a single constraint string into a ``ParsedConstraint``.
+
+    Supports formats like:
+      - "x_0 + x_1 + x_2 == 2"
+      - "2*x_0 + 3*x_1 <= 5"
+      - "x_0*x_1 + x_2 >= 1"
+      - "-x_0 + x_1*x_2 == 0"
+
+    Parameters
+    ----------
+    constraint : str
+        The constraint string.
+
+    Returns
+    -------
+    ParsedConstraint
+    """
+    raw = constraint.strip()
+
+    # --- split on operator ---
+    op_symbol = None
+    lhs_str = rhs_str = None
+    for sym in _OP_PARSE_ORDER:
+        if sym in raw:
+            parts = raw.split(sym, maxsplit=1)
+            lhs_str = parts[0].strip()
+            rhs_str = parts[1].strip()
+            op_symbol = sym
+            break
+
+    if op_symbol is None:
+        raise ValueError(f"No relational operator found in constraint: '{raw}'")
+
+    op = _OP_MAP[op_symbol]
+
+    try:
+        rhs = float(rhs_str)
+    except ValueError:
+        raise ValueError(f"RHS '{rhs_str}' is not a valid number in constraint: '{raw}'")
+
+    # --- parse LHS into linear / quadratic / constant ---
+    linear, quadratic, constant = _parse_lhs(lhs_str)
+
+    variables = set(linear.keys())
+    for pair in quadratic:
+        variables.update(pair)
+
+    # --- classify ---
+    ctype = _classify(linear, quadratic, constant, op, rhs)
+
+    return ParsedConstraint(
+        raw=raw,
+        lhs_str=lhs_str,
+        rhs=rhs,
+        op=op,
+        op_symbol=op_symbol,
+        linear=linear,
+        quadratic=quadratic,
+        constant=constant,
+        variables=variables,
+        ctype=ctype,
+    )
+
+
+def parse_constraints(constraints: List[str]) -> List[ParsedConstraint]:
+    """Parse a list of constraint strings."""
+    return [parse_constraint(c) for c in constraints]
+
+
+def _parse_lhs(lhs: str) -> Tuple[Dict[int, float], Dict[Tuple[int, int], float], float]:
+    """
+    Parse a LHS expression into (linear, quadratic, constant).
+
+    Returns
+    -------
+    linear : dict[int, float]
+    quadratic : dict[tuple[int,int], float]
+    constant : float
+    """
+    lhs = lhs.replace(" ", "")
+    linear: Dict[int, float] = {}
+    quadratic: Dict[Tuple[int, int], float] = {}
+    constant = 0.0
+
+    # Split preserving sign
+    terms = [t for t in re.split(r"(?=[+-])", lhs) if t]
+
+    for term in terms:
+        if "x_" not in term:
+            try:
+                constant += float(term)
+            except ValueError:
+                raise ValueError(f"Cannot parse '{term}' as constant")
+            continue
+
+        # Extract all variable indices
+        variables = [int(v) for v in re.findall(r"x_(\d+)", term)]
+
+        # Extract coefficient
+        coeff_match = re.match(r"^([+-]?[\d.]*)[\*]?x_", term)
+        if coeff_match:
+            cs = coeff_match.group(1)
+            if cs in ("", "+"):
+                coefficient = 1.0
+            elif cs == "-":
+                coefficient = -1.0
+            else:
+                coefficient = float(cs)
+        else:
+            coefficient = -1.0 if term.startswith("-") else 1.0
+
+        if len(variables) == 1:
+            idx = variables[0]
+            linear[idx] = linear.get(idx, 0.0) + coefficient
+        elif len(variables) == 2:
+            pair = tuple(sorted(variables))
+            quadratic[pair] = quadratic.get(pair, 0.0) + coefficient
+        else:
+            raise ValueError(f"Terms with >2 variables not supported: '{term}'")
+
+    return linear, quadratic, constant
+
+
+# ======================================================================
+# Classification
+# ======================================================================
+
+def _classify(
+    linear: Dict[int, float],
+    quadratic: Dict[Tuple[int, int], float],
+    constant: float,
+    op: ConstraintOp,
+    rhs: float = 0.0,
+) -> ConstraintType:
+    """
+    Classify a parsed constraint.
+
+    - DICKE:        all +1 linear, no quadratic, no constant, equality (sum x_i == b).
+    - FLOW:         all ±1 linear (both signs present), no quadratic, no constant,
+                    equality with rhs=0 (sum_in x_i - sum_out x_j == 0).
+    - WEIGHTED_SUM: linear only (possibly non-unit coefficients or inequality).
+    - QUADRATIC:    has quadratic terms.
+    - GENERAL:      fallback.
+    """
+    no_constant = abs(constant) < 1e-12
+    is_equality = (op == ConstraintOp.EQ)
+
+    if quadratic:
+        # Independent-set pair: single cross-product x_i*x_j == 0, coeff +1.
+        # Equivalent to x_i + x_j <= 1 → handled by CardinalityLeqStatePrep(k=1).
+        if (len(quadratic) == 1 and not linear and no_constant
+                and is_equality and abs(rhs) < 1e-12):
+            (vi, vj), coeff = next(iter(quadratic.items()))
+            if vi != vj and abs(coeff - 1.0) < 1e-12:
+                return ConstraintType.INDEPENDENT_SET_PAIR
+        return ConstraintType.QUADRATIC
+
+    if not linear:
+        return ConstraintType.GENERAL
+
+    # Dicke: all +1 coefficients, equality, no constant
+    all_unit_pos = all(abs(c - 1.0) < 1e-12 for c in linear.values())
+    if all_unit_pos and no_constant and is_equality:
+        return ConstraintType.DICKE
+
+    # Cardinality inequality: all +1 coefficients, LEQ, no constant
+    if all_unit_pos and no_constant and op == ConstraintOp.LEQ:
+        return ConstraintType.CARDINALITY_LEQ
+
+    # Cardinality GEQ single-feasible: all +1, GEQ, rhs == n_vars (only all-ones satisfies)
+    if all_unit_pos and no_constant and op == ConstraintOp.GEQ:
+        if abs(rhs - len(linear)) < 1e-12:
+            return ConstraintType.CARDINALITY_GEQ_SINGLE
+
+    # Flow: all ±1 coefficients, both signs present, equality, rhs=0, no constant
+    all_unit_abs = all(abs(abs(c) - 1.0) < 1e-12 for c in linear.values())
+    has_positive = any(c > 0 for c in linear.values())
+    has_negative = any(c < 0 for c in linear.values())
+    rhs_zero = abs(rhs) < 1e-12
+    if all_unit_abs and has_positive and has_negative and no_constant and is_equality and rhs_zero:
+        return ConstraintType.FLOW
+
+    return ConstraintType.WEIGHTED_SUM
+
+
+def is_dicke_compatible(pc: ParsedConstraint) -> bool:
+    """Check if a parsed constraint can be enforced with Dicke state preparation."""
+    return pc.ctype == ConstraintType.DICKE
+
+
+def is_cardinality_leq_compatible(pc: ParsedConstraint) -> bool:
+    """Check if a parsed constraint can be enforced via a superposition of Dicke states.
+
+    Compatible constraints have the form sum x_i <= b (all +1 linear coefficients,
+    LEQ inequality, no quadratic terms, no constant).  The resulting state preparation
+    (CardinalityLeqStatePrep) builds a uniform superposition of Dicke states
+    |D^n_0>, |D^n_1>, ..., |D^n_b>.
+    """
+    return pc.ctype == ConstraintType.CARDINALITY_LEQ
+
+
+def is_cardinality_geq_single_compatible(pc: ParsedConstraint) -> bool:
+    """Check if a parsed constraint has a single feasible solution of all ones.
+
+    Compatible constraints have the form ``sum x_i >= n`` where n equals the
+    number of variables (all +1 linear coefficients, GEQ, rhs == n_vars).
+    The unique feasible solution is the all-ones bitstring, prepared with X
+    gates on every variable qubit.
+    """
+    return pc.ctype == ConstraintType.CARDINALITY_GEQ_SINGLE
+
+
+is_cardinality_geq_compatible = is_cardinality_geq_single_compatible
+
+
+def is_independent_set_pair_compatible(pc: ParsedConstraint) -> bool:
+    """Check if constraint is x_i*x_j == 0 (independent set pair → x_i + x_j <= 1)."""
+    return pc.ctype == ConstraintType.INDEPENDENT_SET_PAIR
+
+
+def is_flow_compatible(pc: ParsedConstraint) -> bool:
+    """Check if a parsed constraint can be enforced with FlowStatePrep.
+
+    Flow-compatible constraints have the form sum_in x_i - sum_out x_j == 0
+    (all ±1 linear coefficients, both signs present, equality, rhs=0).
+    """
+    return pc.ctype == ConstraintType.FLOW
+
+
+# ======================================================================
+# Variable analysis & disjointness
+# ======================================================================
+
+def get_variable_set(pc: ParsedConstraint) -> Set[int]:
+    """Return the set of variable indices in a constraint."""
+    return pc.variables
+
+
+def are_disjoint(pc_a: ParsedConstraint, pc_b: ParsedConstraint) -> bool:
+    """Check whether two constraints act on completely disjoint variable sets."""
+    return pc_a.variables.isdisjoint(pc_b.variables)
+
+
+def find_disjoint_groups(constraints: List[ParsedConstraint]) -> List[List[int]]:
+    """
+    Partition constraint indices into maximal groups of mutually disjoint constraints.
+
+    Uses a simple greedy/union-find approach: two constraints are in the same
+    group if they share any variable (transitively).
+
+    Parameters
+    ----------
+    constraints : list[ParsedConstraint]
+
+    Returns
+    -------
+    groups : list[list[int]]
+        Each inner list contains indices into the input list. Constraints within
+        a group share variables (directly or transitively). Constraints in
+        different groups are variable-disjoint.
+    """
+    n = len(constraints)
+    parent = list(range(n))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    # Union constraints that share variables
+    for i in range(n):
+        for j in range(i + 1, n):
+            if not constraints[i].variables.isdisjoint(constraints[j].variables):
+                union(i, j)
+
+    # Collect groups
+    groups_map: Dict[int, List[int]] = {}
+    for i in range(n):
+        root = find(i)
+        groups_map.setdefault(root, []).append(i)
+
+    return list(groups_map.values())
+
+
+# ======================================================================
+# Partitioning: structural vs. penalized
+# ======================================================================
+
+def partition_constraints(
+    constraints: List[ParsedConstraint],
+    strategy: str = "auto",
+) -> Tuple[List[int], List[int]]:
+    """
+    Partition constraints into structural (gadget-enforced) and penalized groups.
+
+    Strategy options:
+    - "auto":     Exact preps (Dicke, CardinalityLeq, Flow) are always
+                  structural.  Each remaining constraint gets one VCG gadget
+                  if and only if its variable set is disjoint from every
+                  variable already claimed by a structural constraint;
+                  otherwise it is penalized.
+    - "all_structural": All constraints are structural (original QAOA+ approach).
+    - "all_penalty":    All constraints are penalized (standard penalty QAOA).
+    - "dicke_only":     Only Dicke/Flow-compatible constraints are structural.
+
+    Parameters
+    ----------
+    constraints : list[ParsedConstraint]
+    strategy : str
+        Partitioning strategy.
+
+    Returns
+    -------
+    structural_indices : list[int]
+        Indices of constraints to enforce structurally.
+    penalty_indices : list[int]
+        Indices of constraints to enforce via penalty.
+    """
+    n = len(constraints)
+
+    if strategy == "all_structural":
+        return list(range(n)), []
+    if strategy == "all_penalty":
+        return [], list(range(n))
+    if strategy == "dicke_only":
+        structural = [i for i in range(n)
+                      if is_dicke_compatible(constraints[i]) or is_flow_compatible(constraints[i])]
+        penalty = [i for i in range(n) if i not in structural]
+        return structural, penalty
+
+    # --- "auto" strategy ---
+    # Each structural preparation (Dicke, LEQ, Flow, or VCG gadget) handles
+    # exactly one constraint and operates on a fixed set of qubits.  All
+    # structural constraints must therefore have mutually disjoint variable
+    # sets — otherwise their circuits would operate on overlapping wires and
+    # the Grover mixer composition would be ill-defined.
+    #
+    # Rule (applied in index order, first-come-first-served):
+    #   For each constraint, make it structural if its variable set is
+    #   disjoint from every variable already claimed by a prior structural
+    #   constraint; otherwise penalize it.
+    #   Preference order within the same variable set: Dicke/LEQ/Flow
+    #   (exact, no training) before VCG-eligible.
+
+    structural_indices: List[int] = []
+    penalty_indices: List[int] = []
+    occupied_vars: Set[int] = set()
+
+    def _is_exact(c: ParsedConstraint) -> bool:
+        return (is_dicke_compatible(c)
+                or is_cardinality_leq_compatible(c)
+                or is_independent_set_pair_compatible(c)
+                or is_flow_compatible(c))
+
+    # Pass 1: exact preparations — prefer these over VCG when there is a
+    # choice, so process them first.
+    for i in range(n):
+        if not _is_exact(constraints[i]):
+            continue
+        if constraints[i].variables.isdisjoint(occupied_vars):
+            structural_indices.append(i)
+            occupied_vars |= constraints[i].variables
+        else:
+            penalty_indices.append(i)
+
+    # Pass 2: VCG-eligible constraints — structural iff variable-disjoint
+    for i in range(n):
+        if _is_exact(constraints[i]):
+            continue  # already handled
+        if constraints[i].variables.isdisjoint(occupied_vars):
+            structural_indices.append(i)
+            occupied_vars |= constraints[i].variables
+        else:
+            penalty_indices.append(i)
+
+    return sorted(structural_indices), sorted(penalty_indices)
+
+
+# ======================================================================
+# Slack variable determination
+# ======================================================================
+
+def determine_slack_variables(
+    constraints: List[ParsedConstraint],
+    slack_wire_offset: int,
+) -> Tuple[List[SlackInfo], int]:
+    """
+    Determine slack variable count and wire allocation for penalised constraints.
+
+    Inequality constraints are converted to equalities by adding slack variables:
+      - sum(c_i x_i) + sum(s_j) == b   for <=
+      - sum(c_i x_i) - sum(s_j) == b   for >=
+
+    Parameters
+    ----------
+    constraints : list[ParsedConstraint]
+        The penalised constraints.
+    slack_wire_offset : int
+        First available wire index for slack qubits.
+
+    Returns
+    -------
+    slack_infos : list[SlackInfo]
+        One entry per constraint.
+    total_slack : int
+        Total number of slack qubits allocated.
+    """
+    slack_infos = []
+    current_wire = slack_wire_offset
+
+    for i, pc in enumerate(constraints):
+        # Compute LHS value range
+        max_lhs = pc.constant + sum(c for c in pc.linear.values() if c > 0) \
+                               + sum(c for c in pc.quadratic.values() if c > 0)
+        min_lhs = pc.constant + sum(c for c in pc.linear.values() if c < 0) \
+                               + sum(c for c in pc.quadratic.values() if c < 0)
+
+        if pc.op in (ConstraintOp.LEQ, ConstraintOp.LT):
+            eff_rhs = pc.rhs if pc.op == ConstraintOp.LEQ else pc.rhs - 1
+            slack_range = max(0, int(np.ceil(eff_rhs - min_lhs)))
+            n_slack = slack_range.bit_length()
+            slack_infos.append(SlackInfo(
+                constraint_idx=i,
+                n_slack=n_slack,
+                slack_start_wire=current_wire,
+                operator="leq",
+                effective_rhs=eff_rhs,
+            ))
+            current_wire += n_slack
+
+        elif pc.op in (ConstraintOp.GEQ, ConstraintOp.GT):
+            eff_rhs = pc.rhs if pc.op == ConstraintOp.GEQ else pc.rhs + 1
+            slack_range = max(0, int(np.ceil(max_lhs - eff_rhs)))
+            n_slack = slack_range.bit_length()
+            slack_infos.append(SlackInfo(
+                constraint_idx=i,
+                n_slack=n_slack,
+                slack_start_wire=current_wire,
+                operator="geq",
+                effective_rhs=eff_rhs,
+            ))
+            current_wire += n_slack
+
+        else:  # EQ
+            slack_infos.append(SlackInfo(
+                constraint_idx=i,
+                n_slack=0,
+                slack_start_wire=None,
+                operator="eq",
+                effective_rhs=pc.rhs,
+            ))
+
+    total_slack = current_wire - slack_wire_offset
+    return slack_infos, total_slack
+
+
+# ======================================================================
+# Feasibility checking
+# ======================================================================
+
+def check_feasibility(
+    bitstring: str,
+    constraints: List[ParsedConstraint],
+    n_x: Optional[int] = None,
+) -> bool:
+    """
+    Check whether a bitstring satisfies all constraints.
+
+    Only the first n_x bits (decision variables) are used; slack bits
+    are ignored.
+
+    Parameters
+    ----------
+    bitstring : str
+        Binary string (e.g. "01101").
+    constraints : list[ParsedConstraint]
+    n_x : int or None
+        Number of decision variable bits. If None, uses len(bitstring).
+
+    Returns
+    -------
+    bool
+    """
+    if n_x is None:
+        n_x = len(bitstring)
+    x = bitstring[:n_x]
+
+    for pc in constraints:
+        lhs_val = pc.constant
+        for idx, coeff in pc.linear.items():
+            if idx < len(x):
+                lhs_val += coeff * int(x[idx])
+        for (i, j), coeff in pc.quadratic.items():
+            if i < len(x) and j < len(x):
+                lhs_val += coeff * int(x[i]) * int(x[j])
+
+        if pc.op == ConstraintOp.EQ and not np.isclose(lhs_val, pc.rhs, atol=1e-6):
+            return False
+        elif pc.op == ConstraintOp.LEQ and lhs_val > pc.rhs + 1e-6:
+            return False
+        elif pc.op == ConstraintOp.LT and lhs_val >= pc.rhs - 1e-6:
+            return False
+        elif pc.op == ConstraintOp.GEQ and lhs_val < pc.rhs - 1e-6:
+            return False
+        elif pc.op == ConstraintOp.GT and lhs_val <= pc.rhs + 1e-6:
+            return False
+
+    return True
+
+
+def evaluate_lhs(pc: ParsedConstraint, x_bits: str) -> float:
+    """Evaluate the LHS of a constraint for a given binary assignment."""
+    val = pc.constant
+    for idx, coeff in pc.linear.items():
+        if idx < len(x_bits):
+            val += coeff * int(x_bits[idx])
+    for (i, j), coeff in pc.quadratic.items():
+        if i < len(x_bits) and j < len(x_bits):
+            val += coeff * int(x_bits[i]) * int(x_bits[j])
+    return val
+
+
+def compute_tight_lambda(
+    Q,
+    all_constraints: List[ParsedConstraint],
+    pen_indices: List[int],
+) -> float:
+    """
+    Compute the minimum penalty weight λ for the penalized constraints such
+    that every state violating them has higher augmented cost than f*.
+
+    For any state x with V_pen(x) > 0 (violates ≥1 penalized constraint under
+    optimal slack assignment), we require:
+
+        f(x) + λ * V_pen(x) > f*
+
+    where V_pen(x) = Σ_{k in pen} v_k(x)² and v_k is the slack-optimal
+    residual violation:
+        LEQ/LT:  v_k = max(0, lhs − rhs)
+        GEQ/GT:  v_k = max(0, rhs − lhs)
+        EQ:      v_k = |lhs − rhs|
+
+    Returns ceil(max_ratio) + 1, where
+        max_ratio = max_{x: V_pen > 0} (f* − f(x)) / V_pen(x)
+
+    ensuring λ is a positive integer strictly sufficient for all states.
+    Returns 1 if pen_indices is empty.
+    """
+    import math
+
+    if not pen_indices:
+        return 1.0
+
+    import numpy as _np
+    n_x = Q.shape[0]
+    pen_pcs = [all_constraints[i] for i in pen_indices]
+
+    def _pen_violation_sq(bits):
+        bs = ''.join(map(str, bits))
+        total = 0.0
+        for pc in pen_pcs:
+            lhs = evaluate_lhs(pc, bs)
+            residual = lhs - pc.rhs
+            if pc.op in (ConstraintOp.LEQ, ConstraintOp.LT):
+                v = max(0.0, residual)
+            elif pc.op in (ConstraintOp.GEQ, ConstraintOp.GT):
+                v = max(0.0, -residual)
+            else:  # EQ
+                v = abs(residual)
+            total += v * v
+        return total
+
+    def _qubo_val(bits):
+        x = _np.array(bits, dtype=float)
+        return float(_np.dot(x, _np.dot(Q, x)))
+
+    # f* = min QUBO over states satisfying ALL constraints
+    f_star = None
+    for bits in it.product([0, 1], repeat=n_x):
+        bs = ''.join(map(str, bits))
+        if check_feasibility(bs, all_constraints, n_x):
+            fval = _qubo_val(bits)
+            if f_star is None or fval < f_star:
+                f_star = fval
+
+    if f_star is None:
+        raise ValueError("compute_tight_lambda: no fully feasible state found.")
+
+    # max (f* - f(x)) / V_pen(x) over states with V_pen > 0
+    max_ratio = 0.0
+    for bits in it.product([0, 1], repeat=n_x):
+        V = _pen_violation_sq(bits)
+        if V < 1e-10:
+            continue
+        fval = _qubo_val(bits)
+        ratio = (f_star - fval) / V
+        if ratio > max_ratio:
+            max_ratio = ratio
+
+    return float(max(1, math.ceil(max_ratio) + 1))
+
+
+# ======================================================================
+# Constraint normalisation and matching (for pre-computed lookup)
+# ======================================================================
+
+def normalize_constraint(c: str) -> str:
+    """Remap a constraint's variable indices to x_0, x_1, ... (sorted order).
+
+    Example: "6*x_2 + 2*x_0 + 2*x_3 <= 3"  →  "6*x_1 + 2*x_0 + 2*x_2 <= 3"
+
+    This canonical form is used as the VCG database lookup key so that
+    structurally identical constraints with different variable assignments
+    match the same pre-trained gadget.
+    """
+    var_ids = sorted(set(int(m) for m in re.findall(r'x_(\d+)', c)))
+    if not var_ids:
+        return c.strip()
+    remap = {old: new for new, old in enumerate(var_ids)}
+    return re.sub(r'x_(\d+)', lambda m: f'x_{remap[int(m.group(1))]}', c).strip()
+
+
+class ConstraintMapper:
+    """
+    Map input constraints to a pre-existing set in a dataframe by checking
+    all permutations of variable names and constraint ordering.
+
+    This allows looking up pre-computed gadget data even when variable
+    indices are permuted.
+    """
+
+    def __init__(self, constraints_in_df: List[List[str]]) -> None:
+        self.constraints_in_df = constraints_in_df
+
+    def normalize_constraint(self, constraint: str) -> str:
+        """Normalize by removing spaces and sorting additive terms."""
+        constraint = re.sub(r"\s+", "", constraint)
+        op_match = re.search(r"(==|<=|>=|=|<|>)", constraint)
+        if not op_match:
+            return constraint
+        operator = op_match.group(0)
+        lhs, rhs = constraint.split(operator, maxsplit=1)
+        terms = sorted(re.split(r"(\+)", lhs))
+        return f"{''.join(terms)}{operator}{rhs}"
+
+    def normalize_constraints(self, constraints: List[str]) -> List[str]:
+        return [self.normalize_constraint(c) for c in constraints]
+
+    def map_constraints(self, input_constraints: List[str]) -> Optional[List[str]]:
+        """
+        Find a matching constraint set in the dataframe, accounting for
+        variable and constraint permutations.
+
+        Returns the matched constraint list from the dataframe, or None.
+        """
+        normalized_input = self.normalize_constraints(input_constraints)
+        for constraints in self.constraints_in_df:
+            normalized_df = self.normalize_constraints(constraints)
+            if self._match(normalized_input, normalized_df):
+                return constraints
+        return None
+
+    def _match(
+        self,
+        input_constraints: List[str],
+        df_constraints: List[str],
+    ) -> bool:
+        input_vars = sorted(set(re.findall(r"x_\d+", " ".join(input_constraints))))
+        df_vars = sorted(set(re.findall(r"x_\d+", " ".join(df_constraints))))
+
+        if len(input_vars) != len(df_vars):
+            return False
+
+        for perm in it.permutations(df_vars):
+            var_map = {iv: perm[k] for k, iv in enumerate(input_vars)}
+            mapped = [
+                re.sub(r"x_\d+", lambda m: var_map[m.group(0)], c)
+                for c in input_constraints
+            ]
+            for perm_c in it.permutations(mapped):
+                if self._check_perm(perm_c, df_constraints):
+                    return True
+        return False
+
+    @staticmethod
+    def _check_perm(perm_constraints, df_constraints) -> bool:
+        for pc in perm_constraints:
+            op_match = re.search(r"(==|<=|>=|=|<|>)", pc)
+            if not op_match:
+                continue
+            pc_op = op_match.group(0)
+            for dc in df_constraints:
+                dc_op_match = re.search(r"(==|<=|>=|=|<|>)", dc)
+                if not dc_op_match:
+                    continue
+                dc_op = dc_op_match.group(0)
+                lhs_pc = re.split(r"(\+)", pc.split(pc_op)[0])
+                lhs_dc = re.split(r"(\+)", dc.split(dc_op)[0])
+                rhs_pc = pc.split(pc_op)[1]
+                rhs_dc = dc.split(dc_op)[1]
+                if (sorted(lhs_pc) == sorted(lhs_dc)
+                        and rhs_pc == rhs_dc
+                        and pc_op == dc_op):
+                    return True
+        return False

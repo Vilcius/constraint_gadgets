@@ -1,0 +1,20 @@
+{
+  "p_feasible": 0.9999106917131616,
+  "fidelity": 0.42333013337888764,
+  "conditional_fidelity": 0.4233679436446368,
+  "entropy": 0.8282108548832112,
+  "min_conditional_probability": 3.8586031338278807e-07,
+  "coverage": 0.8701298701298701,
+  "identity": "d6dd18015251b469e13cdb3708e31bf9f5aeb3a86ad796421fe59542ee30a873",
+  "instance_id": "a_8_positive_01",
+  "condition": "feasibility",
+  "family": "positive",
+  "support": 8,
+  "selected_depth": 1,
+  "final_loss": -0.9998213834263232,
+  "evaluated_depths": 8,
+  "converged": false,
+  "compile_seconds": 4485.540469792206,
+  "optimize_seconds": 1372.5114035210572,
+  "process_peak_rss_mb": 14870.140625
+}

@@ -1,0 +1,20 @@
+{
+  "identity": "dc6962123705302ed802604a0e26c984e2bf627a31aa9f4bef1ea5469cca094d",
+  "instance_id": "b_6_disjoint_02",
+  "condition": "local",
+  "rule": "local",
+  "delta": 18.0,
+  "selectable": true,
+  "n_x": 6,
+  "regime": "disjoint",
+  "n_slack": 3,
+  "n_total": 9,
+  "depth": 5,
+  "p_optimal": 0.0067,
+  "p_feasible": 0.7535000000000001,
+  "exact_p_optimal": 0.007344413531094999,
+  "exact_p_feasible": 0.7533308559500436,
+  "compile_seconds": 0.01698247529566288,
+  "optimize_seconds": 5.974484426900744,
+  "process_peak_rss_mb": 1464.65625
+}

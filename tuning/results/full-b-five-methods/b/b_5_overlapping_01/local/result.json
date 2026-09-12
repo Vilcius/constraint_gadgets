@@ -1,0 +1,20 @@
+{
+  "identity": "e96cc5708eaf287015a7b58dc95da5289f1ef601c7443f7e5aaa1bea0da1150c",
+  "instance_id": "b_5_overlapping_01",
+  "condition": "local",
+  "rule": "local",
+  "delta": 19.0,
+  "selectable": true,
+  "n_x": 5,
+  "regime": "overlapping",
+  "n_slack": 5,
+  "n_total": 10,
+  "depth": 5,
+  "p_optimal": 0.0409,
+  "p_feasible": 0.1336,
+  "exact_p_optimal": 0.04035162892890942,
+  "exact_p_feasible": 0.13115513658611128,
+  "compile_seconds": 0.03294947277754545,
+  "optimize_seconds": 12.438409249298275,
+  "process_peak_rss_mb": 1802.15625
+}

@@ -1,0 +1,20 @@
+{
+  "identity": "a6a638f6d21565c52ad2fbd5ab743250c88057bf44d03e1975b2b748f71fb289",
+  "instance_id": "b_4_overlapping_01",
+  "condition": "verma_lewis",
+  "rule": "verma_lewis",
+  "delta": 19.0,
+  "selectable": true,
+  "n_x": 4,
+  "regime": "overlapping",
+  "n_slack": 10,
+  "n_total": 14,
+  "depth": 5,
+  "p_optimal": 0.0649,
+  "p_feasible": 0.5038,
+  "exact_p_optimal": 0.0642855917615265,
+  "exact_p_feasible": 0.5076458938245709,
+  "compile_seconds": 0.773769267834723,
+  "optimize_seconds": 282.4720345530659,
+  "process_peak_rss_mb": 4051.70703125
+}

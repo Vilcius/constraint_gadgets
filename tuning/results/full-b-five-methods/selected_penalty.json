@@ -1,0 +1,10 @@
+{
+  "condition": "range",
+  "rule": "range",
+  "mean_sampled_p_optimal": 0.123775,
+  "criterion": "mean sampled P(opt) at final depth",
+  "depth": 5,
+  "shots": 10000,
+  "n_cops": 20,
+  "run_id": "d4972f8704455fbe673b425f7f6dfbdf92ddffa6e1c833a24b4d5dded71bcf34"
+}

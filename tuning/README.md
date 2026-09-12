@@ -232,7 +232,7 @@ and rejection of multiplier configurations.
 
 ## Collaborator handoff
 
-The selected 50 VCGs are available in `tuning/artifacts/selected_vcg_db.pkl`; see `tuning/artifacts/README.md` for reconstruction and resource-estimation entry points. Raw results are not tracked. The legacy-source resume command above applies only to the original local run; on a fresh checkout, start a new Study A run with `python tuning/run.py run --study a --output tuning/results/new-a`.
+The selected 50 VCGs are available in `tuning/artifacts/selected_vcg_db.pkl`; see `tuning/artifacts/README.md` for reconstruction and resource-estimation entry points. Completed raw results are tracked in `tuning/results/full` and `tuning/results/full-b-five-methods`, with the original Study A source in `tuning/results/legacy-a-source`. The notebook and report can read these results on a fresh checkout. Historical checkpoints retain their original source/environment identifiers; use the archived source and matching environment if resuming them. Start fresh studies in a new output directory, such as `python tuning/run.py run --study a --output tuning/results/new-a`.
 
 ## Resource estimates from completed tuning runs
 
@@ -279,3 +279,7 @@ The integration also corrects the XY-mixer mirror to trace the actual
 traces with executable circuits and verify missing-gadget and cache behavior.
 Final exported resource tables and figure previews are included under
 `tuning/artifacts/` for viewing on a fresh checkout.
+
+## Tracked experimental data
+
+The completed Study A and revised Study B directories include datasets, run provenance, optimizer checkpoints and backups, depth/restart histories, saved gadgets, final summaries, selections, resource estimates, and figures. The archived Study A source is tracked too. These files occupy about 105 MiB before Git compression. Smoke runs, new output directories, Python caches, and process locks remain ignored. Preserve original run records rather than mixing historical checkpoints with changed code or settings.

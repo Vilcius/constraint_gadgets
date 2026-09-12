@@ -1,0 +1,20 @@
+{
+  "p_feasible": 0.9999999879422801,
+  "fidelity": 0.9999999864949825,
+  "conditional_fidelity": 0.9999999985527024,
+  "entropy": 0.9999999986934752,
+  "min_conditional_probability": 0.12499071580179288,
+  "coverage": 1.0,
+  "identity": "704c31b75c9c20e0b19c5eca96e82855a62f5776abd7f67a482d3bcaed0e811c",
+  "instance_id": "a_4_mixed_01",
+  "condition": "lambda_2",
+  "family": "mixed",
+  "support": 4,
+  "selected_depth": 2,
+  "final_loss": 1.495231516379647e-08,
+  "evaluated_depths": 2,
+  "converged": true,
+  "compile_seconds": 0.0007574539631605148,
+  "optimize_seconds": 0.7539301472716033,
+  "process_peak_rss_mb": 764.30078125
+}

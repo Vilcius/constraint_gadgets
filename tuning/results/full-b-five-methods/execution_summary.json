@@ -1,0 +1,21 @@
+{
+  "profile": "full",
+  "a": {
+    "expected": 0,
+    "completed_results": 0,
+    "statuses": {
+      "pending": 0
+    }
+  },
+  "b": {
+    "expected": 100,
+    "completed_results": 100,
+    "statuses": {
+      "complete": 100,
+      "pending": 0
+    },
+    "compile_seconds": 2037.7972543956712,
+    "optimize_seconds": 51030.69173413981,
+    "largest_worker_peak_rss_mb": 15174.3984375
+  }
+}

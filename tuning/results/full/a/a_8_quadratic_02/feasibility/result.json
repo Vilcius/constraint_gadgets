@@ -1,0 +1,20 @@
+{
+  "p_feasible": 0.9998282474270972,
+  "fidelity": 0.5000198321212121,
+  "conditional_fidelity": 0.5001057265664733,
+  "entropy": 0.8949690844041641,
+  "min_conditional_probability": 0.00010503266845435684,
+  "coverage": 1.0,
+  "identity": "cd8022cb87d991f7d5f5f5987073967910164065deb9ac08d77eef4aef7ee20c",
+  "instance_id": "a_8_quadratic_02",
+  "condition": "feasibility",
+  "family": "quadratic",
+  "support": 8,
+  "selected_depth": 1,
+  "final_loss": -0.9996564948541944,
+  "evaluated_depths": 8,
+  "converged": false,
+  "compile_seconds": 4527.118190854788,
+  "optimize_seconds": 1419.206783184316,
+  "process_peak_rss_mb": 14756.02734375
+}

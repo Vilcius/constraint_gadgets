@@ -1,0 +1,20 @@
+{
+  "identity": "9805ebdfd24a27ab51fa786d30ec222feb658d90a9fb3700c8553770fb40747f",
+  "instance_id": "b_4_overlapping_02",
+  "condition": "maximum",
+  "rule": "maximum",
+  "delta": 6.0,
+  "selectable": true,
+  "n_x": 4,
+  "regime": "overlapping",
+  "n_slack": 8,
+  "n_total": 12,
+  "depth": 5,
+  "p_optimal": 0.0636,
+  "p_feasible": 0.0636,
+  "exact_p_optimal": 0.06251940046832619,
+  "exact_p_feasible": 0.06251940046832619,
+  "compile_seconds": 0.11399389104917645,
+  "optimize_seconds": 44.520293028559536,
+  "process_peak_rss_mb": 2138.0234375
+}
