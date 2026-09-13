@@ -1,8 +1,8 @@
 {
-  "identifier": "7d2a4ec5bba717cccf5051e5117ced7feb4a51a11ca97587106b5ce18fc57d4b",
+  "identifier": "c9d123237055357fec03fd907ee4a337ec7d04209109e82bcb12b2ed7154bb4f",
   "policy": {
     "schema": 1,
-    "pennylane": "0.45.1",
+    "pennylane": "0.44.1",
     "gate_sets": {
       "nisq": [
         "CNOT",
@@ -25,7 +25,7 @@
     },
     "synthesis_config": "ResourceConfig(\n  precisions = {\n    RX: {'precision': 1e-09},\n    RY: {'precision': 1e-09},\n    RZ: {'precision': 1e-09},\n    Rot: {'precision': None},\n    CRX: {'precision': None},\n    CRY: {'precision': None},\n    CRZ: {'precision': None},\n    CRot: {'precision': None},\n    ControlledPhaseShift: {'precision': None},\n    QubitUnitary: {'precision': 1e-09},\n    MultiRZ: {'precision': None},\n    PauliRot: {'precision': None},\n    SingleExcitation: {'precision': None},\n    SelectPauliRot: {'precision': 1e-09},\n    AliasSampling: {'precision': 1e-09},\n    MPSPrep: {'precision': None},\n    QROMStatePreparation: {'precision': 1e-09},\n    TrotterVibronic: {'phase_grad_precision': 1e-06, 'coeff_precision': 0.001},\n    TrotterVibrational: {'phase_grad_precision': 1e-06, 'coeff_precision': 0.001},\n    GQSP: {'rotation_precision': None},\n    QSP: {'rotation_precision': None},\n    GQSPTimeEvolution: {'poly_approx_precision': None}\n},\n  custom decomps = []\n)",
     "source_hashes": {
-      "tuning/resource_analysis.py": "b6a1662d1274e5fdd3475dda552867d36fbf205bab6da1fc881f61eeb6a03689",
+      "tuning/resource_analysis.py": "afd842e50da58043ba0a99be238f304f38b67ecd1ee9e6fba0e4711d4cff4e04",
       "core/resource_estimation.py": "99ab5a84da87d020e689d57df671036f6932ac4db64a25c5da3835eb27877c2a",
       "core/vcg.py": "f9d39cbc225dbaa76335815c4edb98e59216438785c3b93fdd58937e07d1d424",
       "core/qaoa_base.py": "ad645de1749f11bc7a333272bb24c1fabb418e0dd1087bfa9fb348ded0b9011e",
@@ -182,7 +182,7 @@
       "lambda_2": "d166da7722c31e15403b90f697b3fddf73c3d911ff099ade32b9c6c116c63c29"
     }
   },
-  "seconds": 0.04666942195035517,
+  "seconds": 0.052255491027608514,
   "rows": [
     {
       "instance_id": "a_7_equality_02",

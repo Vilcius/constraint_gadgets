@@ -1,8 +1,8 @@
 {
-  "identifier": "a4a06c9b39e735c56b2956dbf449e8018d163b2d9ff73d52924e9c7b841e25dd",
+  "identifier": "b054f929af46f55d1fb87e63574592a3ccbc09aa063576d2ec3b7d55b79aefbd",
   "policy": {
     "schema": 1,
-    "pennylane": "0.45.1",
+    "pennylane": "0.44.1",
     "gate_sets": {
       "nisq": [
         "CNOT",
@@ -25,7 +25,7 @@
     },
     "synthesis_config": "ResourceConfig(\n  precisions = {\n    RX: {'precision': 1e-09},\n    RY: {'precision': 1e-09},\n    RZ: {'precision': 1e-09},\n    Rot: {'precision': None},\n    CRX: {'precision': None},\n    CRY: {'precision': None},\n    CRZ: {'precision': None},\n    CRot: {'precision': None},\n    ControlledPhaseShift: {'precision': None},\n    QubitUnitary: {'precision': 1e-09},\n    MultiRZ: {'precision': None},\n    PauliRot: {'precision': None},\n    SingleExcitation: {'precision': None},\n    SelectPauliRot: {'precision': 1e-09},\n    AliasSampling: {'precision': 1e-09},\n    MPSPrep: {'precision': None},\n    QROMStatePreparation: {'precision': 1e-09},\n    TrotterVibronic: {'phase_grad_precision': 1e-06, 'coeff_precision': 0.001},\n    TrotterVibrational: {'phase_grad_precision': 1e-06, 'coeff_precision': 0.001},\n    GQSP: {'rotation_precision': None},\n    QSP: {'rotation_precision': None},\n    GQSPTimeEvolution: {'poly_approx_precision': None}\n},\n  custom decomps = []\n)",
     "source_hashes": {
-      "tuning/resource_analysis.py": "b6a1662d1274e5fdd3475dda552867d36fbf205bab6da1fc881f61eeb6a03689",
+      "tuning/resource_analysis.py": "afd842e50da58043ba0a99be238f304f38b67ecd1ee9e6fba0e4711d4cff4e04",
       "core/resource_estimation.py": "99ab5a84da87d020e689d57df671036f6932ac4db64a25c5da3835eb27877c2a",
       "core/vcg.py": "f9d39cbc225dbaa76335815c4edb98e59216438785c3b93fdd58937e07d1d424",
       "core/qaoa_base.py": "ad645de1749f11bc7a333272bb24c1fabb418e0dd1087bfa9fb348ded0b9011e",
@@ -118,7 +118,7 @@
       "lambda_2": "d5ed05c130f586b84ad3d0c5379d4ddb6e6ceed0949b8e3dba4a741bf3c9efc9"
     }
   },
-  "seconds": 0.04295109200756997,
+  "seconds": 0.04774274799274281,
   "rows": [
     {
       "instance_id": "a_6_mixed_01",

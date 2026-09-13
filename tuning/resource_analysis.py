@@ -21,7 +21,7 @@ from core import constraint_handler as ch, qaoa_base as base
 from core import resource_estimation as re
 from core.vcg import VCG
 from core.penalty_qaoa import PenaltyQAOA
-from analyze import mean_intervals, summary_plot
+from analyze import mean_intervals, summary_plot, COLORS, LABELS
 from storage import atomic_bytes, digest, write_json
 
 
@@ -206,6 +206,124 @@ def _export(rows, path):
     return frame
 
 
+FAMILY_COLORS = {'equality': '#3e8fb0', 'positive': '#9063cd',
+                  'mixed': '#f6c177', 'quadratic': '#eb6f92'}
+FAMILY_LABELS = {'equality': 'Equality', 'positive': 'Positive Ineq.',
+                  'mixed': 'Mixed-Sign Ineq.', 'quadratic': 'Quadratic Ineq.'}
+LOSS_ORDER = ['feasibility', 'fidelity', 'lambda_0.5', 'lambda_1', 'lambda_2']
+SUPPORT_MARKERS = ['o', 's', '^', 'D', 'v']  # matches summary_plot's marker cycle
+METRIC_FILENAME = {'total_gates': 'total', 'two_qubit_gates': 'cnot', 't_gates': 't'}
+
+
+# Which gate sets a metric is worth faceting over, and whether panels need a
+# "(NISQ)"/"(FTQC)" qualifier:
+#   total_gates       differs by gate set (FTQC adds per-rotation T-synthesis)
+#                     -> facet both, qualify labels.
+#   two_qubit_gates   the CNOT ladder from MultiRZ/structural decomposition is
+#                     identical in both gate sets (rotation synthesis adds only
+#                     single-qubit T/S, confirmed empirically: zero difference
+#                     across all Study A rows) -> one basis-independent panel.
+#   t_gates           always exactly 0 under NISQ for Study A (a trained VCG's
+#                     circuit is Hadamard + MultiRZ + RX; no multi-controlled
+#                     gate ever appears, so nothing needs Toffoli/T synthesis;
+#                     T only shows up once FTQC forces rotation-angle
+#                     synthesis) -> FTQC-only panel, NISQ would be all zeros.
+_METRIC_CONFIG = {
+    'total_gates':     dict(gate_sets=('nisq', 'ftqc'), label='Total Gates', qualify=True),
+    'two_qubit_gates': dict(gate_sets=('nisq',),        label='CNOT Gates', qualify=False),
+    't_gates':         dict(gate_sets=('ftqc',),        label='T Gates', qualify=True),
+}
+
+
+def gadget_vs_penalty_figure(frame, metric='total_gates', color_by='family', selected_loss='fidelity'):
+    """Per-constraint gadget vs. one penalty-term gate count.
+
+    x = a VCG/Dicke gadget's cost (one state preparation).
+    y = that same constraint penalized as a single cost-Hamiltonian term.
+    Both are constraint *components*, not full-circuit costs: a Grover-mixer
+    gadget is unprepared and reprepared every QAOA layer, so its actual
+    in-circuit cost is layer-dependent, not a fixed multiple of this x value
+    (see ResourcePCQAOALayer / estimate_from_task's pc_qaoa_layer for the
+    exact per-depth figure). The dashed 3x line is an illustrative reference
+    only, not that exact cost.
+
+    metric : one of 'total_gates', 'two_qubit_gates' (CNOT), 't_gates'.
+        Panel count and axis qualifiers depend on the metric -- see _METRIC_CONFIG.
+    color_by : 'family' -- one point per constraint, gadget fixed to
+        `selected_loss` (the actually-deployed gadget), colored by constraint
+        family. 'loss' -- all five gadget losses shown per constraint (same y,
+        since the penalty term doesn't depend on loss), colored by loss, so a
+        constraint's five points trace how loss choice alone moves gadget cost
+        (e.g. feasibility's depth-collapse making it look artificially cheap).
+    """
+    from matplotlib.lines import Line2D
+    import matplotlib.pyplot as plt
+
+    config = _METRIC_CONFIG[metric]
+    penalties = frame[frame.representation == 'penalty_cost_layer']
+    if color_by == 'family':
+        gadgets = frame[(frame.representation == 'gadget') & (frame.condition == selected_loss)]
+        color_col, color_map, color_labels = 'family_gadget', FAMILY_COLORS, FAMILY_LABELS
+        legend_title, legend_order = 'Constraint Family', list(FAMILY_COLORS)
+    elif color_by == 'loss':
+        gadgets = frame[frame.representation == 'gadget']
+        color_col, color_map, color_labels = 'condition_gadget', COLORS, LABELS
+        legend_title, legend_order = 'Gadget Loss', LOSS_ORDER
+    else:
+        raise ValueError(f"color_by must be 'family' or 'loss', got {color_by!r}")
+
+    merged = gadgets.merge(penalties, on=['instance_id', 'gate_set'], suffixes=('_gadget', '_penalty'))
+    if merged.empty:
+        return None
+    support_marker = {s: SUPPORT_MARKERS[i % len(SUPPORT_MARKERS)]
+                       for i, s in enumerate(sorted(merged.support_gadget.unique()))}
+    x_col, y_col = f'{metric}_gadget', f'{metric}_penalty'
+
+    gate_sets = config['gate_sets']
+    fig, axes = plt.subplots(1, len(gate_sets),
+        figsize=(10, 4.3) if len(gate_sets) == 2 else (6.2, 4.5), squeeze=False)
+    for ax, gs in zip(axes[0], gate_sets):
+        sub = merged[merged.gate_set == gs]
+        for (color_key, support), points in sub.groupby([color_col, 'support_gadget']):
+            ax.scatter(points[x_col], points[y_col],
+                color=color_map[color_key], marker=support_marker[support],
+                s=34, alpha=0.85, edgecolors='white', linewidths=0.4)
+        lo = min(sub[x_col].min(), sub[y_col].min())
+        hi = max(sub[x_col].max(), sub[y_col].max())
+        ax.plot([lo, hi], [lo, hi], '--', color='#6e6a86', linewidth=1, label='1× (equal cost)')
+        ax.plot([lo, hi / 3], [3 * lo, hi], '--', color='#908caa', linewidth=1,
+                label='3× (illustrative Grover reference)')
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        suffix = f' ({gs.upper()})' if config['qualify'] else ''
+        ax.set(xlabel=f"Gadget {config['label']}{suffix}",
+               ylabel=f"Penalty-Term {config['label']}{suffix}",
+               title=gs.upper() if config['qualify'] else '')
+        ax.legend(fontsize=7.5, frameon=False, loc='upper left')
+
+    present = set(merged[color_col].unique())
+    color_handles = [Line2D([0], [0], marker='o', linestyle='', color=color_map[key],
+        label=color_labels[key]) for key in legend_order if key in present]
+    support_handles = [Line2D([0], [0], marker=marker, linestyle='', color='#52514e',
+        label=f'Support {support}') for support, marker in support_marker.items()]
+    if len(gate_sets) == 2:
+        # Two panels are wide enough for the legends side by side.
+        fig.legend(handles=color_handles, loc='upper center', bbox_to_anchor=(0.27, 0),
+            ncol=2, frameon=False, fontsize=8, title=legend_title)
+        fig.legend(handles=support_handles, loc='upper center', bbox_to_anchor=(0.73, 0),
+            ncol=len(support_handles), frameon=False, fontsize=8, title='Support Size')
+    else:
+        # One narrower panel: side by side collides, so stack the two legends.
+        fig.legend(handles=color_handles, loc='upper center', bbox_to_anchor=(0.5, 0.015),
+            ncol=min(len(color_handles), 3), frameon=False, fontsize=8, title=legend_title)
+        fig.legend(handles=support_handles, loc='upper center', bbox_to_anchor=(0.5, -0.14),
+            ncol=len(support_handles), frameon=False, fontsize=8, title='Support Size')
+    subtitle = (f'({LABELS.get(selected_loss, selected_loss)})' if color_by == 'family'
+                else 'by Gadget Loss')
+    fig.suptitle(f"Study A: Gadget vs. Penalty {config['label']} per Constraint {subtitle}")
+    return fig
+
+
 def resource_figures(frame, study, writer, selected_loss='fidelity'):
     """Study-separated figures with pointwise 95% CIs across instances."""
     import matplotlib.pyplot as plt
@@ -237,6 +355,12 @@ def resource_figures(frame, study, writer, selected_loss='fidelity'):
             axes[0].legend(fontsize=9, frameon=False)
             fig.suptitle(f'Study A: {gs.upper()} Constraint Components')
             paths.append(writer.save(fig, f'a_components_{gs}'))
+        for metric, suffix in METRIC_FILENAME.items():
+            for color_by in ['family', 'loss']:
+                scatter = gadget_vs_penalty_figure(frame, metric, color_by, selected_loss)
+                if scatter is not None:
+                    tag = suffix if color_by == 'family' else f'{suffix}_by_loss'
+                    paths.append(writer.save(scatter, f'a_gadget_vs_penalty_{tag}'))
     else:
         full = frame[frame.representation == 'full_penalty_qaoa']
         # Each COP contributes once: all settings use the same traced topology.
