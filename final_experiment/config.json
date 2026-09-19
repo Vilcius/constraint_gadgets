@@ -1,0 +1,23 @@
+{
+  "dataset_seed": 20260919,
+  "training_seed": 7,
+  "sampling_seed": 19,
+  "checkpoint_steps": 10,
+  "vcg_database": "tuning/artifacts/selected_vcg_db.pkl",
+  "vcg_manifest": "tuning/artifacts/manifest_a.json",
+  "objective_coefficient_min": -5,
+  "objective_coefficient_max": 5,
+  "max_total_qubits": 18,
+  "shots": 10000,
+  "max_depth": 5,
+  "restarts": 10,
+  "steps": 50,
+  "learning_rate": 0.01,
+  "cells": {
+    "4": {"2_0": 35, "3_0": 15, "2_1": 15, "2_2": 15, "3_1": 15, "3_2": 5},
+    "5": {"2_0": 35, "3_0": 15, "2_1": 15, "2_2": 15, "3_1": 10, "3_2": 10},
+    "6": {"2_0": 30, "3_0": 20, "2_1": 15, "2_2": 15, "3_1": 10, "3_2": 10},
+    "7": {"2_0": 50, "3_0": 0, "2_1": 17, "2_2": 18, "3_1": 8, "3_2": 7},
+    "8": {"2_0": 50, "3_0": 0, "2_1": 20, "2_2": 15, "3_1": 0, "3_2": 15}
+  }
+}

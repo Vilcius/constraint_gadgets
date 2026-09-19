@@ -1,8 +1,8 @@
 {
-  "identifier": "cdd6d71f70d94ede76167f1de769e373c66bf69f9ca5b7aff733983f2f91794e",
+  "identifier": "c538cf0d34ff922bf3b02b4c60027e8b152ab56df96cf6a5f8cd4601d22956b6",
   "policy": {
     "schema": 1,
-    "pennylane": "0.44.1",
+    "pennylane": "0.45.1",
     "gate_sets": {
       "nisq": [
         "CNOT",
@@ -310,7 +310,7 @@
       "lambda_2": "42e210da9e62a2fe0bc27b8d5ef5c98072fd2bbcc1dd8892a07b9d75061070de"
     }
   },
-  "seconds": 0.17096392897656187,
+  "seconds": 0.25060211902018636,
   "rows": [
     {
       "instance_id": "a_8_positive_03",

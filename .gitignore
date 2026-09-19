@@ -44,8 +44,16 @@ tuning/results/**/.run.lock
 tuning/.cache/
 **/.ipynb_checkpoints/
 
+# Local tuning reports, generated artifacts, and test suites
+tuning/report/
+tuning/artifacts/
+tuning/tests/
+
+# Local final-experiment datasets, artifacts, and test suites
+final_experiment/artifacts/
+final_experiment/tests/
+
 # Local report recovery and LaTeX build intermediates
-tuning/report/recovery/
 *.aux
 *.log
 *.out
