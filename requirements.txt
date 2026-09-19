@@ -1,7 +1,13 @@
-pennylane
-numpy
-scipy
-matplotlib
-pandas
-jax
-optax
+# Versions used by the completed tuning studies and final-experiment smoke tests.
+# Newer JAX 0.11 releases are incompatible with PennyLane 0.45.1 because
+# PennyLane calls jax.core.is_concrete, which JAX 0.11 removed.
+pennylane==0.43.1
+pennylane-lightning==0.43.0
+jax==0.6.2
+jaxlib==0.6.2
+optax==0.2.5
+chex==0.1.90
+numpy==2.2.6
+scipy==1.15.3
+matplotlib==3.10.3
+pandas==2.3.1
