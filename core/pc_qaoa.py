@@ -40,7 +40,7 @@ class PCQAOA:
 
     Each structural gadget uses its natural mixer:
       - DickeStatePrep  (cardinality equality)  → XY / Ring-XY
-      - FlowStatePrep   (flow conservation)     → Ring-XY
+      - FlowStatePrep   (flow conservation)     → per-gadget Grover
       - CardinalityLeqStatePrep (inequality)    → per-gadget Grover
       - VCG             (variational gadget)    → per-gadget Grover
       - CardinalityGeqSingleStatePrep (fixed)   → no mixer

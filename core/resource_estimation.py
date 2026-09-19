@@ -477,12 +477,7 @@ def _qre_mixer_layer(all_wires, descriptors, problem_ham):
         covered.update(d["wires"])
         if kind == "dicke":
             _qre_xy_mixer(d["wires"], ring=True)
-        elif kind == "flow":
-            n_in = d["n_in"]
-            wires = d["wires"]
-            _qre_xy_mixer(wires[:n_in], ring=True)
-            _qre_xy_mixer(wires[n_in:], ring=True)
-        elif kind in ("leq", "vcg"):
+        elif kind in ("flow", "leq", "vcg"):
             fn()
             _qre_grover_reflection_on(d["wires"])
             fn()

@@ -754,11 +754,9 @@ class FlowStatePrep:
         satisfies HW(in) == HW(out).
 
     Mixer:
-        Ring-XY on in_wires + Ring-XY on out_wires (applied separately).
-        Each Ring-XY preserves the Hamming weight within its register,
-        hence their combination preserves HW(in) == HW(out).
-        After ≥1 QAOA layer the mixer connects all feasible states
-        (every sector HW = k is fully mixed within each register).
+        Grover diffusion over the state prepared by ``opt_circuit``.  The
+        reflection preserves the full feasible subspace and can transfer
+        amplitude between different common-Hamming-weight sectors.
 
     Parameters
     ----------
@@ -807,28 +805,8 @@ class FlowStatePrep:
         prepare_flow_state(self.in_wires, self.out_wires)
 
     def mixer_circuit(self, beta: float) -> None:
-        """
-        Apply Ring-XY on in_wires and Ring-XY on out_wires independently.
-
-        Each Ring-XY preserves HW within its register, so HW(in) == HW(out)
-        is preserved.  However, the feasible space decomposes into invariant
-        sectors indexed by the common weight w, and independent Ring-XY mixers
-        act only within each fixed-w sector — they cannot move amplitude
-        between sectors with different w.  For full feasibility-preserving
-        mixing use the Grover mixer (mixer='Grover' in PC-QAOA), which is
-        the default and the mixer used in all reported experiments.
-        """
-        import warnings
-        warnings.warn(
-            "FlowStatePrep.mixer_circuit uses independent Ring-XY mixers, which "
-            "cannot mix across weight sectors of the flow-conservation constraint. "
-            "Use mixer='Grover' in PC-QAOA for correct feasibility-preserving mixing.",
-            stacklevel=2,
-        )
-        if self.n_in > 1:
-            base.apply_xy_mixer(beta, self.in_wires, ring=True)
-        if self.n_out > 1:
-            base.apply_xy_mixer(beta, self.out_wires, ring=True)
+        """Apply a Grover mixer over the complete feasible flow subspace."""
+        base.apply_grover_mixer(beta, self.var_wires, [self])
 
     # ------------------------------------------------------------------
     # Properties for PC-QAOA integration
@@ -836,7 +814,7 @@ class FlowStatePrep:
 
     @property
     def n_mixer_params(self) -> int:
-        """One shared beta for both in and out Ring-XY."""
+        """One Grover-mixer angle per QAOA layer."""
         return 1
 
     def get_info(self) -> dict:
@@ -847,7 +825,7 @@ class FlowStatePrep:
             "out_wires": self.out_wires,
             "n_in": self.n_in,
             "n_out": self.n_out,
-            "mixer_type": self.mixer_type.name,
+            "mixer_type": "GROVER",
         }
 
 

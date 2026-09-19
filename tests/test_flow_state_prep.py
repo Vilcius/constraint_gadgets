@@ -132,6 +132,39 @@ def test_feasibility_only(n_in: int, n_out: int, label: str):
     return ok
 
 
+def test_flow_grover_mixer_connects_weight_sectors():
+    """The flow mixer preserves feasibility and can change sector weights."""
+    n_in = n_out = 2
+    n_total = n_in + n_out
+    prep = FlowStatePrep(in_wires=[0, 1], out_wires=[2, 3])
+    dev = qml.device("default.qubit", wires=n_total)
+
+    @qml.qnode(dev)
+    def circuit():
+        prep.opt_circuit()
+        qml.PhaseShift(0.7, wires=0)
+        prep.mixer_circuit(1.1)
+        return qml.probs(wires=range(n_total))
+
+    probs = circuit()
+    sector_probabilities = {weight: 0.0 for weight in range(3)}
+    infeasible_probability = 0.0
+    for index, probability in enumerate(probs):
+        bits = bits_from_index(index, n_total)
+        in_weight, out_weight = sum(bits[:2]), sum(bits[2:])
+        if in_weight == out_weight:
+            sector_probabilities[in_weight] += float(probability)
+        else:
+            infeasible_probability += float(probability)
+
+    initial_sector_probabilities = {0: 1 / 6, 1: 4 / 6, 2: 1 / 6}
+    assert infeasible_probability < 1e-10
+    assert any(
+        abs(sector_probabilities[weight] - initial_sector_probabilities[weight]) > 1e-6
+        for weight in sector_probabilities
+    )
+
+
 if __name__ == "__main__":
     all_pass = True
 

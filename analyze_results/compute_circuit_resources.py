@@ -53,7 +53,7 @@ Identity columns
   qubo_string      str      QUBO identifier string
   families         list     constraint family names
 
-PC-QAOA columns  (per-gadget mixer: XY for Dicke/flow, Grover for VCG/LEQ, X for free qubits)
+PC-QAOA columns  (per-gadget mixer: XY for Dicke, Grover for flow/VCG/LEQ, X for free qubits)
 ~~~~~~~~~~~~~~~~~~~~~
   n_qubits_pc         int      total qubits = n_x + n_slack_pc
   n_slack_pc          int      slack qubits from penalty constraints
