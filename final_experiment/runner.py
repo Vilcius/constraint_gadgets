@@ -9,6 +9,13 @@ from pathlib import Path
 import signal
 import sys
 import traceback
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"Contains tensors of types .*",
+    category=UserWarning,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
