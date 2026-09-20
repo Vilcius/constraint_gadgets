@@ -627,6 +627,8 @@ def estimate_from_task(
     penalty_weight: float = None,
     gate_sets=None,
     vcg_db: dict | None = None,
+    structural_indices: list[int] | None = None,
+    penalty_indices: list[int] | None = None,
 ) -> dict:
     """
     Estimate circuit resources directly from a task dict and QUBO lookup, for
@@ -665,7 +667,16 @@ def estimate_from_task(
         penalty_weight = float(5 + 2 * abs(total_min))
 
     parsed = ch.parse_constraints(all_constraints)
-    structural_indices, penalty_indices = ch.partition_constraints(parsed, strategy="auto")
+    if structural_indices is None and penalty_indices is None:
+        structural_indices, penalty_indices = ch.partition_constraints(parsed, strategy="auto")
+    elif structural_indices is None or penalty_indices is None:
+        raise ValueError("Provide both structural_indices and penalty_indices, or neither")
+    else:
+        structural_indices = list(structural_indices)
+        penalty_indices = list(penalty_indices)
+        assigned = structural_indices + penalty_indices
+        if sorted(assigned) != list(range(len(parsed))) or len(set(assigned)) != len(parsed):
+            raise ValueError("Structural and penalty indices must partition all constraints")
 
     # ── PC-QAOA: gadget descriptors + penalty Hamiltonian for the rest ─────
     descriptors = []

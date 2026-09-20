@@ -65,3 +65,14 @@ Open `final_experiment/notebooks/final_experiment_results.ipynb` to read saved
 results and export the analysis figures. The notebook does not start training.
 It reads partial or completed runs and saves PDF and PNG figures under
 `final_experiment/results/figures/`.
+
+Open `final_experiment/notebooks/vcg_results.ipynb` for the VCG loss-selection,
+fidelity, training-depth, and constraint-resource figures. The relative link
+`final_experiment/vcg_results` points to the authoritative completed data in
+`tuning/results/full`; the data are not duplicated. Set `PCQAOA_VCG_RESULTS`
+to read another VCG result directory.
+
+The final comparison notebook estimates full PC-QAOA and PenaltyQAOA circuit
+resources from the fixed manifest and selected VCG database. It caches the
+result under `final_experiment/results/resource_estimates/`. The first resource
+calculation takes several minutes; later notebook executions read the cache.
