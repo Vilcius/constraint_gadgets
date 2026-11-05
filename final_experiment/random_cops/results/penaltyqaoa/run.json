@@ -1,0 +1,104 @@
+{
+  "identifier": "ffb33583afdaa1d0243677cb790ae4faf920ec82ad3071623ea68b79f89caf26",
+  "method": "penaltyqaoa",
+  "manifest_hash": "177b2db67ea2c77a73825c24d9acf57f6e4e023e5ab97d2d6315c724b60ab95a",
+  "config": {
+    "dataset_seed": 20260919,
+    "training_seed": 7,
+    "sampling_seed": 19,
+    "checkpoint_steps": 10,
+    "vcg_database": "tuning/artifacts/selected_vcg_db.pkl",
+    "vcg_manifest": "tuning/artifacts/manifest_a.json",
+    "objective_coefficient_min": -5,
+    "objective_coefficient_max": 5,
+    "max_total_qubits": 18,
+    "shots": 10000,
+    "max_depth": 5,
+    "restarts": 10,
+    "steps": 50,
+    "learning_rate": 0.01,
+    "cells": {
+      "4": {
+        "2_0": 35,
+        "3_0": 15,
+        "2_1": 15,
+        "2_2": 15,
+        "3_1": 15,
+        "3_2": 5
+      },
+      "5": {
+        "2_0": 35,
+        "3_0": 15,
+        "2_1": 15,
+        "2_2": 15,
+        "3_1": 10,
+        "3_2": 10
+      },
+      "6": {
+        "2_0": 30,
+        "3_0": 20,
+        "2_1": 15,
+        "2_2": 15,
+        "3_1": 10,
+        "3_2": 10
+      },
+      "7": {
+        "2_0": 50,
+        "3_0": 0,
+        "2_1": 17,
+        "2_2": 18,
+        "3_1": 8,
+        "3_2": 7
+      },
+      "8": {
+        "2_0": 50,
+        "3_0": 0,
+        "2_1": 20,
+        "2_2": 15,
+        "3_1": 0,
+        "3_2": 15
+      }
+    },
+    "profile": "full"
+  },
+  "source": {
+    "commit": "a8eae453c65efd207d02fac3cd44dd88663e5240",
+    "files": {
+      "core/vcg.py": "f9d39cbc225dbaa76335815c4edb98e59216438785c3b93fdd58937e07d1d424",
+      "core/dicke_state_prep.py": "565e9eedd3be916b813108ce5c747265ac0678421ba4cb8c127139f99ede0c2a",
+      "core/penalty_qaoa.py": "a3e390cc96f7730c8d02807353e2cc66650833cb832db6ea693dbc90231eeb54",
+      "core/pc_qaoa.py": "3dbaeb542eb51137cade7189372f02abe15d285982065fdad3a68c1be06957ad",
+      "core/constraint_handler.py": "d36f9ff81d10d44939a8978d659a348d5b87280c19fe3f9cd16f8b2e15166403",
+      "core/optimization.py": "0f362cb2c2c5d56fab48fa4d89864af0ac0fd10082f187730f5a5571295a3efd",
+      "core/qaoa_base.py": "ad645de1749f11bc7a333272bb24c1fabb418e0dd1087bfa9fb348ded0b9011e",
+      "core/resource_estimation.py": "99ab5a84da87d020e689d57df671036f6932ac4db64a25c5da3835eb27877c2a",
+      "core/__init__.py": "cc543314180d0ce9f623dafbac22f9a1fb85c23d9e7e54c3094b0181db9edcd3",
+      "core/penalty_heuristics.py": "0fe54ea1bf7ed778baa3d86c71224c8d0872fe3adab39275cdf4d355dd8f8a2f",
+      "final_experiment/config.json": "0da3389f01cd7d7c109bc108198e3c14e84363ed1aeaf053ed6ce10af067fa4e",
+      "final_experiment/datasets.py": "f76bb4bc480e76c7163431473103a83ce82561aaf49371be9186efc2fb8667fc",
+      "final_experiment/runner.py": "c0c7bce963238a4da602d11febfb003f3fad95fa214ee70a98a2d503e2a5f4f0",
+      "final_experiment/storage.py": "5edac1b08987425a1d117d114a91a131b970f313d82cd211d7a9c331a4dcaf29",
+      "final_experiment/studies.py": "5a5a3aeaae1f78d4a557e140dbeeadf37d99fc1f3e39480f97c297136c7fc63c",
+      "tuning/storage.py": "fb971ad7653f509a869428e9ff423e4a69afe97e069af12dfdbc118fd53533b2",
+      "tuning/artifacts/selected_vcg_db.pkl": "2fe1c5d8fca25a9fc872871a97135ca9c383642836bd514c59f982f1b59550ea",
+      "tuning/artifacts/manifest_a.json": "4ced9a72192eeb4b1ad3989de92c0bea001a34d18070b5f62839f68a55ad68eb"
+    }
+  },
+  "environment": {
+    "python": "3.12.12",
+    "platform": "Linux-5.14.0-687.41.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "packages": {
+      "pennylane": "0.43.1",
+      "pennylane-lightning": "0.43.0",
+      "jax": "0.6.2",
+      "jaxlib": "0.6.2",
+      "optax": "0.2.5",
+      "numpy": "2.2.6",
+      "scipy": "1.15.3",
+      "matplotlib": "3.10.3",
+      "pandas": "2.3.1",
+      "nbformat": "5.10.4",
+      "nbclient": "0.11.0"
+    }
+  }
+}

@@ -4,19 +4,19 @@ import json
 from pathlib import Path
 import pickle
 import re
-import shutil
-import subprocess
-import warnings
 
 import numpy as np
 import pandas as pd
 
 from storage import write_json, write_pickle, atomic_bytes
+from figure_style import FigureWriter, PALETTE, apply_publication_style
 
-COLORS = {'feasibility': '#6e6a86', 'fidelity': '#3e8fb0',
-          'lambda_0.5': '#9063cd', 'lambda_1': '#31748f', 'lambda_2': '#eb6f92',
-          'range': '#3e8fb0', 'maximum': '#9063cd', 'local': '#31748f',
-          'feasible': '#eb6f92', 'verma_lewis': '#f6c177', 'paper': '#6e6a86'}
+COLORS = {'feasibility': PALETTE['neutral_dark'], 'fidelity': PALETTE['blue_main'],
+          'lambda_0.5': PALETTE['violet'], 'lambda_1': PALETTE['teal'],
+          'lambda_2': PALETTE['red_strong'], 'range': PALETTE['blue_main'],
+          'maximum': PALETTE['violet'], 'local': PALETTE['teal'],
+          'feasible': PALETTE['red_strong'], 'verma_lewis': PALETTE['green_3'],
+          'paper': PALETTE['neutral_dark']}
 LABELS = {'feasibility': r'$L_{\mathrm{feas}}$', 'fidelity': r'$L_{\mathrm{fid}}$',
           'lambda_0.5': r'$L_{0.5}$', 'lambda_1': r'$L_1$', 'lambda_2': r'$L_2$',
           'range': 'Coefficient Range', 'feasible': 'Feasible-Solution Bound',
@@ -167,46 +167,6 @@ def export_results(output):
     return winner_a, winner_b
 
 
-class FigureWriter:
-    """PGF/LaTeX PDF + matching PNG previews; explicit Computer Modern fallback."""
-    def __init__(self, directory, latex=True):
-        import matplotlib as mpl
-        self.directory = Path(directory)
-        self.directory.mkdir(parents=True, exist_ok=True)
-        self.latex = latex and bool(shutil.which('pdflatex'))
-        self.font_status = 'LaTeX Computer Modern (PGF)' if self.latex else 'Matplotlib Computer Modern math / DejaVu Serif'
-        mpl.rcParams.update({'font.family': 'serif', 'font.serif': ['DejaVu Serif'],
-            'mathtext.fontset': 'cm', 'font.size': 11, 'axes.titlesize': 12,
-            'axes.spines.top': False, 'axes.spines.right': False,
-            'axes.grid': True, 'grid.alpha': 0.22, 'grid.linewidth': 0.5,
-            'figure.facecolor': 'white', 'axes.facecolor': 'white',
-            'savefig.facecolor': 'white', 'savefig.dpi': 300, 'pdf.fonttype': 42,
-            'pgf.texsystem': 'pdflatex', 'pgf.rcfonts': False, 'text.usetex': False})
-
-    def save(self, figure, name):
-        import matplotlib.pyplot as plt
-        pdf, png = self.directory/f'{name}.pdf', self.directory/f'{name}.png'
-        figure.tight_layout()
-        if self.latex:
-            try:
-                figure.savefig(pdf, backend='pgf', bbox_inches='tight')
-                if shutil.which('pdftocairo'):
-                    subprocess.run(['pdftocairo', '-png', '-singlefile', '-r', '300',
-                                    str(pdf), str(png.with_suffix(''))], check=True, capture_output=True)
-                else:
-                    figure.savefig(png, backend='pgf', bbox_inches='tight')
-            except Exception as error:
-                self.latex = False
-                self.font_status = 'Matplotlib Computer Modern math / DejaVu Serif (LaTeX failed)'
-                warnings.warn(f'LaTeX figure rendering failed; using built-in fonts: {error}')
-        if not self.latex:
-            figure.savefig(pdf, bbox_inches='tight')
-            figure.savefig(png, bbox_inches='tight')
-        write_json(self.directory/'font_status.json', dict(font=self.font_status))
-        plt.close(figure)
-        return png
-
-
 def summary_plot(frame, x, y, group, title, ylabel):
     import matplotlib.pyplot as plt
     figure, axis = plt.subplots(figsize=(6.4, 3.7))
@@ -214,13 +174,13 @@ def summary_plot(frame, x, y, group, title, ylabel):
     for index, (label, subset) in enumerate(frame.groupby(group, sort=False)):
         stats = mean_intervals(subset.groupby(x)[y].agg(['mean', 'std', 'count']))
         axis.errorbar(stats.index, stats['mean'], yerr=stats['ci95_half_width'].fillna(0),
-            marker=markers[index % len(markers)], capsize=3, linewidth=1.5,
+            marker=markers[index % len(markers)], capsize=3, linewidth=2.0,
             color=COLORS.get(label, COLORS.get(str(label).split('_')[0])),
             label=LABELS.get(label, str(label)))
     axis.set(xlabel={'support': 'Constraint Support Size', 'depth': 'QAOA Depth',
                      'n_x': 'Decision Variables'}.get(x, x),
              ylabel=ylabel, title=title)
-    axis.legend(fontsize=9, frameon=False)
+    axis.legend(ncol=1)
     if x in ['depth', 'support', 'n_x']:
         axis.set_xticks(sorted(frame[x].unique()))
     return figure
@@ -259,15 +219,16 @@ def figures(data, section, writer, study=None):
             fig, axes = plt.subplots(1, 2, figsize=(8, 3.3))
             fig.suptitle('Study A: Constraint Dataset' if study == 'a' else 'Study B: COP Dataset')
             if study == 'a':
-                frame.family.value_counts().plot.bar(ax=axes[0], color='#9063cd')
+                frame.family.value_counts().plot.bar(ax=axes[0], color=PALETTE['blue_main'])
                 axes[0].set_ylabel('Constraints')
             else:
                 counts = Counter(f for families in frame.families for f in families)
-                pd.Series(counts).plot.bar(ax=axes[0], color='#31748f')
+                pd.Series(counts).plot.bar(ax=axes[0], color=PALETTE['teal'])
                 axes[0].set_ylabel('Constraint Occurrences')
             axes[0].set_xlabel('Constraint Family')
             axes[0].tick_params(axis='x', labelrotation=45, labelsize=8)
-            axes[1].hist(frame.feasible_fraction, bins=10, color='#3e8fb0', edgecolor='white')
+            axes[1].hist(frame.feasible_fraction, bins=10, color=PALETTE['blue_secondary'],
+                         edgecolor='white', linewidth=0.8)
             axes[1].set(xlabel='Feasible Fraction', ylabel='Instances')
             save(fig, f'{study}_dataset')
     elif section == 'loss' and not a.empty:
@@ -276,10 +237,10 @@ def figures(data, section, writer, study=None):
             save(summary_plot(frame, 'support', 'fidelity', 'condition', family.title(), 'Total Fidelity'), f'a_fidelity_{family}')
         fig, ax = plt.subplots(figsize=(5.8, 3.8))
         for name, frame in a.groupby('condition'):
-            ax.scatter(frame.p_feasible, frame.fidelity, s=25,
-                       color=COLORS[name], label=LABELS[name], alpha=0.8)
+            ax.scatter(frame.p_feasible, frame.fidelity, s=40,
+                       color=COLORS[name], label=LABELS[name], alpha=0.82)
         ax.set(xlabel='Feasible Probability', ylabel='Total Fidelity', title='Fidelity and Feasibility')
-        ax.legend(frameon=False, fontsize=9)
+        ax.legend()
         save(fig, 'a_fidelity_feasibility')
         for column, label in [('selected_depth', 'Selected Depth'), ('optimize_seconds', 'Optimization Time (s)')]:
             save(summary_plot(a, 'support', column, 'condition', label, label), f'a_{column}')
@@ -296,7 +257,8 @@ def figures(data, section, writer, study=None):
             formula = constraint_title(instance.constraint)
             fig, ax = plt.subplots(figsize=(7, 3 + 0.3*len(formula.splitlines())))
             ax.bar(np.arange(len(probabilities)), probabilities,
-                   color=np.where(mask, '#3e8fb0', '#eb6f92'), width=1)
+                   color=np.where(mask, PALETTE['blue_main'], PALETTE['red_strong']),
+                   width=1)
             ax.set(xlabel='Basis-State Index', ylabel='Probability',
                    title='Probability Distribution: ' + LABELS[selected.condition] + '\n' + formula)
             save(fig, f'a_distribution_{selected.instance_id}_{selected.condition}')
@@ -308,17 +270,18 @@ def figures(data, section, writer, study=None):
         formula = constraint_title(instance.constraint)
         retained = min(depth['restarts'], key=lambda row: row['final_loss'])['restart']
         fig, ax = plt.subplots(figsize=(8, 3.8 + 0.3*len(formula.splitlines())))
-        palette = ['#9063cd', '#3e8fb0', '#31748f', '#eb6f92', '#f6c177']
+        palette = [PALETTE['blue_main'], PALETTE['teal'], PALETTE['violet'],
+                   PALETTE['red_strong'], PALETTE['green_3']]
         styles = ['-', '--', '-.', ':']
         for restart, frame in history.groupby('restart'):
             label = f'Restart {restart+1}' + (' (Retained)' if restart == retained else '')
             ax.plot(frame.step, frame.loss, color=palette[int(restart) % len(palette)],
                     linestyle=styles[(int(restart)//len(palette)) % len(styles)],
-                    linewidth=2.2 if restart == retained else 1.2, label=label)
+                    linewidth=2.6 if restart == retained else 1.5, label=label)
         ax.set(xlabel='Optimizer Step (Before Update)', ylabel='Training Loss',
                title=f'VCG Training History: {LABELS[selected.condition]}, ma-QAOA Depth {depth["depth"]}\n{formula}')
         fig.legend(*ax.get_legend_handles_labels(), loc='upper center',
-                   bbox_to_anchor=(0.5, 0), ncol=4, frameon=False, fontsize=8)
+                   bbox_to_anchor=(0.5, 0), ncol=4, frameon=False, fontsize=8.5)
         save(fig, 'a_training_history')
     elif section == 'penalty' and not b.empty:
         eligible = b[b.selectable]
@@ -326,7 +289,8 @@ def figures(data, section, writer, study=None):
         fig, ax = plt.subplots(figsize=(7, 4))
         positions = np.arange(len(table))
         ax.barh(positions, table['mean'], xerr=table['ci95_half_width'].fillna(0),
-                color=[COLORS.get(name, '#6e6a86') for name in table.index], capsize=3)
+                color=[COLORS.get(name, PALETTE['neutral_dark']) for name in table.index],
+                edgecolor='white', linewidth=0.8, capsize=3)
         ax.set_yticks(positions, [LABELS.get(name, name) for name in table.index])
         ax.invert_yaxis()
         ax.set(xlabel=r'Sampled $P(\mathrm{opt})$', ylabel='Penalty Method',
@@ -338,18 +302,22 @@ def figures(data, section, writer, study=None):
         save(summary_plot(eligible, 'n_x', 'p_optimal', 'condition',
              'Penalty Methods by Decision Size', r'Sampled $P(\mathrm{opt})$'), 'b_sizes')
         fig, ax = plt.subplots(figsize=(5.5, 3.6))
-        ax.scatter(b.exact_p_optimal, b.p_optimal, color='#9063cd', s=18, alpha=0.7)
-        ax.plot([0, 1], [0, 1], '--', color='#6e6a86', linewidth=1)
+        ax.scatter(b.exact_p_optimal, b.p_optimal, color=PALETTE['blue_main'],
+                   s=38, alpha=0.75)
+        ax.plot([0, 1], [0, 1], '--', color=PALETTE['neutral_dark'], linewidth=1.8)
         ax.set(xlabel=r'Exact $P(\mathrm{opt})$', ylabel=r'Sampled $P(\mathrm{opt})$')
         save(fig, 'b_sampled_exact')
     elif section == 'resources' and not b.empty:
         instances = data['b_instances']
         fig, axes = plt.subplots(1, 2, figsize=(8, 3.5))
-        axes[0].scatter(instances.n_x, instances.n_slack, color='#3e8fb0', label='PenaltyQAOA Slack')
-        axes[0].scatter(instances.n_x, instances.pc_n_slack, color='#9063cd', marker='x', label='PC-QAOA Partition Slack')
+        axes[0].scatter(instances.n_x, instances.n_slack, color=PALETTE['red_strong'],
+                        s=40, label='PenaltyQAOA Slack')
+        axes[0].scatter(instances.n_x, instances.pc_n_slack, color=PALETTE['blue_main'],
+                        s=40, marker='x', label='PC-QAOA Partition Slack')
         axes[0].set(xlabel='Decision Variables', ylabel='Slack Qubits')
         axes[0].legend(frameon=False, fontsize=8)
-        axes[1].scatter(b.n_total, b.optimize_seconds, color='#31748f', s=15)
+        axes[1].scatter(b.n_total, b.optimize_seconds, color=PALETTE['teal'], s=38,
+                        alpha=0.78)
         axes[1].set(xlabel='Total Simulated Qubits', ylabel='Optimization Time (s)')
         save(fig, 'b_qubits_runtime')
     return saved

@@ -1,7 +1,19 @@
-.cache/
-__pycache__/
-tests/__pycache__/
+**/.cache/
+**/__pycache__/
+**/tests/
 *.pyc
 
-results/*
-!results/.gitkeep
+**/artifacts/*
+!**/artifacts/.gitkeep
+**/results/*
+!**/results/.gitkeep
+
+# Collected figures for local sharing
+figures/
+
+# Separate local benchmark excluded from this published snapshot
+knapsack_ev/
+
+# Fixed random-COP dataset used by the published notebooks
+!random_cops/artifacts/manifest.json
+!random_cops/artifacts/dataset_summary.json

@@ -1,0 +1,13 @@
+{
+  "identity": "50950244db9eaded331ae2c9a322c91234d6678fe316e1689a99bc719bac5a81",
+  "instance_id": "final_0416",
+  "method": "pcqaoa_stateprep",
+  "maximum_depth": 1,
+  "completed_comparisons": [
+    1
+  ],
+  "new_optimization_seconds": 0.0,
+  "imported_optimization_seconds": 9.834663644433022,
+  "compile_seconds": 0.0,
+  "prepare_seconds": 0.12831751815974712
+}

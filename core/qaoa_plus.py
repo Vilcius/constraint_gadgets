@@ -1,5 +1,5 @@
 """
-qaoa_plus.py -- Literature QAOA+ baseline with JAX-jitted optimisation.
+qaoa_plus.py -- Feasibility-preserving Quantum Alternating Operator baseline.
 
 A from-scratch implementation of the Quantum Alternating Operator Ansatz
 (QAOA+) as described in Hadfield et al. (Hadfield_2019): a single feasible
@@ -9,13 +9,10 @@ per-constraint from separate gadgets, unlike PC-QAOA (see pc_qaoa.py).
 
 Mixer construction
 -------------------
-Following the general subspace-mixer recipe of Hadfield et al. and its
-CNOT-efficient formalisations (fuchs2022constrained, fuchs2024lxmixers),
-and generalising the hand-derived, per-problem controlled mixers of
-Saleem (saleem2020) and Wang et al. (wang2023mec) past a single worked
-example, the mixer is built from two families of feasibility-preserving
-"moves", searched over automatically from the brute-forced feasible set F
-(n_x <= ~20):
+Following the feasibility and connectivity criteria of Hadfield et al. and
+the transition-matrix construction of Fuchs et al. (2022), the mixer is built
+automatically from the enumerated joint feasible set F.  This is a small-
+instance benchmark construction, not a scalable constraint oracle.
 
   1. Single-qubit flips (controlled-RX): toggling one qubit, controlled on
      the other n_x-1 qubits.  This is the generalised form of Saleem's
@@ -37,16 +34,18 @@ or DON'T-CARE (neither endpoint is in F, so this configuration is never
 reached while feasible).  This function is minimised via two-level logic
 minimisation (sympy's Quine-McCluskey-based SOPform) to the smallest
 number of AND-clauses, i.e. the fewest, narrowest multi-controlled gates
-needed to realise the move.
+needed to realise the move.  If these local moves leave the feasible-state
+graph disconnected, two-state bridge rotations are added along a minimum
+spanning tree of the components.  Each bridge is an exact unitary generated
+by |x><y| + |y><x| for two feasible basis states x and y.  The completed move
+set therefore preserves F and connects every feasible state.
 
-As with every literature construction of this kind (Hadfield_2019,
-saleem2020, wang2023mec), the resulting per-move mixer terms do not all
-commute, so a single QAOA layer is a Trotterized product of them and only
-approximately preserves F for finite beta -- this is inherent to the
-method, not an implementation shortcut.  ``is_mixer_connected()`` reports
-whether the synthesised move set actually connects all of F; the paper
-already notes (Sec. sec:qaoa-plus) that an under-connected mixer can
-confine QAOA+ to a suboptimal region.
+The per-move unitaries generally do not commute, so one layer uses an ordered
+product of partial mixers.  Every partial mixer separately preserves F;
+therefore their product preserves F exactly in noiseless simulation.  The
+product is not equal to one exponential of the sum at finite beta, which is
+the usual product-formula distinction.  ``is_mixer_connected()`` verifies
+the completed transition graph.
 
 Requirements:
   pip install jax optax pennylane sympy
@@ -54,6 +53,7 @@ Requirements:
 
 from __future__ import annotations
 
+import copy
 import itertools as it
 import time
 from typing import Dict, List, Optional, Tuple
@@ -165,6 +165,87 @@ def _synthesize_move(
 Move = Dict  # {"kind": "flip" | "swap", "wires": [...], "clauses": [...]}
 
 
+def _local_adjacency(feasible_states: List[str], moves: List[Move]) -> Dict[str, set]:
+    """Transition graph induced by controlled flip and swap moves."""
+    feasible_set = set(feasible_states)
+    adjacency = {x: set() for x in feasible_states}
+    for move in moves:
+        wires = move["wires"]
+        for control_wires, control_values in move["clauses"]:
+            for x in feasible_states:
+                if not all(x[w] == str(v)
+                           for w, v in zip(control_wires, control_values)):
+                    continue
+                y = list(x)
+                if move["kind"] == "flip":
+                    (w,) = wires
+                    y[w] = "1" if x[w] == "0" else "0"
+                else:
+                    i, j = wires
+                    y[i], y[j] = x[j], x[i]
+                y = "".join(y)
+                if y in feasible_set and y != x:
+                    adjacency[x].add(y)
+                    adjacency[y].add(x)
+    return adjacency
+
+
+def _components(adjacency: Dict[str, set]) -> List[List[str]]:
+    remaining = set(adjacency)
+    result = []
+    while remaining:
+        start = min(remaining)
+        seen, frontier = {start}, [start]
+        while frontier:
+            current = frontier.pop()
+            for neighbor in adjacency[current]:
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    frontier.append(neighbor)
+        result.append(sorted(seen))
+        remaining.difference_update(seen)
+    return result
+
+
+def _hamming(a: str, b: str) -> int:
+    return sum(left != right for left, right in zip(a, b))
+
+
+def _bridge_moves(components: List[List[str]]) -> List[Move]:
+    """Join local-mixer components with a minimum-Hamming spanning tree."""
+    if len(components) <= 1:
+        return []
+    candidates = []
+    for left in range(len(components)):
+        for right in range(left + 1, len(components)):
+            distance, state_a, state_b = min(
+                (_hamming(a, b), a, b)
+                for a in components[left] for b in components[right]
+            )
+            candidates.append((distance, state_a, state_b, left, right))
+    parent = list(range(len(components)))
+
+    def find(index):
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    bridges = []
+    for distance, state_a, state_b, left, right in sorted(candidates):
+        root_left, root_right = find(left), find(right)
+        if root_left == root_right:
+            continue
+        parent[root_right] = root_left
+        bridges.append({"kind": "bridge", "states": [state_a, state_b],
+                        "wires": [i for i, (a, b) in enumerate(zip(state_a, state_b))
+                                  if a != b],
+                        "clauses": [], "hamming_distance": distance})
+        if len(bridges) == len(components) - 1:
+            break
+    return bridges
+
+
 def build_mixer_moves(feasible_states: List[str], n_x: int) -> List[Move]:
     """
     Synthesise the mixer as a list of moves, each with its own minimal
@@ -189,7 +270,24 @@ def build_mixer_moves(feasible_states: List[str], n_x: int) -> List[Move]:
         if clauses:
             moves.append({"kind": "swap", "wires": [i, j], "clauses": clauses})
 
-    return moves
+    components = _components(_local_adjacency(feasible_states, moves))
+    return moves + _bridge_moves(components)
+
+
+def mixer_diagnostics(feasible_states: List[str], moves: List[Move]) -> dict:
+    """Static diagnostics for a synthesized mixer."""
+    local = [move for move in moves if move["kind"] != "bridge"]
+    before = _components(_local_adjacency(feasible_states, local))
+    return {
+        "feasible_count": len(feasible_states),
+        "local_move_count": len(local),
+        "local_clause_count": sum(len(move["clauses"]) for move in local),
+        "local_component_count": len(before),
+        "local_connected": len(before) == 1,
+        "bridge_count": sum(move["kind"] == "bridge" for move in moves),
+        "max_bridge_hamming_distance": max(
+            [move.get("hamming_distance", 0) for move in moves], default=0),
+    }
 
 
 # ======================================================================
@@ -213,6 +311,9 @@ class QAOAPlus:
         learning_rate: float = 0.01,
         steps: int = 50,
         num_restarts: int = 10,
+        feasible_states: Optional[List[str]] = None,
+        mixer_moves: Optional[List[Move]] = None,
+        compile_on_init: bool = True,
     ) -> None:
         self.angle_strategy = base.validate_angle_strategy(angle_strategy)
 
@@ -231,20 +332,28 @@ class QAOAPlus:
         self.n_total = self.n_x
 
         # --- joint feasible subspace + single feasible initial state ---
-        self.feasible_states = compute_feasible_states(constraints, self.n_x)
+        self.feasible_states = (list(feasible_states) if feasible_states is not None
+                                else compute_feasible_states(constraints, self.n_x))
         if not self.feasible_states:
             raise ValueError("QAOA+ requires a nonempty joint feasible set.")
         self.initial_state = min(self.feasible_states)
 
         # --- mixer: minimal controlled-flip / controlled-swap moves ---
-        self.mixer_moves = build_mixer_moves(self.feasible_states, self.n_x)
+        self.mixer_moves = (copy.deepcopy(mixer_moves) if mixer_moves is not None
+                            else build_mixer_moves(self.feasible_states, self.n_x))
+        self.mixer_diagnostics = mixer_diagnostics(
+            self.feasible_states, self.mixer_moves)
+        if not self.is_mixer_connected():
+            raise RuntimeError("QAOA+ mixer construction did not connect the feasible set.")
 
         # --- cost Hamiltonian: plain QUBO, no penalty terms ---
         self.problem_ham = base.build_qubo_hamiltonian(self.qubo, self.x_wires)
         self.num_gamma = base.count_gamma_terms(self.problem_ham)
         self.num_beta = len(self.mixer_moves)  # one beta per active move, per layer
 
-        self._compiled_cost, self._compiled_step = self._build_compiled_fns()
+        self._compiled_cost = self._compiled_step = None
+        if compile_on_init:
+            self._compiled_cost, self._compiled_step = self._build_compiled_fns()
 
     # ------------------------------------------------------------------
     # Diagnostics
@@ -252,7 +361,9 @@ class QAOAPlus:
 
     def mixer_gate_count(self) -> int:
         """Total number of (possibly multi-controlled) mixer gates per layer."""
-        return sum(len(move["clauses"]) for move in self.mixer_moves)
+        return sum(len(move["clauses"]) if move["kind"] != "bridge" else
+                   2 * (len(move["wires"]) - 1) + 1
+                   for move in self.mixer_moves)
 
     def frozen_qubits(self) -> List[int]:
         """Qubits touched by no active move (neither flip nor swap)."""
@@ -269,25 +380,13 @@ class QAOAPlus:
         """
         if len(self.feasible_states) <= 1:
             return True
-        feasible_set = set(self.feasible_states)
-        adjacency = {x: set() for x in self.feasible_states}
-
+        local = [move for move in self.mixer_moves if move["kind"] != "bridge"]
+        adjacency = _local_adjacency(self.feasible_states, local)
         for move in self.mixer_moves:
-            wires = move["wires"]
-            for control_wires, control_values in move["clauses"]:
-                for x in self.feasible_states:
-                    if all(x[w] == str(v) for w, v in zip(control_wires, control_values)):
-                        y = list(x)
-                        if move["kind"] == "flip":
-                            (w,) = wires
-                            y[w] = "1" if x[w] == "0" else "0"
-                        else:
-                            i, j = wires
-                            y[i], y[j] = x[j], x[i]
-                        y = "".join(y)
-                        if y in feasible_set:
-                            adjacency[x].add(y)
-                            adjacency[y].add(x)
+            if move["kind"] == "bridge":
+                left, right = move["states"]
+                adjacency[left].add(right)
+                adjacency[right].add(left)
 
         start = self.feasible_states[0]
         seen = {start}
@@ -296,7 +395,7 @@ class QAOAPlus:
             nxt = [v for u in frontier for v in adjacency[u] if v not in seen]
             seen.update(nxt)
             frontier = nxt
-        return len(seen) == len(feasible_set)
+        return len(seen) == len(self.feasible_states)
 
     # ------------------------------------------------------------------
     # Circuit
@@ -317,14 +416,38 @@ class QAOAPlus:
             for move_idx, move in enumerate(self.mixer_moves):
                 beta = betas[q][move_idx]
                 wires = move["wires"]
+                if move["kind"] == "bridge":
+                    self._apply_bridge(beta, move)
+                    continue
                 for control_wires, control_values in move["clauses"]:
                     gate = qml.RX if move["kind"] == "flip" else qml.IsingXY
+                    # RX(beta) and IsingXY(-beta) induce the same
+                    # exp(-i beta X/2) rotation in their two-state subspaces.
+                    angle = beta if move["kind"] == "flip" else -beta
                     if control_wires:
                         qml.ctrl(
                             gate, control=control_wires, control_values=control_values
-                        )(beta, wires=wires)
+                        )(angle, wires=wires)
                     else:
-                        gate(beta, wires=wires)
+                        gate(angle, wires=wires)
+
+    def _apply_bridge(self, beta, move) -> None:
+        """Apply an exact two-state rotation for a bridge edge."""
+        state_a = move["states"][0]
+        differing = move["wires"]
+        pivot = differing[0]
+        # Orient the pair so the pivot bit is zero in state_a.  After the
+        # CNOT fanout, the two states differ only on the pivot.
+        if state_a[pivot] == "1":
+            state_a = move["states"][1]
+        for target in differing[1:]:
+            qml.CNOT(wires=[pivot, target])
+        controls = [wire for wire in self.x_wires if wire != pivot]
+        values = [int(state_a[wire]) for wire in controls]
+        qml.ctrl(qml.RX, control=controls, control_values=values)(
+            beta, wires=pivot)
+        for target in reversed(differing[1:]):
+            qml.CNOT(wires=[pivot, target])
 
     # ------------------------------------------------------------------
     # Compiled functions

@@ -1,0 +1,2137 @@
+[
+  {
+    "depth": 1,
+    "angles": [
+      [
+        0.8669941493898904,
+        6.283075248656909
+      ]
+    ],
+    "loss": 4.000000015141098,
+    "history": [
+      {
+        "restart": 0,
+        "step": 0,
+        "loss": 7.4332123480642025
+      },
+      {
+        "restart": 0,
+        "step": 9,
+        "loss": 7.220776195649735
+      },
+      {
+        "restart": 0,
+        "step": 19,
+        "loss": 6.976808191277876
+      },
+      {
+        "restart": 0,
+        "step": 29,
+        "loss": 6.726417157672684
+      },
+      {
+        "restart": 0,
+        "step": 39,
+        "loss": 6.472545031556493
+      },
+      {
+        "restart": 0,
+        "step": 49,
+        "loss": 6.218856211054923
+      },
+      {
+        "restart": 1,
+        "step": 0,
+        "loss": 4.000031273863693
+      },
+      {
+        "restart": 1,
+        "step": 9,
+        "loss": 4.000011320541931
+      },
+      {
+        "restart": 1,
+        "step": 19,
+        "loss": 4.000003435447187
+      },
+      {
+        "restart": 1,
+        "step": 29,
+        "loss": 4.000000321756808
+      },
+      {
+        "restart": 1,
+        "step": 39,
+        "loss": 4.000000166064136
+      },
+      {
+        "restart": 1,
+        "step": 49,
+        "loss": 4.000000161106116
+      },
+      {
+        "restart": 2,
+        "step": 0,
+        "loss": 4.454906985318709
+      },
+      {
+        "restart": 2,
+        "step": 9,
+        "loss": 4.334429539553716
+      },
+      {
+        "restart": 2,
+        "step": 19,
+        "loss": 4.223869730210653
+      },
+      {
+        "restart": 2,
+        "step": 29,
+        "loss": 4.1395848257051355
+      },
+      {
+        "restart": 2,
+        "step": 39,
+        "loss": 4.0803199360149645
+      },
+      {
+        "restart": 2,
+        "step": 49,
+        "loss": 4.042202285335525
+      },
+      {
+        "restart": 3,
+        "step": 0,
+        "loss": 8.43451162857941
+      },
+      {
+        "restart": 3,
+        "step": 9,
+        "loss": 8.28390287021925
+      },
+      {
+        "restart": 3,
+        "step": 19,
+        "loss": 8.096657095585288
+      },
+      {
+        "restart": 3,
+        "step": 29,
+        "loss": 7.887665032066233
+      },
+      {
+        "restart": 3,
+        "step": 39,
+        "loss": 7.657489533653923
+      },
+      {
+        "restart": 3,
+        "step": 49,
+        "loss": 7.408286502528056
+      },
+      {
+        "restart": 4,
+        "step": 0,
+        "loss": 8.302833020298154
+      },
+      {
+        "restart": 4,
+        "step": 9,
+        "loss": 8.139449551801988
+      },
+      {
+        "restart": 4,
+        "step": 19,
+        "loss": 7.939661667111283
+      },
+      {
+        "restart": 4,
+        "step": 29,
+        "loss": 7.720369081507329
+      },
+      {
+        "restart": 4,
+        "step": 39,
+        "loss": 7.482634217545957
+      },
+      {
+        "restart": 4,
+        "step": 49,
+        "loss": 7.2289996709181175
+      },
+      {
+        "restart": 5,
+        "step": 0,
+        "loss": 4.407371433511855
+      },
+      {
+        "restart": 5,
+        "step": 9,
+        "loss": 4.293396286782006
+      },
+      {
+        "restart": 5,
+        "step": 19,
+        "loss": 4.190445176075183
+      },
+      {
+        "restart": 5,
+        "step": 29,
+        "loss": 4.113885801375617
+      },
+      {
+        "restart": 5,
+        "step": 39,
+        "loss": 4.06195345527574
+      },
+      {
+        "restart": 5,
+        "step": 49,
+        "loss": 4.0301937285881415
+      },
+      {
+        "restart": 6,
+        "step": 0,
+        "loss": 6.651416027141035
+      },
+      {
+        "restart": 6,
+        "step": 9,
+        "loss": 6.42650221412365
+      },
+      {
+        "restart": 6,
+        "step": 19,
+        "loss": 6.177467816961512
+      },
+      {
+        "restart": 6,
+        "step": 29,
+        "loss": 5.932400942501807
+      },
+      {
+        "restart": 6,
+        "step": 39,
+        "loss": 5.69481183953944
+      },
+      {
+        "restart": 6,
+        "step": 49,
+        "loss": 5.468207165379225
+      },
+      {
+        "restart": 7,
+        "step": 0,
+        "loss": 8.927463142192156
+      },
+      {
+        "restart": 7,
+        "step": 9,
+        "loss": 8.863331482973512
+      },
+      {
+        "restart": 7,
+        "step": 19,
+        "loss": 8.765158401563138
+      },
+      {
+        "restart": 7,
+        "step": 29,
+        "loss": 8.634212508320248
+      },
+      {
+        "restart": 7,
+        "step": 39,
+        "loss": 8.467061039346374
+      },
+      {
+        "restart": 7,
+        "step": 49,
+        "loss": 8.262498566172699
+      },
+      {
+        "restart": 8,
+        "step": 0,
+        "loss": 4.274568509201097
+      },
+      {
+        "restart": 8,
+        "step": 9,
+        "loss": 4.181713756826498
+      },
+      {
+        "restart": 8,
+        "step": 19,
+        "loss": 4.103175810800497
+      },
+      {
+        "restart": 8,
+        "step": 29,
+        "loss": 4.050825816951055
+      },
+      {
+        "restart": 8,
+        "step": 39,
+        "loss": 4.0208442383356635
+      },
+      {
+        "restart": 8,
+        "step": 49,
+        "loss": 4.006657749027352
+      },
+      {
+        "restart": 9,
+        "step": 0,
+        "loss": 8.350535489283843
+      },
+      {
+        "restart": 9,
+        "step": 9,
+        "loss": 8.191536504176185
+      },
+      {
+        "restart": 9,
+        "step": 19,
+        "loss": 7.996026130805509
+      },
+      {
+        "restart": 9,
+        "step": 29,
+        "loss": 7.780212003115718
+      },
+      {
+        "restart": 9,
+        "step": 39,
+        "loss": 7.54498632804775
+      },
+      {
+        "restart": 9,
+        "step": 49,
+        "loss": 7.292762232354074
+      }
+    ],
+    "restarts": [
+      {
+        "restart": 0,
+        "final_loss": 6.19365073130035
+      },
+      {
+        "restart": 1,
+        "final_loss": 4.000000015141098
+      },
+      {
+        "restart": 2,
+        "final_loss": 4.039355864300326
+      },
+      {
+        "restart": 3,
+        "final_loss": 7.382446493406743
+      },
+      {
+        "restart": 4,
+        "final_loss": 7.202898562171246
+      },
+      {
+        "restart": 5,
+        "final_loss": 4.027910285740258
+      },
+      {
+        "restart": 6,
+        "final_loss": 5.446277126501453
+      },
+      {
+        "restart": 7,
+        "final_loss": 8.24001548562602
+      },
+      {
+        "restart": 8,
+        "final_loss": 4.005834183550503
+      },
+      {
+        "restart": 9,
+        "final_loss": 7.266738467127905
+      }
+    ],
+    "n_slack": 0,
+    "n_total": 4,
+    "probability_seconds": 9.160768240690231e-05,
+    "compile_seconds": 0.0,
+    "optimize_seconds": 0.04381912853568792,
+    "counts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      10000,
+      0,
+      0
+    ],
+    "probabilities": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.9999999969717804,
+      0.0,
+      3.0282196004533293e-09
+    ],
+    "sampling_seed": 647900683,
+    "shots": 10000,
+    "p_feasible": 1.0,
+    "p_optimal": 1.0,
+    "conditional_objective": 4.0,
+    "conditional_quality": 1.0,
+    "weighted_quality": 1.0,
+    "exact_p_feasible": 1.0,
+    "exact_p_optimal": 0.9999999969717804,
+    "exact_conditional_objective": 4.000000015141098,
+    "exact_conditional_quality": 0.9999999969717803,
+    "exact_weighted_quality": 0.9999999969717803,
+    "mixer_diagnostics": {
+      "feasible_count": 2,
+      "local_move_count": 1,
+      "local_clause_count": 1,
+      "local_component_count": 1,
+      "local_connected": true,
+      "bridge_count": 0,
+      "max_bridge_hamming_distance": 0,
+      "mixer_gate_count": 1,
+      "connected": true,
+      "initial_state": "1101"
+    }
+  },
+  {
+    "depth": 2,
+    "angles": [
+      [
+        0.8669941493216741,
+        6.282474452939245
+      ],
+      [
+        -0.3335928906469784,
+        -0.0007259916425206695
+      ]
+    ],
+    "loss": 4.000002157388387,
+    "history": [
+      {
+        "restart": 0,
+        "step": 0,
+        "loss": 4.000000015141098
+      },
+      {
+        "restart": 0,
+        "step": 9,
+        "loss": 4.000133743394788
+      },
+      {
+        "restart": 0,
+        "step": 19,
+        "loss": 4.000003941471112
+      },
+      {
+        "restart": 0,
+        "step": 29,
+        "loss": 4.000007148000331
+      },
+      {
+        "restart": 0,
+        "step": 39,
+        "loss": 4.000006689170623
+      },
+      {
+        "restart": 0,
+        "step": 49,
+        "loss": 4.000001581628757
+      },
+      {
+        "restart": 1,
+        "step": 0,
+        "loss": 4.047845918895164
+      },
+      {
+        "restart": 1,
+        "step": 9,
+        "loss": 4.000924712103694
+      },
+      {
+        "restart": 1,
+        "step": 19,
+        "loss": 4.003735105642507
+      },
+      {
+        "restart": 1,
+        "step": 29,
+        "loss": 4.00010903887559
+      },
+      {
+        "restart": 1,
+        "step": 39,
+        "loss": 4.000527237395135
+      },
+      {
+        "restart": 1,
+        "step": 49,
+        "loss": 4.000002359613044
+      },
+      {
+        "restart": 2,
+        "step": 0,
+        "loss": 8.352969894733105
+      },
+      {
+        "restart": 2,
+        "step": 9,
+        "loss": 8.114260167840145
+      },
+      {
+        "restart": 2,
+        "step": 19,
+        "loss": 7.707429217965047
+      },
+      {
+        "restart": 2,
+        "step": 29,
+        "loss": 7.1470321285173295
+      },
+      {
+        "restart": 2,
+        "step": 39,
+        "loss": 6.499364591830849
+      },
+      {
+        "restart": 2,
+        "step": 49,
+        "loss": 5.882862500109102
+      },
+      {
+        "restart": 3,
+        "step": 0,
+        "loss": 8.982453645909665
+      },
+      {
+        "restart": 3,
+        "step": 9,
+        "loss": 8.887947954439092
+      },
+      {
+        "restart": 3,
+        "step": 19,
+        "loss": 8.67304699992286
+      },
+      {
+        "restart": 3,
+        "step": 29,
+        "loss": 8.325287010833273
+      },
+      {
+        "restart": 3,
+        "step": 39,
+        "loss": 7.84346787566659
+      },
+      {
+        "restart": 3,
+        "step": 49,
+        "loss": 7.251913585176195
+      },
+      {
+        "restart": 4,
+        "step": 0,
+        "loss": 4.407367152115837
+      },
+      {
+        "restart": 4,
+        "step": 9,
+        "loss": 4.254731303805102
+      },
+      {
+        "restart": 4,
+        "step": 19,
+        "loss": 4.113373313717696
+      },
+      {
+        "restart": 4,
+        "step": 29,
+        "loss": 4.034401383935761
+      },
+      {
+        "restart": 4,
+        "step": 39,
+        "loss": 4.009505912637734
+      },
+      {
+        "restart": 4,
+        "step": 49,
+        "loss": 4.002136490588585
+      },
+      {
+        "restart": 5,
+        "step": 0,
+        "loss": 7.322751436859056
+      },
+      {
+        "restart": 5,
+        "step": 9,
+        "loss": 6.976988292735759
+      },
+      {
+        "restart": 5,
+        "step": 19,
+        "loss": 6.4793802255355555
+      },
+      {
+        "restart": 5,
+        "step": 29,
+        "loss": 5.905142702027258
+      },
+      {
+        "restart": 5,
+        "step": 39,
+        "loss": 5.3564129464702885
+      },
+      {
+        "restart": 5,
+        "step": 49,
+        "loss": 4.918557272215121
+      },
+      {
+        "restart": 6,
+        "step": 0,
+        "loss": 6.4592617813273066
+      },
+      {
+        "restart": 6,
+        "step": 9,
+        "loss": 6.012598875442086
+      },
+      {
+        "restart": 6,
+        "step": 19,
+        "loss": 5.538079035919351
+      },
+      {
+        "restart": 6,
+        "step": 29,
+        "loss": 5.110235562378829
+      },
+      {
+        "restart": 6,
+        "step": 39,
+        "loss": 4.7504728188749095
+      },
+      {
+        "restart": 6,
+        "step": 49,
+        "loss": 4.471164031449249
+      },
+      {
+        "restart": 7,
+        "step": 0,
+        "loss": 7.215823450280697
+      },
+      {
+        "restart": 7,
+        "step": 9,
+        "loss": 6.774881950321123
+      },
+      {
+        "restart": 7,
+        "step": 19,
+        "loss": 6.2732773102733645
+      },
+      {
+        "restart": 7,
+        "step": 29,
+        "loss": 5.78193553631954
+      },
+      {
+        "restart": 7,
+        "step": 39,
+        "loss": 5.327432532126768
+      },
+      {
+        "restart": 7,
+        "step": 49,
+        "loss": 4.933889181203974
+      },
+      {
+        "restart": 8,
+        "step": 0,
+        "loss": 7.496330060175119
+      },
+      {
+        "restart": 8,
+        "step": 9,
+        "loss": 7.12347730076297
+      },
+      {
+        "restart": 8,
+        "step": 19,
+        "loss": 6.611099863528328
+      },
+      {
+        "restart": 8,
+        "step": 29,
+        "loss": 6.050707062694681
+      },
+      {
+        "restart": 8,
+        "step": 39,
+        "loss": 5.5346893111552244
+      },
+      {
+        "restart": 8,
+        "step": 49,
+        "loss": 5.09035430749517
+      },
+      {
+        "restart": 9,
+        "step": 0,
+        "loss": 5.960381213172714
+      },
+      {
+        "restart": 9,
+        "step": 9,
+        "loss": 5.62675027388468
+      },
+      {
+        "restart": 9,
+        "step": 19,
+        "loss": 5.194651402036589
+      },
+      {
+        "restart": 9,
+        "step": 29,
+        "loss": 4.757019019858516
+      },
+      {
+        "restart": 9,
+        "step": 39,
+        "loss": 4.4061878195912225
+      },
+      {
+        "restart": 9,
+        "step": 49,
+        "loss": 4.193297994278965
+      }
+    ],
+    "restarts": [
+      {
+        "restart": 0,
+        "final_loss": 4.000002157388387
+      },
+      {
+        "restart": 1,
+        "final_loss": 4.000011746153434
+      },
+      {
+        "restart": 2,
+        "final_loss": 5.826106531950599
+      },
+      {
+        "restart": 3,
+        "final_loss": 7.188449520792196
+      },
+      {
+        "restart": 4,
+        "final_loss": 4.00171383826479
+      },
+      {
+        "restart": 5,
+        "final_loss": 4.880873222739506
+      },
+      {
+        "restart": 6,
+        "final_loss": 4.4477739422948455
+      },
+      {
+        "restart": 7,
+        "final_loss": 4.898591349091857
+      },
+      {
+        "restart": 8,
+        "final_loss": 5.049392928904832
+      },
+      {
+        "restart": 9,
+        "final_loss": 4.178596313268233
+      }
+    ],
+    "n_slack": 0,
+    "n_total": 4,
+    "probability_seconds": 6.606336683034897e-05,
+    "compile_seconds": 0.0,
+    "optimize_seconds": 0.06968584191054106,
+    "counts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      10000,
+      0,
+      0
+    ],
+    "probabilities": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.9999995685223227,
+      0.0,
+      4.314776772006258e-07
+    ],
+    "sampling_seed": 3790967745,
+    "shots": 10000,
+    "p_feasible": 1.0,
+    "p_optimal": 1.0,
+    "conditional_objective": 4.0,
+    "conditional_quality": 1.0,
+    "weighted_quality": 1.0,
+    "exact_p_feasible": 1.0,
+    "exact_p_optimal": 0.9999995685223227,
+    "exact_conditional_objective": 4.000002157388386,
+    "exact_conditional_quality": 0.9999995685223227,
+    "exact_weighted_quality": 0.9999995685223227,
+    "mixer_diagnostics": {
+      "feasible_count": 2,
+      "local_move_count": 1,
+      "local_clause_count": 1,
+      "local_component_count": 1,
+      "local_connected": true,
+      "bridge_count": 0,
+      "max_bridge_hamming_distance": 0,
+      "mixer_gate_count": 1,
+      "connected": true,
+      "initial_state": "1101"
+    }
+  },
+  {
+    "depth": 3,
+    "angles": [
+      [
+        0.8669941495964368,
+        6.283616996179843
+      ],
+      [
+        -0.5234922371183764,
+        -0.0004367654084228745
+      ],
+      [
+        -0.19778838872422658,
+        6.679037961380892e-05
+      ]
+    ],
+    "loss": 4.0000002740598095,
+    "history": [
+      {
+        "restart": 0,
+        "step": 0,
+        "loss": 4.000002157388387
+      },
+      {
+        "restart": 0,
+        "step": 9,
+        "loss": 4.000222134543517
+      },
+      {
+        "restart": 0,
+        "step": 19,
+        "loss": 4.000001023680453
+      },
+      {
+        "restart": 0,
+        "step": 29,
+        "loss": 4.0000250360697285
+      },
+      {
+        "restart": 0,
+        "step": 39,
+        "loss": 4.000004108067416
+      },
+      {
+        "restart": 0,
+        "step": 49,
+        "loss": 4.000000500053061
+      },
+      {
+        "restart": 1,
+        "step": 0,
+        "loss": 5.483740403548305
+      },
+      {
+        "restart": 1,
+        "step": 9,
+        "loss": 4.958090273609812
+      },
+      {
+        "restart": 1,
+        "step": 19,
+        "loss": 4.431481142534231
+      },
+      {
+        "restart": 1,
+        "step": 29,
+        "loss": 4.140332264136436
+      },
+      {
+        "restart": 1,
+        "step": 39,
+        "loss": 4.019153792198489
+      },
+      {
+        "restart": 1,
+        "step": 49,
+        "loss": 4.000149842395437
+      },
+      {
+        "restart": 2,
+        "step": 0,
+        "loss": 4.33441155004123
+      },
+      {
+        "restart": 2,
+        "step": 9,
+        "loss": 4.100087404104775
+      },
+      {
+        "restart": 2,
+        "step": 19,
+        "loss": 4.000284101746313
+      },
+      {
+        "restart": 2,
+        "step": 29,
+        "loss": 4.011601677390382
+      },
+      {
+        "restart": 2,
+        "step": 39,
+        "loss": 4.002179180285383
+      },
+      {
+        "restart": 2,
+        "step": 49,
+        "loss": 4.000666703755171
+      },
+      {
+        "restart": 3,
+        "step": 0,
+        "loss": 8.999662475853023
+      },
+      {
+        "restart": 3,
+        "step": 9,
+        "loss": 8.911149857685478
+      },
+      {
+        "restart": 3,
+        "step": 19,
+        "loss": 8.575159515589048
+      },
+      {
+        "restart": 3,
+        "step": 29,
+        "loss": 7.936910566306175
+      },
+      {
+        "restart": 3,
+        "step": 39,
+        "loss": 7.061282253196156
+      },
+      {
+        "restart": 3,
+        "step": 49,
+        "loss": 6.078873923417061
+      },
+      {
+        "restart": 4,
+        "step": 0,
+        "loss": 4.821276102675316
+      },
+      {
+        "restart": 4,
+        "step": 9,
+        "loss": 4.440059243216246
+      },
+      {
+        "restart": 4,
+        "step": 19,
+        "loss": 4.107609952886729
+      },
+      {
+        "restart": 4,
+        "step": 29,
+        "loss": 4.00953793565394
+      },
+      {
+        "restart": 4,
+        "step": 39,
+        "loss": 4.005321008956327
+      },
+      {
+        "restart": 4,
+        "step": 49,
+        "loss": 4.006872240781602
+      },
+      {
+        "restart": 5,
+        "step": 0,
+        "loss": 4.727592424353411
+      },
+      {
+        "restart": 5,
+        "step": 9,
+        "loss": 4.335751595796917
+      },
+      {
+        "restart": 5,
+        "step": 19,
+        "loss": 4.076795601505608
+      },
+      {
+        "restart": 5,
+        "step": 29,
+        "loss": 4.001990838127375
+      },
+      {
+        "restart": 5,
+        "step": 39,
+        "loss": 4.004443415118956
+      },
+      {
+        "restart": 5,
+        "step": 49,
+        "loss": 4.005182299352633
+      },
+      {
+        "restart": 6,
+        "step": 0,
+        "loss": 6.221692250098347
+      },
+      {
+        "restart": 6,
+        "step": 9,
+        "loss": 5.723881010660089
+      },
+      {
+        "restart": 6,
+        "step": 19,
+        "loss": 5.10228463854941
+      },
+      {
+        "restart": 6,
+        "step": 29,
+        "loss": 4.548397896299395
+      },
+      {
+        "restart": 6,
+        "step": 39,
+        "loss": 4.168695270849317
+      },
+      {
+        "restart": 6,
+        "step": 49,
+        "loss": 4.01921046188063
+      },
+      {
+        "restart": 7,
+        "step": 0,
+        "loss": 5.7355409418585275
+      },
+      {
+        "restart": 7,
+        "step": 9,
+        "loss": 5.240126682849444
+      },
+      {
+        "restart": 7,
+        "step": 19,
+        "loss": 4.697258658064598
+      },
+      {
+        "restart": 7,
+        "step": 29,
+        "loss": 4.272508643085507
+      },
+      {
+        "restart": 7,
+        "step": 39,
+        "loss": 4.051062709040158
+      },
+      {
+        "restart": 7,
+        "step": 49,
+        "loss": 4.000494790193318
+      },
+      {
+        "restart": 8,
+        "step": 0,
+        "loss": 5.525420966975926
+      },
+      {
+        "restart": 8,
+        "step": 9,
+        "loss": 5.140006819568752
+      },
+      {
+        "restart": 8,
+        "step": 19,
+        "loss": 4.6878296054785435
+      },
+      {
+        "restart": 8,
+        "step": 29,
+        "loss": 4.294685672680534
+      },
+      {
+        "restart": 8,
+        "step": 39,
+        "loss": 4.062735021093973
+      },
+      {
+        "restart": 8,
+        "step": 49,
+        "loss": 4.0007603272181855
+      },
+      {
+        "restart": 9,
+        "step": 0,
+        "loss": 4.021070641218754
+      },
+      {
+        "restart": 9,
+        "step": 9,
+        "loss": 4.0028210758168195
+      },
+      {
+        "restart": 9,
+        "step": 19,
+        "loss": 4.000768104961283
+      },
+      {
+        "restart": 9,
+        "step": 29,
+        "loss": 4.000353068894112
+      },
+      {
+        "restart": 9,
+        "step": 39,
+        "loss": 4.000108086881341
+      },
+      {
+        "restart": 9,
+        "step": 49,
+        "loss": 4.0000288564123965
+      }
+    ],
+    "restarts": [
+      {
+        "restart": 0,
+        "final_loss": 4.0000002740598095
+      },
+      {
+        "restart": 1,
+        "final_loss": 4.000150008676209
+      },
+      {
+        "restart": 2,
+        "final_loss": 4.0007523661112705
+      },
+      {
+        "restart": 3,
+        "final_loss": 5.982894194781563
+      },
+      {
+        "restart": 4,
+        "final_loss": 4.006358961249013
+      },
+      {
+        "restart": 5,
+        "final_loss": 4.00474757401752
+      },
+      {
+        "restart": 6,
+        "final_loss": 4.013755378066308
+      },
+      {
+        "restart": 7,
+        "final_loss": 4.000081875929844
+      },
+      {
+        "restart": 8,
+        "final_loss": 4.000137844954239
+      },
+      {
+        "restart": 9,
+        "final_loss": 4.000036155971056
+      }
+    ],
+    "n_slack": 0,
+    "n_total": 4,
+    "probability_seconds": 7.326994091272354e-05,
+    "compile_seconds": 0.0,
+    "optimize_seconds": 0.09713472705334425,
+    "counts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      10000,
+      0,
+      0
+    ],
+    "probabilities": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.999999945188038,
+      0.0,
+      5.481196204696406e-08
+    ],
+    "sampling_seed": 293871600,
+    "shots": 10000,
+    "p_feasible": 1.0,
+    "p_optimal": 1.0,
+    "conditional_objective": 4.0,
+    "conditional_quality": 1.0,
+    "weighted_quality": 1.0,
+    "exact_p_feasible": 1.0,
+    "exact_p_optimal": 0.999999945188038,
+    "exact_conditional_objective": 4.00000027405981,
+    "exact_conditional_quality": 0.9999999451880379,
+    "exact_weighted_quality": 0.9999999451880379,
+    "mixer_diagnostics": {
+      "feasible_count": 2,
+      "local_move_count": 1,
+      "local_clause_count": 1,
+      "local_component_count": 1,
+      "local_connected": true,
+      "bridge_count": 0,
+      "max_bridge_hamming_distance": 0,
+      "mixer_gate_count": 1,
+      "connected": true,
+      "initial_state": "1101"
+    }
+  },
+  {
+    "depth": 4,
+    "angles": [
+      [
+        0.8669941497502207,
+        6.281683209760843
+      ],
+      [
+        -0.33247201019521694,
+        0.00013638922293113988
+      ],
+      [
+        0.004612645129260094,
+        0.000800730734868457
+      ],
+      [
+        0.18902725772731527,
+        -0.00031605879027213845
+      ]
+    ],
+    "loss": 4.000002102948969,
+    "history": [
+      {
+        "restart": 0,
+        "step": 0,
+        "loss": 4.0000002740598095
+      },
+      {
+        "restart": 0,
+        "step": 9,
+        "loss": 4.000260732844945
+      },
+      {
+        "restart": 0,
+        "step": 19,
+        "loss": 4.000088691859613
+      },
+      {
+        "restart": 0,
+        "step": 29,
+        "loss": 4.0000243080087
+      },
+      {
+        "restart": 0,
+        "step": 39,
+        "loss": 4.00000521117491
+      },
+      {
+        "restart": 0,
+        "step": 49,
+        "loss": 4.000003779655435
+      },
+      {
+        "restart": 1,
+        "step": 0,
+        "loss": 4.95669874287491
+      },
+      {
+        "restart": 1,
+        "step": 9,
+        "loss": 4.439023030098147
+      },
+      {
+        "restart": 1,
+        "step": 19,
+        "loss": 4.070144754054345
+      },
+      {
+        "restart": 1,
+        "step": 29,
+        "loss": 4.002129291596321
+      },
+      {
+        "restart": 1,
+        "step": 39,
+        "loss": 4.0173215590182965
+      },
+      {
+        "restart": 1,
+        "step": 49,
+        "loss": 4.003680715941659
+      },
+      {
+        "restart": 2,
+        "step": 0,
+        "loss": 7.102251847595152
+      },
+      {
+        "restart": 2,
+        "step": 9,
+        "loss": 6.322567904870109
+      },
+      {
+        "restart": 2,
+        "step": 19,
+        "loss": 5.351721231813702
+      },
+      {
+        "restart": 2,
+        "step": 29,
+        "loss": 4.550712819101928
+      },
+      {
+        "restart": 2,
+        "step": 39,
+        "loss": 4.131865247406416
+      },
+      {
+        "restart": 2,
+        "step": 49,
+        "loss": 4.008490820216141
+      },
+      {
+        "restart": 3,
+        "step": 0,
+        "loss": 8.565138909271099
+      },
+      {
+        "restart": 3,
+        "step": 9,
+        "loss": 8.026719828251698
+      },
+      {
+        "restart": 3,
+        "step": 19,
+        "loss": 7.088624938046611
+      },
+      {
+        "restart": 3,
+        "step": 29,
+        "loss": 5.929506324255727
+      },
+      {
+        "restart": 3,
+        "step": 39,
+        "loss": 4.914370902380903
+      },
+      {
+        "restart": 3,
+        "step": 49,
+        "loss": 4.287683685742781
+      },
+      {
+        "restart": 4,
+        "step": 0,
+        "loss": 4.24448185793182
+      },
+      {
+        "restart": 4,
+        "step": 9,
+        "loss": 4.051350803468815
+      },
+      {
+        "restart": 4,
+        "step": 19,
+        "loss": 4.00091043883724
+      },
+      {
+        "restart": 4,
+        "step": 29,
+        "loss": 4.007072094599354
+      },
+      {
+        "restart": 4,
+        "step": 39,
+        "loss": 4.000925671135976
+      },
+      {
+        "restart": 4,
+        "step": 49,
+        "loss": 4.000339889251488
+      },
+      {
+        "restart": 5,
+        "step": 0,
+        "loss": 8.958699025644876
+      },
+      {
+        "restart": 5,
+        "step": 9,
+        "loss": 8.723399333860621
+      },
+      {
+        "restart": 5,
+        "step": 19,
+        "loss": 8.099914012981499
+      },
+      {
+        "restart": 5,
+        "step": 29,
+        "loss": 7.043167489621235
+      },
+      {
+        "restart": 5,
+        "step": 39,
+        "loss": 5.7511132751483345
+      },
+      {
+        "restart": 5,
+        "step": 49,
+        "loss": 4.66394739934764
+      },
+      {
+        "restart": 6,
+        "step": 0,
+        "loss": 5.221946628627759
+      },
+      {
+        "restart": 6,
+        "step": 9,
+        "loss": 4.756740783981186
+      },
+      {
+        "restart": 6,
+        "step": 19,
+        "loss": 4.304706581230417
+      },
+      {
+        "restart": 6,
+        "step": 29,
+        "loss": 4.043836007411346
+      },
+      {
+        "restart": 6,
+        "step": 39,
+        "loss": 4.002343052472785
+      },
+      {
+        "restart": 6,
+        "step": 49,
+        "loss": 4.012871441861021
+      },
+      {
+        "restart": 7,
+        "step": 0,
+        "loss": 6.644085786177293
+      },
+      {
+        "restart": 7,
+        "step": 9,
+        "loss": 5.906332604107002
+      },
+      {
+        "restart": 7,
+        "step": 19,
+        "loss": 5.066210085085236
+      },
+      {
+        "restart": 7,
+        "step": 29,
+        "loss": 4.406335069557121
+      },
+      {
+        "restart": 7,
+        "step": 39,
+        "loss": 4.069599081892295
+      },
+      {
+        "restart": 7,
+        "step": 49,
+        "loss": 4.000083248334042
+      },
+      {
+        "restart": 8,
+        "step": 0,
+        "loss": 6.755461533928308
+      },
+      {
+        "restart": 8,
+        "step": 9,
+        "loss": 6.080012016759811
+      },
+      {
+        "restart": 8,
+        "step": 19,
+        "loss": 5.195865562739744
+      },
+      {
+        "restart": 8,
+        "step": 29,
+        "loss": 4.453034957992909
+      },
+      {
+        "restart": 8,
+        "step": 39,
+        "loss": 4.072408865242892
+      },
+      {
+        "restart": 8,
+        "step": 49,
+        "loss": 4.0002190082835565
+      },
+      {
+        "restart": 9,
+        "step": 0,
+        "loss": 8.793816769966135
+      },
+      {
+        "restart": 9,
+        "step": 9,
+        "loss": 8.486683246742231
+      },
+      {
+        "restart": 9,
+        "step": 19,
+        "loss": 7.882090659148368
+      },
+      {
+        "restart": 9,
+        "step": 29,
+        "loss": 6.9298306114728065
+      },
+      {
+        "restart": 9,
+        "step": 39,
+        "loss": 5.726456548069808
+      },
+      {
+        "restart": 9,
+        "step": 49,
+        "loss": 4.649283846847211
+      }
+    ],
+    "restarts": [
+      {
+        "restart": 0,
+        "final_loss": 4.000002102948969
+      },
+      {
+        "restart": 1,
+        "final_loss": 4.002612227468079
+      },
+      {
+        "restart": 2,
+        "final_loss": 4.005216687836514
+      },
+      {
+        "restart": 3,
+        "final_loss": 4.248049774871886
+      },
+      {
+        "restart": 4,
+        "final_loss": 4.0004086630282645
+      },
+      {
+        "restart": 5,
+        "final_loss": 4.5840076294380125
+      },
+      {
+        "restart": 6,
+        "final_loss": 4.012174060739882
+      },
+      {
+        "restart": 7,
+        "final_loss": 4.000059448403646
+      },
+      {
+        "restart": 8,
+        "final_loss": 4.00047156865414
+      },
+      {
+        "restart": 9,
+        "final_loss": 4.566805005903774
+      }
+    ],
+    "n_slack": 0,
+    "n_total": 4,
+    "probability_seconds": 8.508749306201935e-05,
+    "compile_seconds": 0.0,
+    "optimize_seconds": 0.11875769402831793,
+    "counts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      10000,
+      0,
+      0
+    ],
+    "probabilities": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.9999995794102058,
+      0.0,
+      4.205897942057496e-07
+    ],
+    "sampling_seed": 507705687,
+    "shots": 10000,
+    "p_feasible": 1.0,
+    "p_optimal": 1.0,
+    "conditional_objective": 4.0,
+    "conditional_quality": 1.0,
+    "weighted_quality": 1.0,
+    "exact_p_feasible": 1.0,
+    "exact_p_optimal": 0.9999995794102058,
+    "exact_conditional_objective": 4.000002102948971,
+    "exact_conditional_quality": 0.9999995794102057,
+    "exact_weighted_quality": 0.9999995794102057,
+    "mixer_diagnostics": {
+      "feasible_count": 2,
+      "local_move_count": 1,
+      "local_clause_count": 1,
+      "local_component_count": 1,
+      "local_connected": true,
+      "bridge_count": 0,
+      "max_bridge_hamming_distance": 0,
+      "mixer_gate_count": 1,
+      "connected": true,
+      "initial_state": "1101"
+    }
+  },
+  {
+    "depth": 5,
+    "angles": [
+      [
+        0.8669941487357455,
+        6.282764458869536
+      ],
+      [
+        -0.5145896496338982,
+        -0.0007749976742804041
+      ],
+      [
+        -0.20899402755382798,
+        0.00011891796470485009
+      ],
+      [
+        0.3656433921735967,
+        5.911030563052823e-05
+      ],
+      [
+        0.22538851150370756,
+        0.00016525671978146373
+      ]
+    ],
+    "loss": 4.000000628783063,
+    "history": [
+      {
+        "restart": 0,
+        "step": 0,
+        "loss": 4.000002102948969
+      },
+      {
+        "restart": 0,
+        "step": 9,
+        "loss": 4.00070484461487
+      },
+      {
+        "restart": 0,
+        "step": 19,
+        "loss": 4.00000120071709
+      },
+      {
+        "restart": 0,
+        "step": 29,
+        "loss": 4.00008349715301
+      },
+      {
+        "restart": 0,
+        "step": 39,
+        "loss": 4.000015402251291
+      },
+      {
+        "restart": 0,
+        "step": 49,
+        "loss": 4.000001063348834
+      },
+      {
+        "restart": 1,
+        "step": 0,
+        "loss": 4.1314825404091176
+      },
+      {
+        "restart": 1,
+        "step": 9,
+        "loss": 4.0088565120322315
+      },
+      {
+        "restart": 1,
+        "step": 19,
+        "loss": 4.006419724127996
+      },
+      {
+        "restart": 1,
+        "step": 29,
+        "loss": 4.001581380018268
+      },
+      {
+        "restart": 1,
+        "step": 39,
+        "loss": 4.000403471834641
+      },
+      {
+        "restart": 1,
+        "step": 49,
+        "loss": 4.0002974417659205
+      },
+      {
+        "restart": 2,
+        "step": 0,
+        "loss": 8.99459703314999
+      },
+      {
+        "restart": 2,
+        "step": 9,
+        "loss": 8.708018016602837
+      },
+      {
+        "restart": 2,
+        "step": 19,
+        "loss": 7.78529172610793
+      },
+      {
+        "restart": 2,
+        "step": 29,
+        "loss": 6.33490516207112
+      },
+      {
+        "restart": 2,
+        "step": 39,
+        "loss": 4.953059772207882
+      },
+      {
+        "restart": 2,
+        "step": 49,
+        "loss": 4.17584837659188
+      },
+      {
+        "restart": 3,
+        "step": 0,
+        "loss": 4.136608032805768
+      },
+      {
+        "restart": 3,
+        "step": 9,
+        "loss": 4.013984447494499
+      },
+      {
+        "restart": 3,
+        "step": 19,
+        "loss": 4.009523711825368
+      },
+      {
+        "restart": 3,
+        "step": 29,
+        "loss": 4.000283069347628
+      },
+      {
+        "restart": 3,
+        "step": 39,
+        "loss": 4.001462215627394
+      },
+      {
+        "restart": 3,
+        "step": 49,
+        "loss": 4.0000028778520935
+      },
+      {
+        "restart": 4,
+        "step": 0,
+        "loss": 6.420922653619427
+      },
+      {
+        "restart": 4,
+        "step": 9,
+        "loss": 5.386913041844882
+      },
+      {
+        "restart": 4,
+        "step": 19,
+        "loss": 4.477073087279276
+      },
+      {
+        "restart": 4,
+        "step": 29,
+        "loss": 4.053534139995324
+      },
+      {
+        "restart": 4,
+        "step": 39,
+        "loss": 4.004104877655096
+      },
+      {
+        "restart": 4,
+        "step": 49,
+        "loss": 4.019044681713532
+      },
+      {
+        "restart": 5,
+        "step": 0,
+        "loss": 4.913530045222936
+      },
+      {
+        "restart": 5,
+        "step": 9,
+        "loss": 4.265198375760658
+      },
+      {
+        "restart": 5,
+        "step": 19,
+        "loss": 4.006140660119417
+      },
+      {
+        "restart": 5,
+        "step": 29,
+        "loss": 4.025195476666544
+      },
+      {
+        "restart": 5,
+        "step": 39,
+        "loss": 4.009761455907185
+      },
+      {
+        "restart": 5,
+        "step": 49,
+        "loss": 4.000472568133433
+      },
+      {
+        "restart": 6,
+        "step": 0,
+        "loss": 4.03492857854814
+      },
+      {
+        "restart": 6,
+        "step": 9,
+        "loss": 4.003455513141966
+      },
+      {
+        "restart": 6,
+        "step": 19,
+        "loss": 4.001852054396429
+      },
+      {
+        "restart": 6,
+        "step": 29,
+        "loss": 4.000304501195705
+      },
+      {
+        "restart": 6,
+        "step": 39,
+        "loss": 4.000160030874416
+      },
+      {
+        "restart": 6,
+        "step": 49,
+        "loss": 4.000000527941764
+      },
+      {
+        "restart": 7,
+        "step": 0,
+        "loss": 8.014703279263301
+      },
+      {
+        "restart": 7,
+        "step": 9,
+        "loss": 7.066247535032241
+      },
+      {
+        "restart": 7,
+        "step": 19,
+        "loss": 5.767248133775027
+      },
+      {
+        "restart": 7,
+        "step": 29,
+        "loss": 4.664429385090666
+      },
+      {
+        "restart": 7,
+        "step": 39,
+        "loss": 4.116716489343262
+      },
+      {
+        "restart": 7,
+        "step": 49,
+        "loss": 4.000562356034749
+      },
+      {
+        "restart": 8,
+        "step": 0,
+        "loss": 6.128184385497126
+      },
+      {
+        "restart": 8,
+        "step": 9,
+        "loss": 5.126207183864796
+      },
+      {
+        "restart": 8,
+        "step": 19,
+        "loss": 4.319354980038951
+      },
+      {
+        "restart": 8,
+        "step": 29,
+        "loss": 4.018292916041869
+      },
+      {
+        "restart": 8,
+        "step": 39,
+        "loss": 4.009827478413347
+      },
+      {
+        "restart": 8,
+        "step": 49,
+        "loss": 4.017378570426266
+      },
+      {
+        "restart": 9,
+        "step": 0,
+        "loss": 6.235320480081633
+      },
+      {
+        "restart": 9,
+        "step": 9,
+        "loss": 5.445552618813126
+      },
+      {
+        "restart": 9,
+        "step": 19,
+        "loss": 4.4714150967137964
+      },
+      {
+        "restart": 9,
+        "step": 29,
+        "loss": 4.032977891063455
+      },
+      {
+        "restart": 9,
+        "step": 39,
+        "loss": 4.02642337512916
+      },
+      {
+        "restart": 9,
+        "step": 49,
+        "loss": 4.024705811966575
+      }
+    ],
+    "restarts": [
+      {
+        "restart": 0,
+        "final_loss": 4.000000628783063
+      },
+      {
+        "restart": 1,
+        "final_loss": 4.000237245829675
+      },
+      {
+        "restart": 2,
+        "final_loss": 4.136945630464581
+      },
+      {
+        "restart": 3,
+        "final_loss": 4.000031518724953
+      },
+      {
+        "restart": 4,
+        "final_loss": 4.0187306726564085
+      },
+      {
+        "restart": 5,
+        "final_loss": 4.000686673085462
+      },
+      {
+        "restart": 6,
+        "final_loss": 4.000011414116316
+      },
+      {
+        "restart": 7,
+        "final_loss": 4.000102160924548
+      },
+      {
+        "restart": 8,
+        "final_loss": 4.016271835401794
+      },
+      {
+        "restart": 9,
+        "final_loss": 4.021760627730205
+      }
+    ],
+    "n_slack": 0,
+    "n_total": 4,
+    "probability_seconds": 0.00010781455785036087,
+    "compile_seconds": 0.0,
+    "optimize_seconds": 0.14874117728322744,
+    "counts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      10000,
+      0,
+      0
+    ],
+    "probabilities": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.9999998742433872,
+      0.0,
+      1.25756612778218e-07
+    ],
+    "sampling_seed": 1269425195,
+    "shots": 10000,
+    "p_feasible": 1.0,
+    "p_optimal": 1.0,
+    "conditional_objective": 4.0,
+    "conditional_quality": 1.0,
+    "weighted_quality": 1.0,
+    "exact_p_feasible": 1.0,
+    "exact_p_optimal": 0.9999998742433872,
+    "exact_conditional_objective": 4.000000628783064,
+    "exact_conditional_quality": 0.9999998742433872,
+    "exact_weighted_quality": 0.9999998742433872,
+    "mixer_diagnostics": {
+      "feasible_count": 2,
+      "local_move_count": 1,
+      "local_clause_count": 1,
+      "local_component_count": 1,
+      "local_connected": true,
+      "bridge_count": 0,
+      "max_bridge_hamming_distance": 0,
+      "mixer_gate_count": 1,
+      "connected": true,
+      "initial_state": "1101"
+    }
+  }
+]

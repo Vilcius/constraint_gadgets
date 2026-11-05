@@ -1,0 +1,42 @@
+{
+  "identity": {
+    "schema": 2,
+    "vcg_database": "2fe1c5d8fca25a9fc872871a97135ca9c383642836bd514c59f982f1b59550ea",
+    "sources": {
+      "final_experiment/random_cops/resource_analysis.py": "28010f5a1b855a55816a3b4fabf56140794e4cdadfa0e99156983a187aef5afd",
+      "core/resource_estimation.py": "42946a46ef83b8074d977e39fb3799ad94d0d992a9669b53c072b0548d911356",
+      "core/qaoa_base.py": "ad645de1749f11bc7a333272bb24c1fabb418e0dd1087bfa9fb348ded0b9011e",
+      "core/pc_qaoa.py": "37cff23f52d3c43bfc8a95901aa3d08d6ec94e7d537f873b50b259628919c3d4",
+      "core/penalty_qaoa.py": "a3e390cc96f7730c8d02807353e2cc66650833cb832db6ea693dbc90231eeb54",
+      "core/qaoa_plus.py": "cf15f5054dc54c57eaf2cfee56fd4da4d95647474fcc4bfdeed16cfcc0ee6387",
+      "core/dicke_state_prep.py": "07f4e8315f43b19fe54f6682a248fe91bbb6b3283131475aaf3298cc5be30383",
+      "core/vcg.py": "f9d39cbc225dbaa76335815c4edb98e59216438785c3b93fdd58937e07d1d424"
+    },
+    "depths": [
+      1,
+      5
+    ],
+    "gate_sets": {
+      "nisq": [
+        "CNOT",
+        "Hadamard",
+        "RX",
+        "RY",
+        "RZ",
+        "S",
+        "T",
+        "X",
+        "Y",
+        "Z"
+      ],
+      "ftqc": [
+        "CNOT",
+        "Hadamard",
+        "S",
+        "T"
+      ]
+    },
+    "manifest": "1b07fdc8e91abbccb79b82056b0f2df9ab3baae719bef63523f597873995a812"
+  },
+  "rows": 6000
+}

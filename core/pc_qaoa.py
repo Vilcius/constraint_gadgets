@@ -67,9 +67,14 @@ class PCQAOA:
         cqaoa_num_restarts: int = 10,
         dicke_mixer_type: dsp.DickeMixerType = dsp.DickeMixerType.RING_XY,
         gadget_db_path: Optional[str] = None,
+        gadget_preparation: str = "vcg",
+        compile_on_init: bool = True,
     ) -> None:
         # --- validation ---
         self.angle_strategy = base.validate_angle_strategy(angle_strategy)
+        if gadget_preparation not in ("vcg", "stateprep"):
+            raise ValueError("gadget_preparation must be 'vcg' or 'stateprep'")
+        self.gadget_preparation = gadget_preparation
 
         # --- store parameters ---
         self.qubo = qubo
@@ -146,12 +151,16 @@ class PCQAOA:
 
         for idx in gadget_idxs:
             pc = all_constraints[idx]
-            gadget = _load_vcg_gadget(
-                constraints=[pc.raw],
-                db_path=gadget_db_path,
-                ma_steps=cqaoa_steps,
-                ma_restarts=cqaoa_num_restarts,
-            )
+            if gadget_preparation == "stateprep":
+                from .constraint_state_prep import ConstraintStatePrep
+                gadget = ConstraintStatePrep(pc.raw)
+            else:
+                gadget = _load_vcg_gadget(
+                    constraints=[pc.raw],
+                    db_path=gadget_db_path,
+                    ma_steps=cqaoa_steps,
+                    ma_restarts=cqaoa_num_restarts,
+                )
             self.gadget_preps.append(gadget)
 
         self.state_prep = (self.dicke_preps + self.leq_preps + self.geq_preps
@@ -208,7 +217,8 @@ class PCQAOA:
         self.num_beta = len(self.mixer_preps) + len(self.free_wires)
 
         # Compile cost circuit + single Adam step via JAX jit
-        self._compiled_cost, self._compiled_step = self._build_compiled_fns()
+        if compile_on_init:
+            self._compiled_cost, self._compiled_step = self._build_compiled_fns()
 
     # ==================================================================
     # Circuit

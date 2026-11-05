@@ -59,7 +59,8 @@ def write_pickle(path, value):
 
 def environment():
     names = ['pennylane', 'pennylane-lightning', 'jax', 'jaxlib', 'optax',
-             'numpy', 'scipy', 'matplotlib', 'pandas', 'nbformat', 'nbclient']
+             'numpy', 'scipy', 'sympy', 'matplotlib', 'pandas', 'nbformat',
+             'nbclient']
     versions = {}
     for name in names:
         try:

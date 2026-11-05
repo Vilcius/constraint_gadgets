@@ -1,0 +1,20 @@
+{
+  "identity": "a743bc3ec94c8642504cb05d43936ffe8a739c0d0f3320efbd6f2644de3b7286",
+  "instance_id": "final_0033",
+  "method": "qaoa_plus",
+  "n_x": 8,
+  "depth": 5,
+  "n_total": 8,
+  "n_slack": 0,
+  "compiled": false,
+  "execution_backend": "NumPy exact adjoint; JAX PRNG and NumPy Adam; no circuit compilation",
+  "compile_seconds": 0.0,
+  "optimize_seconds": 3.568905564956367,
+  "prepare_seconds": 0.2579225217923522,
+  "probability_seconds": 0.002241917885839939,
+  "process_peak_rss_mb": 424.109375,
+  "p_optimal": 0.1528,
+  "p_feasible": 1.0,
+  "exact_p_optimal": 0.15017135623881336,
+  "exact_p_feasible": 1.0
+}

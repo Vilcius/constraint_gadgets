@@ -1,0 +1,8 @@
+{
+  "expected": 500,
+  "completed_results": 500,
+  "statuses": {
+    "complete": 500,
+    "pending": 0
+  }
+}

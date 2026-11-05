@@ -31,6 +31,7 @@ def optimize_resumable(cost, step_fn, *, shape, steps, restarts,
                        learning_rate, seed, args=(), previous=None, starting=None,
                        state=None, checkpoint=None, checkpoint_steps=10,
                        zero_pad_first=True,
+                       compile_warmup=True,
                        should_stop=lambda: False):
     """Follow the existing restart/angle conventions, retaining final losses.
 
@@ -77,7 +78,7 @@ def optimize_resumable(cost, step_fn, *, shape, steps, restarts,
             state['opt_state'] = optimizer.init(angles)
             state['step'] = 0
             save()
-        if not compiled_here:
+        if compile_warmup and not compiled_here:
             begin = time.perf_counter()
             dummy = step_fn(state['angles'], state['opt_state'], *args)
             jax.block_until_ready(dummy)

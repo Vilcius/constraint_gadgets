@@ -57,6 +57,7 @@ from .dicke_state_prep import _build_partition_tree
 NISQ_GATE_SET = {"RX", "RY", "RZ", "Hadamard", "CNOT", "X", "Y", "Z", "T", "S"}
 FTQC_GATE_SET = {"Hadamard", "T", "CNOT", "S"}
 GATE_SETS = {"nisq": NISQ_GATE_SET, "ftqc": FTQC_GATE_SET}
+_QAOA_PLUS_OPERATION_CACHE = {}
 
 # Exported gate-class sets (used by the analysis scripts to split 1q/2q counts).
 _1Q_GATES_SET = frozenset({"RX", "RY", "RZ", "Hadamard", "X", "Y", "Z", "T", "S"})
@@ -342,6 +343,18 @@ def _qre_cost_layer(hamiltonian: qml.Hamiltonian):
 
 def _descriptor_from_gadget_obj(obj) -> dict:
     from . import dicke_state_prep as dsp
+    from .constraint_state_prep import ConstraintStatePrep
+
+    if isinstance(obj, ConstraintStatePrep):
+        def preparation():
+            for operation in obj.operations:
+                if operation.name in ("RY", "RZ"):
+                    getattr(qre, operation.name)(wires=list(operation.wires))
+                elif operation.name == "CNOT":
+                    qre.CNOT(wires=list(operation.wires))
+                elif operation.name != "GlobalPhase":
+                    raise ValueError(f"Unsupported StatePrep gate: {operation.name}")
+        return {"kind": "stateprep", "wires": obj.var_wires, "fn": preparation}
 
     if isinstance(obj, dsp.DickeStatePrep):
         return {"kind": "dicke", "wires": obj.var_wires,
@@ -477,7 +490,7 @@ def _qre_mixer_layer(all_wires, descriptors, problem_ham):
         covered.update(d["wires"])
         if kind == "dicke":
             _qre_xy_mixer(d["wires"], ring=True)
-        elif kind in ("flow", "leq", "vcg"):
+        elif kind in ("flow", "leq", "vcg", "stateprep"):
             fn()
             _qre_grover_reflection_on(d["wires"])
             fn()
@@ -605,6 +618,70 @@ def estimate_penalty_resources(pqaoa, gate_sets=None, circuit_hamiltonian=None) 
         sp_res = _run_estimate(_closure(_qre_hadamard_init, all_wires), gate_set)
         layer_res = _run_estimate(_closure(_qre_penalty_layer, all_wires, ham), gate_set)
         full_res = sp_res.add_series(layer_res.multiply_series(pqaoa.n_layers))
+        out[gs_name] = {"sp": sp_res, "layer": layer_res, "full": full_res}
+    return out
+
+
+def estimate_qaoa_plus_resources(qaoa_plus, gate_sets=None) -> dict:
+    """Estimate the executed QAOA+ state preparation and one mixer layer."""
+    gate_sets = gate_sets or GATE_SETS
+
+    def preparation():
+        for wire, bit in enumerate(qaoa_plus.initial_state):
+            if bit == "1":
+                qre.X(wires=wire)
+
+    def operation_resources(kind, controls, zero_controls, gate_set):
+        cache_key = (kind, controls, zero_controls, tuple(sorted(gate_set)))
+        if cache_key in _QAOA_PLUS_OPERATION_CACHE:
+            return _QAOA_PLUS_OPERATION_CACHE[cache_key]
+        control_wires = list(range(controls))
+        if kind == "cnot":
+            fn = lambda: qre.CNOT(wires=[0, 1])
+        else:
+            target_wires = ([controls] if kind == "flip" else
+                            [controls, controls + 1])
+            gate = qml.RX if kind == "flip" else qml.IsingXY
+            angle = 0.37 if kind == "flip" else -0.37
+
+            def fn():
+                if controls:
+                    values = [0] * zero_controls + [1] * (controls - zero_controls)
+                    qml.ctrl(gate, control=control_wires,
+                             control_values=values)(angle, wires=target_wires)
+                else:
+                    gate(angle, wires=target_wires)
+        result = _run_estimate(fn, gate_set)
+        _QAOA_PLUS_OPERATION_CACHE[cache_key] = result
+        return result
+
+    out = {}
+    for gs_name, gate_set in gate_sets.items():
+        sp_res = _run_estimate(preparation, gate_set)
+        layer_res = _run_estimate(
+            _closure(_qre_cost_layer, qaoa_plus.problem_ham), gate_set)
+        for move in qaoa_plus.mixer_moves:
+            if move["kind"] == "bridge":
+                distance = len(move["wires"])
+                if distance > 1:
+                    cnot = operation_resources("cnot", 0, 0, gate_set)
+                    layer_res = layer_res.add_series(
+                        cnot.multiply_series(2 * (distance - 1)))
+                state_a = move["states"][0]
+                pivot = move["wires"][0]
+                if state_a[pivot] == "1":
+                    state_a = move["states"][1]
+                control_values = [int(state_a[wire])
+                                  for wire in qaoa_plus.x_wires if wire != pivot]
+                rotation = operation_resources(
+                    "flip", len(control_values), control_values.count(0), gate_set)
+                layer_res = layer_res.add_series(rotation)
+                continue
+            for control_wires, control_values in move["clauses"]:
+                operation = operation_resources(
+                    move["kind"], len(control_wires), control_values.count(0), gate_set)
+                layer_res = layer_res.add_series(operation)
+        full_res = sp_res.add_series(layer_res.multiply_series(qaoa_plus.n_layers))
         out[gs_name] = {"sp": sp_res, "layer": layer_res, "full": full_res}
     return out
 

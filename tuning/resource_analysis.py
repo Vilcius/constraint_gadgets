@@ -22,6 +22,7 @@ from core import resource_estimation as re
 from core.vcg import VCG
 from core.penalty_qaoa import PenaltyQAOA
 from analyze import mean_intervals, summary_plot, COLORS, LABELS
+from figure_style import PALETTE
 from storage import atomic_bytes, digest, write_json
 
 
@@ -206,8 +207,8 @@ def _export(rows, path):
     return frame
 
 
-FAMILY_COLORS = {'equality': '#3e8fb0', 'positive': '#9063cd',
-                  'mixed': '#f6c177', 'quadratic': '#eb6f92'}
+FAMILY_COLORS = {'equality': PALETTE['blue_main'], 'positive': PALETTE['violet'],
+                  'mixed': PALETTE['green_3'], 'quadratic': PALETTE['red_strong']}
 FAMILY_LABELS = {'equality': 'Equality', 'positive': 'Positive Ineq.',
                   'mixed': 'Mixed-Sign Ineq.', 'quadratic': 'Quadratic Ineq.'}
 LOSS_ORDER = ['feasibility', 'fidelity', 'lambda_0.5', 'lambda_1', 'lambda_2']
@@ -287,11 +288,12 @@ def gadget_vs_penalty_figure(frame, metric='total_gates', color_by='family', sel
         for (color_key, support), points in sub.groupby([color_col, 'support_gadget']):
             ax.scatter(points[x_col], points[y_col],
                 color=color_map[color_key], marker=support_marker[support],
-                s=34, alpha=0.85, edgecolors='white', linewidths=0.4)
+                s=44, alpha=0.82, edgecolors='white', linewidths=0.6)
         lo = min(sub[x_col].min(), sub[y_col].min())
         hi = max(sub[x_col].max(), sub[y_col].max())
-        ax.plot([lo, hi], [lo, hi], '--', color='#6e6a86', linewidth=1, label='1× (equal cost)')
-        ax.plot([lo, hi / 3], [3 * lo, hi], '--', color='#908caa', linewidth=1,
+        ax.plot([lo, hi], [lo, hi], '--', color=PALETTE['neutral_dark'], linewidth=1.8,
+                label='1× (equal cost)')
+        ax.plot([lo, hi / 3], [3 * lo, hi], ':', color=PALETTE['violet'], linewidth=1.8,
                 label='3× (illustrative Grover reference)')
         ax.set_xscale('log')
         ax.set_yscale('log')
@@ -304,7 +306,8 @@ def gadget_vs_penalty_figure(frame, metric='total_gates', color_by='family', sel
     present = set(merged[color_col].unique())
     color_handles = [Line2D([0], [0], marker='o', linestyle='', color=color_map[key],
         label=color_labels[key]) for key in legend_order if key in present]
-    support_handles = [Line2D([0], [0], marker=marker, linestyle='', color='#52514e',
+    support_handles = [Line2D([0], [0], marker=marker, linestyle='',
+        color=PALETTE['neutral_dark'],
         label=f'Support {support}') for support, marker in support_marker.items()]
     if len(gate_sets) == 2:
         # Two panels are wide enough for the legends side by side.
@@ -349,7 +352,8 @@ def resource_figures(frame, study, writer, selected_loss='fidelity'):
                 for idx, (view, subset) in enumerate(selected.groupby('view', sort=False)):
                     summary = mean_intervals(subset.groupby('support')[metric].agg(['mean','std','count']))
                     ax.errorbar(summary.index, summary['mean'], yerr=summary.ci95_half_width,
-                        marker=['o','s'][idx], color=['#3e8fb0','#eb6f92'][idx], label=view)
+                        marker=['o','s'][idx], linewidth=2.0,
+                        color=[PALETTE['blue_main'], PALETTE['red_strong']][idx], label=view)
                 ax.set(xlabel='Constraint Support Size', ylabel=label, title=label)
                 ax.set_xticks(sorted(selected.support.unique()))
             axes[0].legend(fontsize=9, frameon=False)
@@ -371,11 +375,13 @@ def resource_figures(frame, study, writer, selected_loss='fidelity'):
             for ax, metric, label in zip(axes, ['total_gates', 'two_qubit_gates' if gs=='nisq' else 't_gates'],
                 ['Total Gates', 'CNOT Gates' if gs=='nisq' else 'T Gates']):
                 for idx, (regime, subset) in enumerate(f.groupby('regime')):
-                    ax.scatter(subset.support, subset[metric], marker=['o','s'][idx],
-                        color=['#3e8fb0','#31748f'][idx], label=regime.title(), alpha=.8)
+                    ax.scatter(subset.support, subset[metric], marker=['o','s'][idx], s=42,
+                        color=[PALETTE['blue_main'], PALETTE['teal']][idx],
+                        label=regime.title(), alpha=.8)
                 summary = mean_intervals(f.groupby('support')[metric].agg(['mean','std','count']))
                 ax.errorbar(summary.index, summary['mean'], yerr=summary.ci95_half_width,
-                    color='#9063cd', marker='D', linestyle='--', label='Mean (95% CI)')
+                    color=PALETTE['violet'], marker='D', linestyle='--', linewidth=2.0,
+                    label='Mean (95% CI)')
                 ax.set(xlabel='Decision Qubits', ylabel=label, title=label)
                 ax.set_xticks(sorted(f.support.unique()))
             axes[0].legend(fontsize=9, frameon=False)
@@ -383,9 +389,11 @@ def resource_figures(frame, study, writer, selected_loss='fidelity'):
             paths.append(writer.save(fig, f'b_circuit_{gs}'))
         f = full[(full.gate_set=='nisq') & (full.depth==full.depth.max())]
         fig, ax = plt.subplots(figsize=(6.4, 3.7))
-        ax.scatter(f.expanded_layer_gates, f.layer_gates, color='#9063cd', marker='o')
+        ax.scatter(f.expanded_layer_gates, f.layer_gates, color=PALETTE['blue_main'],
+                   marker='o', s=42, alpha=0.8)
         lo, hi = 0, max(f.expanded_layer_gates.max(), f.layer_gates.max())
-        ax.plot([lo,hi],[lo,hi], '--', color='#6e6a86', label='Equal Counts')
+        ax.plot([lo,hi],[lo,hi], '--', color=PALETTE['neutral_dark'], linewidth=1.8,
+                label='Equal Counts')
         ax.set(xlabel='Expanded Penalty Layer Gates', ylabel='Executed Merged Layer Gates',
             title='Study B: Pauli-Term Merging')
         ax.legend(frameon=False)

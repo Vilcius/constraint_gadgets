@@ -1,0 +1,111 @@
+{
+  "identifier": "7784d0f6d002d20be006bc67c9fb1cec255b5baf21afd43cfb2d264d60ac6fc7",
+  "method": "pcqaoa_stateprep",
+  "manifest_hash": "177b2db67ea2c77a73825c24d9acf57f6e4e023e5ab97d2d6315c724b60ab95a",
+  "config": {
+    "dataset_seed": 20260919,
+    "training_seed": 7,
+    "sampling_seed": 19,
+    "checkpoint_steps": 10,
+    "vcg_database": "tuning/artifacts/selected_vcg_db.pkl",
+    "vcg_manifest": "tuning/artifacts/manifest_a.json",
+    "objective_coefficient_min": -5,
+    "objective_coefficient_max": 5,
+    "max_total_qubits": 18,
+    "shots": 10000,
+    "max_depth": 5,
+    "restarts": 10,
+    "steps": 50,
+    "learning_rate": 0.01,
+    "cells": {
+      "4": {
+        "2_0": 35,
+        "3_0": 15,
+        "2_1": 15,
+        "2_2": 15,
+        "3_1": 15,
+        "3_2": 5
+      },
+      "5": {
+        "2_0": 35,
+        "3_0": 15,
+        "2_1": 15,
+        "2_2": 15,
+        "3_1": 10,
+        "3_2": 10
+      },
+      "6": {
+        "2_0": 30,
+        "3_0": 20,
+        "2_1": 15,
+        "2_2": 15,
+        "3_1": 10,
+        "3_2": 10
+      },
+      "7": {
+        "2_0": 50,
+        "3_0": 0,
+        "2_1": 17,
+        "2_2": 18,
+        "3_1": 8,
+        "3_2": 7
+      },
+      "8": {
+        "2_0": 50,
+        "3_0": 0,
+        "2_1": 20,
+        "2_2": 15,
+        "3_1": 0,
+        "3_2": 15
+      }
+    },
+    "profile": "full",
+    "uncompiled": true,
+    "execution_backend": "NumPy exact adjoint; JAX PRNG and NumPy Adam; no circuit compilation"
+  },
+  "source": {
+    "commit": "2e578a9fa14ca21249646f3bf58dda9efdf937e5",
+    "files": {
+      "core/vcg.py": "f9d39cbc225dbaa76335815c4edb98e59216438785c3b93fdd58937e07d1d424",
+      "core/dicke_state_prep.py": "07f4e8315f43b19fe54f6682a248fe91bbb6b3283131475aaf3298cc5be30383",
+      "core/penalty_qaoa.py": "a3e390cc96f7730c8d02807353e2cc66650833cb832db6ea693dbc90231eeb54",
+      "core/constraint_state_prep.py": "a061306962e600a4f87544e3f3c7e9ca35c5025868990a7eb371dfc82356fb87",
+      "core/pc_qaoa.py": "37cff23f52d3c43bfc8a95901aa3d08d6ec94e7d537f873b50b259628919c3d4",
+      "core/constraint_handler.py": "d36f9ff81d10d44939a8978d659a348d5b87280c19fe3f9cd16f8b2e15166403",
+      "core/qaoa_plus.py": "cf15f5054dc54c57eaf2cfee56fd4da4d95647474fcc4bfdeed16cfcc0ee6387",
+      "core/optimization.py": "3babc37cc0ee9d3602741a5d06980d712baa25d1fc0dcde7dc5416b387a6ac97",
+      "core/qaoa_base.py": "ad645de1749f11bc7a333272bb24c1fabb418e0dd1087bfa9fb348ded0b9011e",
+      "core/resource_estimation.py": "42946a46ef83b8074d977e39fb3799ad94d0d992a9669b53c072b0548d911356",
+      "core/__init__.py": "cc543314180d0ce9f623dafbac22f9a1fb85c23d9e7e54c3094b0181db9edcd3",
+      "core/penalty_heuristics.py": "0fe54ea1bf7ed778baa3d86c71224c8d0872fe3adab39275cdf4d355dd8f8a2f",
+      "final_experiment/random_cops/config.json": "0da3389f01cd7d7c109bc108198e3c14e84363ed1aeaf053ed6ce10af067fa4e",
+      "final_experiment/random_cops/datasets.py": "7749a264fd1679f43e1d5ee875f218ae9d2cc386d5df78fc5edd78aafdb875fc",
+      "final_experiment/random_cops/runner.py": "b6ff912929b5f258e22c5f0515507028f4bfcb2f3c42341d6e1b1be832d8e4c5",
+      "final_experiment/random_cops/storage.py": "2b01d65b9c53e6058698b634bb4babd7e40172d370804c47e765262be5d53156",
+      "final_experiment/random_cops/studies.py": "ea2b1603bde726ee7a088c9ffb8cdf5e4f1c16fffdb80b4a05eddcf68b800638",
+      "final_experiment/random_cops/uncompiled.py": "b65f6e2adae317cc8017357216db09e2ca0f4adf7dcca8b880cbad0cd019fe1a",
+      "final_experiment/random_cops/gate_budget/simulator.py": "4526fafdffe582828e89dd9a5be4c89b51905674f4b515758efdda904010ed65",
+      "tuning/storage.py": "9c5b73399c7053580fd698937fed55a1d5f4c2923a228833cb560f631c6e5d5e",
+      "tuning/artifacts/selected_vcg_db.pkl": "2fe1c5d8fca25a9fc872871a97135ca9c383642836bd514c59f982f1b59550ea",
+      "tuning/artifacts/manifest_a.json": "4ced9a72192eeb4b1ad3989de92c0bea001a34d18070b5f62839f68a55ad68eb"
+    }
+  },
+  "environment": {
+    "python": "3.12.12",
+    "platform": "Linux-5.14.0-687.41.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "packages": {
+      "pennylane": "0.43.1",
+      "pennylane-lightning": "0.43.0",
+      "jax": "0.6.2",
+      "jaxlib": "0.6.2",
+      "optax": "0.2.5",
+      "numpy": "2.2.6",
+      "scipy": "1.15.3",
+      "sympy": "1.13.1",
+      "matplotlib": "3.10.3",
+      "pandas": "2.3.1",
+      "nbformat": "5.10.4",
+      "nbclient": "0.11.0"
+    }
+  }
+}
